@@ -1,0 +1,99 @@
+@import url('https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg:        #0d0d14;
+  --bg-alt:    #0a0a12;
+  --bg-card:   #12121f;
+  --border:    #1a1a2e;
+  --text:      #c0c0d0;
+  --text-dim:  #6a6a8a;
+  --text-head: #e0e0f0;
+  --green:     #00ff9d;
+  --cyan:      #00d4ff;
+  --pink:      #ff00ff;
+  --orange:    #ff9d00;
+  --font: 'JetBrains Mono', 'Source Code Pro', monospace;
+}
+
+html { font-size: 15px; scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  line-height: 1.85;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--green); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+h1, h2, h3, h4 {
+  color: var(--text-head);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+p { margin-bottom: 1.2rem; }
+
+code {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 6px;
+  font-size: 13px;
+  color: var(--cyan);
+  font-family: var(--font);
+}
+
+pre {
+  background: var(--bg-alt) !important;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 1.2rem;
+  overflow-x: auto;
+  margin: 1.5rem 0;
+  font-size: 13px;
+  line-height: 1.75;
+}
+
+pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--text-head);
+  font-size: inherit;
+}
+
+/* article prose */
+.prose { max-width: 740px; margin: 0 auto; padding: 60px 24px 100px; }
+.prose h2 {
+  font-size: 22px;
+  margin: 56px 0 20px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+  scroll-margin-top: 30px;
+}
+.prose h3 { font-size: 18px; margin: 36px 0 14px; }
+.prose ul, .prose ol { padding-left: 1.5rem; margin-bottom: 1.2rem; }
+.prose li { margin-bottom: 0.4rem; }
+.prose blockquote {
+  border-left: 3px solid var(--orange);
+  padding: 14px 18px;
+  background: #0f0f1a;
+  border-radius: 0 6px 6px 0;
+  margin: 1.5rem 0;
+  color: #8a8aa0;
+  font-size: 13px;
+}
+
+/* scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }

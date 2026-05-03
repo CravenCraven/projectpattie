@@ -1,0 +1,133 @@
+---
+// The big terminal animation block from the homepage
+---
+
+<style>
+.hero {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 80px 24px 60px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  align-items: start;
+}
+@media (max-width: 700px) {
+  .hero { grid-template-columns: 1fr; padding: 48px 24px 40px; }
+}
+
+/* left: asm scroll */
+.asm {
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 2;
+  overflow: hidden;
+}
+.asm .hl { color: var(--pink); }
+
+/* right: terminal panels */
+.panels { display: flex; flex-direction: column; gap: 16px; }
+
+.term-panel {
+  background: var(--bg-alt);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.term-head {
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.dot-r { background: #ff5f57; }
+.dot-y { background: #febc2e; }
+.dot-g { background: #28c840; }
+.term-label { font-size: 11px; color: var(--text-dim); margin-left: 4px; }
+.term-body { padding: 14px 16px; font-size: 12px; line-height: 2; }
+.prompt { color: var(--green); }
+.cmd   { color: var(--text-head); }
+.out   { color: var(--text-dim); }
+.ok    { color: var(--green); }
+.warn  { color: var(--orange); }
+.cursor {
+  display: inline-block;
+  width: 8px; height: 14px;
+  background: var(--green);
+  vertical-align: middle;
+  animation: blink 1.1s step-end infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+</style>
+
+<section class="hero">
+  <!-- left: asm -->
+  <div class="asm" aria-hidden="true">
+    <div>0x7ff3a2b8c000</div>
+    <div>mov rdi, rsp</div>
+    <div>call <span class="hl">_start</span></div>
+    <div>jmp 0xdeadbeef</div>
+    <div>xor eax, eax</div>
+    <div>push rbp</div>
+    <div>syscall</div>
+    <div>ret</div>
+    <div>nop</div>
+    <div>int 0x80</div>
+    <div style="margin-top:24px; color: var(--green); font-size:14px; font-weight:700;">root@pattie ~</div>
+    <div style="margin-top:24px; font-size:20px; font-weight:700; color:var(--text-head); line-height:1.3;">
+      notes from<br>the terminal
+    </div>
+    <div style="margin-top:12px; font-size:13px; color:var(--text-dim); max-width:320px; line-height:1.7;">
+      A sysadmin and cybersecurity learning log. Documenting labs, CTFs, HackerBox builds, and the occasional late-night rabbit hole.
+    </div>
+    <a href="/about" style="display:inline-block; margin-top:20px; font-size:12px; color:var(--green); border:1px solid var(--border); padding:8px 16px; border-radius:4px;">
+      about this site →
+    </a>
+  </div>
+
+  <!-- right: terminal panels -->
+  <div class="panels">
+    <div class="term-panel">
+      <div class="term-head">
+        <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
+        <span class="term-label">session.sh</span>
+      </div>
+      <div class="term-body">
+        <div><span class="prompt">$ </span><span class="cmd">whoami</span></div>
+        <div class="out">craven</div>
+        <div style="margin-top:8px"><span class="prompt">$ </span><span class="cmd">cat ~/.philosophy</span></div>
+        <div class="out">break things on purpose</div>
+        <div class="out">break them better next time</div>
+      </div>
+    </div>
+
+    <div class="term-panel">
+      <div class="term-head">
+        <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
+        <span class="term-label">lab</span>
+      </div>
+      <div class="term-body">
+        <div><span class="prompt">$ </span><span class="cmd">ls -la /lab</span></div>
+        <div class="out">rhel9-homelab/</div>
+        <div class="out">pentest-rig/</div>
+        <div class="out">firewall-bench/</div>
+      </div>
+    </div>
+
+    <div class="term-panel">
+      <div class="term-head">
+        <div class="dot dot-r"></div><div class="dot dot-y"></div><div class="dot dot-g"></div>
+        <span class="term-label">/var/log/learning</span>
+      </div>
+      <div class="term-body">
+        <div><span class="ok">[OK]</span>   zero trust documented</div>
+        <div><span class="warn">[WARN]</span> root login disabled</div>
+        <div><span class="ok">[OK]</span>   still curious</div>
+        <div style="margin-top:8px"><span class="prompt">$ </span><span class="cursor"></span></div>
+      </div>
+    </div>
+  </div>
+</section>

@@ -1,0 +1,42 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import PostCard from '../../components/PostCard.astro';
+import { getCollection } from 'astro:content';
+
+export async function getStaticPaths() {
+  const categories = ['sysadmin','cybersecurity','hackerbox','tryhackme','devops','thoughts'];
+  return categories.map(category => ({ params: { category } }));
+}
+
+const { category } = Astro.params;
+const allPosts = await getCollection('blog', ({ data }) => !data.draft);
+const posts = allPosts
+  .filter(p => p.data.category === category)
+  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+---
+
+<BaseLayout title={`${category} — projectpattie;`}>
+  <div style="max-width:900px; margin:0 auto; padding:60px 24px 100px;">
+    <div style="font-size:12px; color:var(--text-dim); margin-bottom:12px;">// category</div>
+    <h1 style="font-size:28px; margin-bottom:40px;">{category}</h1>
+
+    {posts.length === 0 ? (
+      <div style="border:1px solid var(--border); border-radius:6px; padding:32px; text-align:center; color:var(--text-dim); font-size:13px;">
+        coming soon — check back shortly.
+      </div>
+    ) : (
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        {posts.map(post => (
+          <PostCard
+            title={post.data.title}
+            description={post.data.description}
+            slug={post.slug}
+            date={post.data.date}
+            category={post.data.category}
+            readTime={post.data.readTime}
+          />
+        ))}
+      </div>
+    )}
+  </div>
+</BaseLayout>

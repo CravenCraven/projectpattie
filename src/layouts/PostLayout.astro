@@ -1,0 +1,54 @@
+---
+import BaseLayout from './BaseLayout.astro';
+
+interface Props {
+  title: string;
+  description: string;
+  date: Date;
+  category: string;
+  readTime?: number;
+}
+
+const { title, description, date, category, readTime = 5 } = Astro.props;
+const dateStr = date.toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' });
+---
+
+<BaseLayout title={`${title} — projectpattie;`} description={description}>
+  <article class="prose">
+    <div class="post-meta"
+      ><span class="cat">{category}</span> · {dateStr} · {readTime} min read</div>
+    <h1 class="post-title"><slot name="title">{title}</slot></h1>
+    <p class="post-subtitle">{description}</p>
+    <hr class="divider" />
+    <slot />
+  </article>
+</BaseLayout>
+
+<style>
+.post-meta {
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+}
+.cat { color: var(--green); }
+.post-title {
+  font-size: clamp(26px, 5vw, 40px);
+  font-weight: 700;
+  color: var(--text-head);
+  line-height: 1.2;
+  margin-bottom: 14px;
+}
+.post-subtitle {
+  color: var(--text-dim);
+  font-size: 15px;
+  line-height: 1.7;
+  margin-bottom: 36px;
+}
+.divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin-bottom: 40px;
+}
+</style>

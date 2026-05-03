@@ -1,0 +1,68 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import TerminalHero from '../components/TerminalHero.astro';
+import PostCard from '../components/PostCard.astro';
+import { getCollection } from 'astro:content';
+
+const posts = (await getCollection('blog', ({ data }) => !data.draft))
+  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+
+const categories = ['sysadmin','cybersecurity','hackerbox','tryhackme','devops','thoughts'];
+---
+
+<BaseLayout>
+  <TerminalHero />
+
+  <!-- category grid -->
+  <section style="max-width:900px; margin:0 auto; padding:0 24px 60px;">
+    <div style="font-size:12px; color:var(--text-dim); margin-bottom:20px;">// browse by category</div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px; margin-bottom:60px;">
+      {categories.map(cat => {
+        const count = posts.filter(p => p.data.category === cat).length;
+        return (
+          <a href={`/category/${cat}`} style="border:1px solid var(--border); border-radius:6px; padding:14px 16px; font-size:12px; color:var(--text-dim); transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--green)'" onmouseout="this.style.borderColor='var(--border)'">
+            <div style="color:var(--text-head); font-weight:700; margin-bottom:4px;">{cat}</div>
+            <div>{count > 0 ? `${count} post${count > 1 ? 's' : ''}` : 'coming soon'}</div>
+          </a>
+        );
+      })}
+    </div>
+
+    <!-- latest posts -->
+    {posts.length > 0 && (
+      <>
+        <div style="font-size:12px; color:var(--text-dim); margin-bottom:20px;">// latest transmissions</div>
+        <div style="display:flex; flex-direction:column; gap:16px;">
+          {posts.slice(0,6).map(post => (
+            <PostCard
+              title={post.data.title}
+              description={post.data.description}
+              slug={post.slug}
+              date={post.data.date}
+              category={post.data.category}
+              readTime={post.data.readTime}
+            />
+          ))}
+        </div>
+      </>
+    )}
+  </section>
+
+  <!-- quotes -->
+  <section style="max-width:900px; margin:0 auto; padding:0 24px 60px; border-top:1px solid var(--border);">
+    <div style="font-size:12px; color:var(--text-dim); margin:32px 0 24px;">/dev/random</div>
+    <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px;">
+      {[
+        { q:'The quieter you become, the more you are able to hear.', a:'Kali Linux MOTD' },
+        { q:'Talk is cheap. Show me the code.', a:'Linus Torvalds' },
+        { q:'Amateurs hack systems, professionals hack people.', a:'Bruce Schneier' },
+        { q:'Security is always excessive until it\'s not enough.', a:'Robbie Sinclair' },
+      ].map(({ q, a }) => (
+        <div style="border:1px solid var(--border); border-radius:6px; padding:18px; font-size:13px;">
+          <p style="color:var(--text-dim); font-style:italic; margin-bottom:10px;">"{q}"</p>
+          <div style="font-size:11px; color:var(--green);">— {a}</div>
+        </div>
+      ))}
+    </div>
+  </section>
+</BaseLayout>
