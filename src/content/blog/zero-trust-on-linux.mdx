@@ -75,44 +75,23 @@ readTime: 7
 
 <p><span class="c-pink">Add MFA to SSH.</span> Key auth is solid. Key auth plus a one-time code is better.</p>
 
-<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre># RHEL 9 / Rocky / CentOS Stream
-sudo dnf install google-authenticator -y
-google-authenticator  # run as the user, not root</pre></div></div>
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# RHEL 9 / Rocky / CentOS Stream\nsudo dnf install google-authenticator -y\ngoogle-authenticator  # run as the user, not root`}</pre></div></div>
 
 <p>Update <code>sshd_config</code> to require both factors:</p>
 
-<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">sshd_config</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>ChallengeResponseAuthentication yes
-AuthenticationMethods           publickey,keyboard-interactive</pre></div></div>
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">sshd_config</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`ChallengeResponseAuthentication yes\nAuthenticationMethods           publickey,keyboard-interactive`}</pre></div></div>
 
 <p><span class="c-pink">Segment services with firewalld.</span> Your database should not be visible to the internet. Just no.</p>
 
-<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre># remove mysql from public zone entirely
-sudo firewall-cmd --zone=public --remove-service=mysql --permanent
-
-# only allow your app server to reach it
-sudo firewall-cmd --zone=public \
-  --add-rich-rule='rule family="ipv4" source address="192.168.1.50" port port="3306" protocol="tcp" accept' \
-  --permanent
-sudo firewall-cmd --reload</pre></div></div>
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# remove mysql from public zone entirely\nsudo firewall-cmd --zone=public --remove-service=mysql --permanent\n\n# only allow your app server to reach it\nsudo firewall-cmd --zone=public \\\n  --add-rich-rule='rule family="ipv4" source address="192.168.1.50" port port="3306" protocol="tcp" accept' \\\n  --permanent\nsudo firewall-cmd --reload`}</pre></div></div>
 
 <p><span class="c-pink">Log everything and actually look at it.</span></p>
 
-<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>sudo dnf install audit -y
-sudo systemctl enable --now auditd
-
-# watch sudo usage in real time
-sudo journalctl -f | grep sudo
-
-# check recent auth events
-sudo ausearch -m USER_AUTH,USER_ACCT -ts recent</pre></div></div>
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo dnf install audit -y\nsudo systemctl enable --now auditd\n\n# watch sudo usage in real time\nsudo journalctl -f | grep sudo\n\n# check recent auth events\nsudo ausearch -m USER_AUTH,USER_ACCT -ts recent`}</pre></div></div>
 
 <p><span class="c-pink">Review access regularly.</span></p>
 
-<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre># who has sudo access right now
-sudo grep -r 'ALL=(ALL)' /etc/sudoers /etc/sudoers.d/
-
-# accounts that haven't logged in recently
-sudo lastlog | grep -v 'Never logged in' | grep -v Username</pre></div></div>
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# who has sudo access right now\nsudo grep -r 'ALL=(ALL)' /etc/sudoers /etc/sudoers.d/\n\n# accounts that haven't logged in recently\nsudo lastlog | grep -v 'Never logged in' | grep -v Username`}</pre></div></div>
 
 <div class="pp-note"><strong>note:</strong> Unexpected sudo usage outside business hours or from an account that doesn't normally use it is a signal worth investigating. That's the whole point of logging. You're building visibility so you can catch things early.</div>
 
@@ -128,33 +107,7 @@ sudo lastlog | grep -v 'Never logged in' | grep -v Username</pre></div></div>
 
 <h2 class="pp-h2" id="checklist">Final checklist: audit where you stand</h2>
 
-<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre># 1. root SSH login is off
-sudo sshd -T | grep permitrootlogin
-
-# 2. password auth is disabled
-sudo sshd -T | grep passwordauthentication
-
-# 3. MFA is configured
-sudo grep pam_google_authenticator /etc/pam.d/sshd
-
-# 4. firewalld zones are intentional
-sudo firewall-cmd --get-active-zones
-sudo firewall-cmd --zone=public --list-all
-
-# 5. no unnecessary services exposed
-sudo firewall-cmd --zone=public --list-services
-
-# 6. sudo is scoped
-sudo grep -r 'ALL=(ALL)' /etc/sudoers /etc/sudoers.d/
-
-# 7. app processes not running as root
-ps aux | grep -E 'httpd|nginx|mysql|postgres' | grep -v root
-
-# 8. auditd is running
-sudo systemctl status auditd
-
-# 9. no dormant accounts with active permissions
-sudo lastlog | grep -v 'Never logged in'</pre></div></div>
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# 1. root SSH login is off\nsudo sshd -T | grep permitrootlogin\n\n# 2. password auth is disabled\nsudo sshd -T | grep passwordauthentication\n\n# 3. MFA is configured\nsudo grep pam_google_authenticator /etc/pam.d/sshd\n\n# 4. firewalld zones are intentional\nsudo firewall-cmd --get-active-zones\nsudo firewall-cmd --zone=public --list-all\n\n# 5. no unnecessary services exposed\nsudo firewall-cmd --zone=public --list-services\n\n# 6. sudo is scoped\nsudo grep -r 'ALL=(ALL)' /etc/sudoers /etc/sudoers.d/\n\n# 7. app processes not running as root\nps aux | grep -E 'httpd|nginx|mysql|postgres' | grep -v root\n\n# 8. auditd is running\nsudo systemctl status auditd\n\n# 9. no dormant accounts with active permissions\nsudo lastlog | grep -v 'Never logged in'`}</pre></div></div>
 
 <p>Nine checks. No enterprise software required. No security budget needed. Just understanding the model and applying it on purpose, one layer at a time. That's it. That's Zero Trust.</p>
 
