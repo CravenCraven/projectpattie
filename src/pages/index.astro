@@ -7,33 +7,46 @@ import { getCollection } from 'astro:content';
 const posts = (await getCollection('blog', ({ data }) => !data.draft))
   .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
 
-const categories = ['sysadmin','cybersecurity','hackerbox','tryhackme','devops','thoughts'];
+const categories = [
+  { name: 'sysadmin', href: '/category/sysadmin', live: true },
+  { name: 'cybersecurity', href: '/category/cybersecurity', live: true },
+  { name: 'tryhackme', href: '/category/tryhackme', live: false },
+  { name: 'hackerbox', href: '/category/hackerbox', live: false },
+  { name: 'devops', href: '/category/devops', live: false },
+  { name: 'thoughts', href: '/category/thoughts', live: false },
+];
 ---
 
 <BaseLayout>
   <TerminalHero />
 
-  <!-- category grid -->
-  <section style="max-width:900px; margin:0 auto; padding:0 24px 60px;">
-    <div style="font-size:12px; color:var(--text-dim); margin-bottom:20px;">// browse by category</div>
-    <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px; margin-bottom:60px;">
+  <div style="padding: 0 28px; background: #0f0f1a; min-height: 100vh;">
+
+    <!-- CATEGORIES -->
+    <div class="pp-section-label">// <span class="dim">browse by</span> category</div>
+    <div class="pp-cat-grid">
       {categories.map(cat => {
-        const count = posts.filter(p => p.data.category === cat).length;
-        return (
-          <a href={`/category/${cat}`} style="border:1px solid var(--border); border-radius:6px; padding:14px 16px; font-size:12px; color:var(--text-dim); transition:border-color 0.2s;" onmouseover="this.style.borderColor='var(--green)'" onmouseout="this.style.borderColor='var(--border)'">
-            <div style="color:var(--text-head); font-weight:700; margin-bottom:4px;">{cat}</div>
-            <div>{count > 0 ? `${count} post${count > 1 ? 's' : ''}` : 'coming soon'}</div>
+        const count = posts.filter(p => p.data.category === cat.name).length;
+        return cat.live ? (
+          <a href={cat.href} class="pp-cat-link">
+            {cat.name}
+            <span class="pp-cat-count">{count > 0 ? `${count} post${count > 1 ? 's' : ''}` : 'coming soon'}</span>
           </a>
+        ) : (
+          <div class="pp-cat-soon">
+            {cat.name}
+            <span class="pp-cat-count">coming soon</span>
+          </div>
         );
       })}
     </div>
 
-    <!-- latest posts -->
+    <!-- LATEST TRANSMISSIONS -->
     {posts.length > 0 && (
       <>
-        <div style="font-size:12px; color:var(--text-dim); margin-bottom:20px;">// latest transmissions</div>
-        <div style="display:flex; flex-direction:column; gap:16px;">
-          {posts.slice(0,6).map(post => (
+        <div class="pp-section-label-m">// <span class="dim">latest</span> transmissions</div>
+        <div class="pp-posts">
+          {posts.slice(0, 6).map(post => (
             <PostCard
               title={post.data.title}
               description={post.data.description}
@@ -46,23 +59,74 @@ const categories = ['sysadmin','cybersecurity','hackerbox','tryhackme','devops',
         </div>
       </>
     )}
-  </section>
 
-  <!-- quotes -->
-  <section style="max-width:900px; margin:0 auto; padding:0 24px 60px; border-top:1px solid var(--border);">
-    <div style="font-size:12px; color:var(--text-dim); margin:32px 0 24px;">/dev/random</div>
-    <div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px;">
-      {[
-        { q:'The quieter you become, the more you are able to hear.', a:'Kali Linux MOTD' },
-        { q:'Talk is cheap. Show me the code.', a:'Linus Torvalds' },
-        { q:'Amateurs hack systems, professionals hack people.', a:'Bruce Schneier' },
-        { q:'Security is always excessive until it\'s not enough.', a:'Robbie Sinclair' },
-      ].map(({ q, a }) => (
-        <div style="border:1px solid var(--border); border-radius:6px; padding:18px; font-size:13px;">
-          <p style="color:var(--text-dim); font-style:italic; margin-bottom:10px;">"{q}"</p>
-          <div style="font-size:11px; color:var(--green);">— {a}</div>
-        </div>
-      ))}
+    <!-- QUOTE -->
+    <div class="pp-quote-block">
+      <div class="pp-q-head">
+        <div class="pp-q-dot" style="background:#ff5f57"></div>
+        <div class="pp-q-dot" style="background:#febc2e"></div>
+        <div class="pp-q-dot" style="background:#28c840"></div>
+        <span class="pp-q-title">/dev/random</span>
+      </div>
+      <div class="pp-q-body">
+        <div class="pp-q-slide" id="ppQ0"><div class="pp-q-text">"The quieter you become, the more you are able to hear."</div><div class="pp-q-attr">— Kali Linux MOTD</div></div>
+        <div class="pp-q-slide hide" id="ppQ1"><div class="pp-q-text">"Talk is cheap. Show me the code."</div><div class="pp-q-attr">— Linus Torvalds</div></div>
+        <div class="pp-q-slide hide" id="ppQ2"><div class="pp-q-text">"Amateurs hack systems, professionals hack people."</div><div class="pp-q-attr">— Bruce Schneier</div></div>
+        <div class="pp-q-slide hide" id="ppQ3"><div class="pp-q-text">"There are two ways to write error-free programs; only the third one works."</div><div class="pp-q-attr">— Alan J. Perlis</div></div>
+        <div class="pp-q-slide hide" id="ppQ4"><div class="pp-q-text">"Security is always excessive until it's not enough."</div><div class="pp-q-attr">— Robbie Sinclair</div></div>
+        <div class="pp-q-slide hide" id="ppQ5"><div class="pp-q-text">"In theory, theory and practice are the same. In practice, they are not."</div><div class="pp-q-attr">— Yogi Berra</div></div>
+        <div class="pp-q-slide hide" id="ppQ6"><div class="pp-q-text">"Programs must be written for people to read, and only incidentally for machines to execute."</div><div class="pp-q-attr">— Harold Abelson</div></div>
+        <div class="pp-q-slide hide" id="ppQ7"><div class="pp-q-text">"The most likely way for the world to be destroyed is by accident. That's where we come in; we're computer professionals. We cause accidents."</div><div class="pp-q-attr">— Nathaniel Borenstein</div></div>
+      </div>
     </div>
-  </section>
+
+    <!-- FOLLOW -->
+    <div class="pp-follow-block">
+      <div class="pp-follow-row">
+        <div>
+          <div class="pp-follow-label">// follow the work</div>
+          <div class="pp-follow-desc">no spam, no algorithm. just labs and writeups.</div>
+        </div>
+        <div class="pp-follow-links">
+          <a href="/feed.xml" class="pp-follow-link" target="_blank" rel="noopener">[ rss feed ]</a>
+          <a href="https://github.com/CravenCraven" class="pp-follow-link" target="_blank" rel="noopener">[ github ]</a>
+          <span class="pp-follow-link soon">[ email ] <span class="pp-fl-tag">coming soon</span></span>
+        </div>
+      </div>
+    </div>
+
+  </div>
 </BaseLayout>
+
+<style>
+.pp-section-label{color:#00d4ff;font-size:11px;letter-spacing:.12em;text-transform:uppercase;margin:28px 0 14px;font-family:'Source Code Pro',monospace}
+.pp-section-label .dim{color:#4a4a6a}
+.pp-section-label-m{color:#ff00ff;font-size:11px;letter-spacing:.12em;text-transform:uppercase;margin:28px 0 14px;font-family:'Source Code Pro',monospace}
+.pp-section-label-m .dim{color:#4a4a6a}
+.pp-cat-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+.pp-cat-link{display:block;background:#12121f;border:1px solid #1a1a2e;border-radius:4px;padding:12px 6px;text-align:center;font-size:11px;color:#6a6a8a;text-decoration:none;font-family:'Source Code Pro',monospace;transition:all .2s}
+.pp-cat-link:hover{border-color:#00ff9d;color:#00ff9d;text-decoration:none}
+.pp-cat-count{display:block;font-size:9px;color:#3a3a5a;margin-top:4px}
+.pp-cat-soon{display:block;background:#0a0a12;border:1px dashed #1a1a2e;border-radius:4px;padding:12px 6px;text-align:center;font-size:11px;color:#3a3a5a;font-family:'Source Code Pro',monospace;cursor:not-allowed;opacity:.65}
+.pp-cat-soon .pp-cat-count{color:#ff9d00}
+.pp-posts{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:0}
+.pp-quote-block{background:#12121f;border:1px solid #1a1a2e;border-radius:6px;overflow:hidden;margin:28px 0}
+.pp-q-head{background:#0a0a0f;border-bottom:1px solid #1a1a2e;padding:6px 14px;display:flex;align-items:center;gap:5px}
+.pp-q-dot{width:7px;height:7px;border-radius:50%}
+.pp-q-title{color:#3a3a5a;font-size:9px;margin-left:6px;font-family:'Source Code Pro',monospace}
+.pp-q-body{padding:16px 18px;position:relative;min-height:80px}
+.pp-q-slide{position:absolute;left:18px;right:18px;top:16px;transition:opacity .5s,transform .5s;font-family:'Source Code Pro',monospace}
+.pp-q-slide.hide{opacity:0;transform:translateY(-8px);pointer-events:none}
+.pp-q-text{color:#e0e0f0;font-size:13px;line-height:1.6;font-style:italic;margin-bottom:6px}
+.pp-q-attr{color:#ff9d00;font-size:11px}
+.pp-follow-block{background:#12121f;border:1px solid #1a1a2e;border-radius:6px;padding:24px;margin:20px 0;position:relative;overflow:hidden}
+.pp-follow-block::before{content:'';position:absolute;top:0;left:0;right:0;height:1px;background:linear-gradient(90deg,#ff00ff,#00d4ff);opacity:.4}
+.pp-follow-row{display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.pp-follow-label{color:#ff00ff;font-size:11px;letter-spacing:.1em;margin-bottom:6px;font-family:'Source Code Pro',monospace}
+.pp-follow-desc{color:#6a6a8a;font-size:12px;font-family:'Source Code Pro',monospace}
+.pp-follow-links{display:flex;gap:8px;flex-wrap:wrap}
+.pp-follow-link{display:inline-flex;align-items:center;gap:6px;color:#00ff9d;border:1px solid #00ff9d;border-radius:3px;padding:9px 14px;font-size:12px;font-family:'Source Code Pro',monospace;text-decoration:none;transition:all .2s}
+.pp-follow-link:hover{background:#00ff9d12;text-decoration:none}
+.pp-follow-link.soon{color:#3a3a5a;border-color:#1a1a2e;border-style:dashed;cursor:not-allowed;pointer-events:none}
+.pp-fl-tag{font-size:8px;opacity:.7}
+</style>

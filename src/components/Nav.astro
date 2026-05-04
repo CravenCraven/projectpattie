@@ -1,22 +1,22 @@
 ---
 const links = [
-  { label: 'Sysadmin',     href: '/category/sysadmin' },
-  { label: 'Cybersecurity',href: '/category/cybersecurity' },
-  { label: 'HackerBox',    href: '/category/hackerbox' },
-  { label: 'TryHackMe',    href: '/category/tryhackme' },
-  { label: 'DevOps',       href: '/category/devops' },
-  { label: 'Thoughts',     href: '/category/thoughts' },
-  { label: 'About',        href: '/about' },
-  { label: 'Contact',      href: '/contact' },
+  { label: 'sysadmin',      href: '/category/sysadmin' },
+  { label: 'cybersecurity', href: '/category/cybersecurity' },
+  { label: 'hackerbox',     href: '/category/hackerbox' },
+  { label: 'tryhackme',     href: '/category/tryhackme' },
+  { label: 'devops',        href: '/category/devops' },
+  { label: 'thoughts',      href: '/category/thoughts' },
+  { label: 'about',         href: '/about' },
+  { label: 'contact',       href: '/contact' },
 ];
-
 const current = Astro.url.pathname;
 ---
 
 <style>
 nav {
-  border-bottom: 1px solid var(--border);
-  padding: 0 24px;
+  background: #0f0f1a;
+  border-bottom: 1px solid #1a1a2e;
+  padding: 0 28px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -25,51 +25,48 @@ nav {
   position: sticky;
   top: 0;
   z-index: 100;
-  background: rgba(13,13,20,0.92);
-  backdrop-filter: blur(8px);
 }
 .logo {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
-  color: var(--green);
+  color: #00ff9d;
   padding: 16px 0;
   white-space: nowrap;
+  font-family: 'Source Code Pro', monospace;
+  text-decoration: none;
 }
-.logo:hover { text-decoration: none; opacity: 0.8; }
+.logo:hover { opacity: 0.8; text-decoration: none; }
 .links {
   display: flex;
   flex-wrap: wrap;
-  gap: 0;
   list-style: none;
+  margin: 0;
+  padding: 0;
 }
 .links a {
   display: block;
-  padding: 16px 12px;
-  font-size: 12px;
-  color: var(--text-dim);
-  letter-spacing: 0.5px;
+  padding: 16px 10px;
+  font-size: 11px;
+  color: #4a4a6a;
+  font-family: 'Source Code Pro', monospace;
+  letter-spacing: .05em;
   transition: color 0.2s;
+  text-decoration: none;
 }
 .links a:hover,
-.links a.active { color: var(--green); text-decoration: none; }
+.links a.active { color: #00ff9d; text-decoration: none; }
 .hamburger {
   display: none;
   background: none;
   border: none;
-  color: var(--text-dim);
+  color: #4a4a6a;
   font-size: 18px;
   cursor: pointer;
   padding: 16px 0;
 }
 @media (max-width: 768px) {
   .hamburger { display: block; }
-  .links {
-    display: none;
-    width: 100%;
-    flex-direction: column;
-    border-top: 1px solid var(--border);
-    padding-bottom: 12px;
-  }
+  .links { display: none; width: 100%; flex-direction: column; border-top: 1px solid #1a1a2e; padding-bottom: 12px; }
   .links.open { display: flex; }
   .links a { padding: 10px 0; }
 }
