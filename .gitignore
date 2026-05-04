@@ -4,3 +4,6 @@ dist/
 .env
 .env.*
 !.env.example
+
+# Raw HTML drafts kept locally; converted to .mdx via scripts/html_to_mdx.py
+posts-source/
