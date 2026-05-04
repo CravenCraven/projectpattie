@@ -41,14 +41,19 @@ const dateStr = date.toLocaleDateString('en-US', { year:'numeric', month:'short'
     .pp-series li.active { color: #e0e0f0; }
     .pp-series li.active::before { color: #00ff9d; }
     .pp-series li.active::after { content: " ← you are here"; color: #00ff9d; font-size: 11px; }
-    /* toc */
-    .pp-toc { background: #0a0a12; border: 1px solid #1a1a2e; border-radius: 6px; padding: 24px 28px; margin-bottom: 50px; }
-    .pp-toc-label { color: #3a3a5a; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 16px; }
+    /* toc — styled like a terminal card with mac dots */
+    .pp-toc { background: #0a0a0f; border: 1px solid #1a1a2e; border-radius: 6px; padding: 0; margin: 30px 0 50px; overflow: hidden; }
+    .pp-toc-label { background: #12121f; border-bottom: 1px solid #1a1a2e; padding: 11px 18px 11px 56px; margin: 0; color: #3a3a5a; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; font-family: 'Source Code Pro', monospace; position: relative; }
+    .pp-toc-label::before { content: ''; position: absolute; top: 50%; left: 18px; width: 7px; height: 7px; border-radius: 50%; background: #ff5f57; transform: translateY(-50%); box-shadow: 12px 0 0 #febc2e, 24px 0 0 #28c840; }
     .pp-toc-label span { color: #00ff9d; }
-    .pp-toc ol { padding: 0; counter-reset: toc; list-style: none; }
-    .pp-toc li { counter-increment: toc; margin-bottom: 8px; }
-    .pp-toc li::before { content: counter(toc) "."; color: #3a3a5a; margin-right: 10px; font-size: 12px; }
-    .pp-toc a { color: #c0c0d0; font-size: 13px; text-decoration: none; transition: color .2s; }
+    .pp-toc ol { padding: 18px 22px; margin: 0; counter-reset: toc; list-style: none; }
+    .pp-toc li { counter-increment: toc; margin: 0; padding: 5px 8px 5px 0; position: relative; transition: padding-left .18s ease, background .18s ease; border-radius: 3px; }
+    .pp-toc li::before { content: counter(toc, decimal-leading-zero); color: #3a3a5a; margin-right: 14px; font-size: 12px; font-family: 'Source Code Pro', monospace; transition: color .18s ease; }
+    .pp-toc li:hover { padding-left: 10px; background: #12121f; }
+    .pp-toc li:hover::before { color: #ff00ff; }
+    .pp-toc li::after { content: ''; position: absolute; right: 12px; top: 50%; width: 0; height: 0; border-left: 5px solid #00ff9d; border-top: 4px solid transparent; border-bottom: 4px solid transparent; opacity: 0; transform: translateY(-50%) translateX(-4px); transition: opacity .18s ease, transform .18s ease; }
+    .pp-toc li:hover::after { opacity: 1; transform: translateY(-50%) translateX(0); }
+    .pp-toc a { color: #c0c0d0; font-size: 13px; text-decoration: none; font-family: 'Source Code Pro', monospace; transition: color .18s ease; }
     .pp-toc a:hover { color: #00ff9d; }
     /* headings */
     .pp-article h2 { font-size: 22px; font-weight: 700; color: #e0e0f0; margin: 56px 0 20px; padding-bottom: 8px; border-bottom: 1px solid #1a1a2e; scroll-margin-top: 30px; line-height: 1.3; }

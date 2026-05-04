@@ -488,6 +488,24 @@ def main() -> int:
             title, subtitle, category, date_iso, read_time, sections
         )
         body = header + "\n" + body
+    else:
+        # Header already in place (full pp-zt format). If user passed --date or
+        # --read-time, sync the visible <div class="pp-meta"> string so it
+        # matches the new frontmatter values.
+        if args.date or args.read_time:
+            date_obj = datetime.fromisoformat(date_iso)
+            pretty_date = date_obj.strftime("%b ") + str(date_obj.day) + ", " + str(date_obj.year)
+            new_meta = (
+                f'<div class="pp-meta"><span>{category}</span> · '
+                f'{pretty_date} · {read_time} min read</div>'
+            )
+            body = re.sub(
+                r'<div class="pp-meta">.*?</div>',
+                new_meta,
+                body,
+                count=1,
+                flags=re.DOTALL,
+            )
 
     if not is_markdown:
         body = fix_multiline_pre(body)
