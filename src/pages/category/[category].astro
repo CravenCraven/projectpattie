@@ -10,9 +10,41 @@ export async function getStaticPaths() {
 
 const { category } = Astro.params;
 const allPosts = await getCollection('blog', ({ data }) => !data.draft);
-const posts = allPosts
-  .filter(p => p.data.category === category)
-  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+const posts = allPosts.filter(p => p.data.category === category);
+
+// Bucket posts: those that belong to a series get grouped, others are standalone.
+type Post = (typeof posts)[number];
+const seriesGroups = new Map<string, Post[]>();
+const standalone: Post[] = [];
+
+for (const post of posts) {
+  const s = post.data.series;
+  if (s) {
+    if (!seriesGroups.has(s)) seriesGroups.set(s, []);
+    seriesGroups.get(s)!.push(post);
+  } else {
+    standalone.push(post);
+  }
+}
+
+// Sort each series by seriesOrder (ascending — readers start at Part 1).
+for (const list of seriesGroups.values()) {
+  list.sort((a, b) => (a.data.seriesOrder ?? 0) - (b.data.seriesOrder ?? 0));
+}
+
+// Sort standalone by date (newest first).
+standalone.sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+
+// Order series by their newest part's date — newest series first.
+const seriesEntries = Array.from(seriesGroups.entries())
+  .map(([name, list]) => ({
+    name,
+    list,
+    newestDate: Math.max(...list.map(p => p.data.date.valueOf())),
+  }))
+  .sort((a, b) => b.newestDate - a.newestDate);
+
+const totalPostCount = posts.length;
 ---
 
 <BaseLayout title={`${category} — projectpattie;`}>
@@ -20,23 +52,74 @@ const posts = allPosts
     <div style="font-size:12px; color:var(--text-dim); margin-bottom:12px;">// category</div>
     <h1 style="font-size:28px; margin-bottom:40px;">{category}</h1>
 
-    {posts.length === 0 ? (
+    {totalPostCount === 0 ? (
       <div style="border:1px solid var(--border); border-radius:6px; padding:32px; text-align:center; color:var(--text-dim); font-size:13px;">
         coming soon — check back shortly.
       </div>
     ) : (
-      <div style="display:flex; flex-direction:column; gap:16px;">
-        {posts.map(post => (
-          <PostCard
-            title={post.data.title}
-            description={post.data.description}
-            slug={post.slug}
-            date={post.data.date}
-            category={post.data.category}
-            readTime={post.data.readTime}
-          />
+      <div style="display:flex; flex-direction:column; gap:36px;">
+
+        {seriesEntries.map(({ name, list }) => (
+          <section>
+            <div class="cat-section-label">// <span>series</span> {name} <span class="cat-section-count">{list.length} parts</span></div>
+            <div class="cat-cards">
+              {list.map(post => (
+                <PostCard
+                  title={post.data.title}
+                  description={post.data.description}
+                  slug={post.slug}
+                  date={post.data.date}
+                  category={post.data.category}
+                  readTime={post.data.readTime}
+                />
+              ))}
+            </div>
+          </section>
         ))}
+
+        {standalone.length > 0 && (
+          <section>
+            {seriesEntries.length > 0 && (
+              <div class="cat-section-label">// <span>standalone</span> posts</div>
+            )}
+            <div class="cat-cards">
+              {standalone.map(post => (
+                <PostCard
+                  title={post.data.title}
+                  description={post.data.description}
+                  slug={post.slug}
+                  date={post.data.date}
+                  category={post.data.category}
+                  readTime={post.data.readTime}
+                />
+              ))}
+            </div>
+          </section>
+        )}
       </div>
     )}
   </div>
 </BaseLayout>
+
+<style>
+  .cat-section-label {
+    color: #ff00ff;
+    font-size: 11px;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    margin: 0 0 16px;
+    font-family: 'Source Code Pro', monospace;
+  }
+  .cat-section-label span { color: #4a4a6a; }
+  .cat-section-count {
+    color: #4a4a6a;
+    margin-left: 8px;
+    font-size: 10px;
+    letter-spacing: .12em;
+  }
+  .cat-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+</style>

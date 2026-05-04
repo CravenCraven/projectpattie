@@ -7,14 +7,13 @@ import { getCollection } from 'astro:content';
 const posts = (await getCollection('blog', ({ data }) => !data.draft))
   .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
 
-const categories = [
-  { name: 'sysadmin', href: '/category/sysadmin', live: true },
-  { name: 'cybersecurity', href: '/category/cybersecurity', live: true },
-  { name: 'tryhackme', href: '/category/tryhackme', live: false },
-  { name: 'hackerbox', href: '/category/hackerbox', live: false },
-  { name: 'devops', href: '/category/devops', live: false },
-  { name: 'thoughts', href: '/category/thoughts', live: false },
-];
+// Each category is "live" if at least one published post exists for it.
+const categoryNames = ['sysadmin', 'cybersecurity', 'tryhackme', 'hackerbox', 'devops', 'thoughts'];
+const categories = categoryNames.map(name => ({
+  name,
+  href: `/category/${name}`,
+  live: posts.some(p => p.data.category === name),
+}));
 ---
 
 <BaseLayout>
@@ -46,7 +45,7 @@ const categories = [
       <>
         <div class="pp-section-label-m">// <span class="dim">latest</span> transmissions</div>
         <div class="pp-posts">
-          {posts.slice(0, 6).map(post => (
+          {posts.slice(0, 3).map(post => (
             <PostCard
               title={post.data.title}
               description={post.data.description}

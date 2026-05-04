@@ -41,6 +41,8 @@ const dateStr = date.toLocaleDateString('en-US', { year:'numeric', month:'short'
     .pp-series li.active { color: #e0e0f0; }
     .pp-series li.active::before { color: #00ff9d; }
     .pp-series li.active::after { content: " ← you are here"; color: #00ff9d; font-size: 11px; }
+    .pp-series li a { color: #c0c0d0; text-decoration: none; transition: color .18s ease; }
+    .pp-series li a:hover { color: #00ff9d; text-decoration: none; }
     /* toc — styled like a terminal card with mac dots */
     .pp-toc { background: #0a0a0f; border: 1px solid #1a1a2e; border-radius: 6px; padding: 0; margin: 30px 0 50px; overflow: hidden; }
     .pp-toc-label { background: #12121f; border-bottom: 1px solid #1a1a2e; padding: 11px 18px 11px 56px; margin: 0; color: #3a3a5a; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; font-family: 'Source Code Pro', monospace; position: relative; }
@@ -88,7 +90,10 @@ const dateStr = date.toLocaleDateString('en-US', { year:'numeric', month:'short'
     /* next post */
     .pp-next { margin-top: 60px; padding-top: 30px; border-top: 1px solid #1a1a2e; }
     .pp-next-label { color: #3a3a5a; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; }
-    .pp-next-title { color: #00ff9d; font-size: 15px; font-weight: 600; }
+    .pp-next-title { color: #00ff9d; font-size: 15px; font-weight: 600; transition: color .18s ease; }
+    .pp-next a { display: block; text-decoration: none; }
+    .pp-next a:hover .pp-next-title { color: #ff00ff; }
+    .pp-next a:hover .pp-next-label { color: #ff00ff; }
     /* markdown prose overrides */
     .pp-article ul, .pp-article ol { padding-left: 1.5rem; margin-bottom: 1.2rem; color: #c0c0d0; }
     .pp-article li { margin-bottom: 0.4rem; }

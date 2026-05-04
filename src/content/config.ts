@@ -16,6 +16,8 @@ const blog = defineCollection({
     ]),
     readTime: z.number().optional(),
     draft: z.boolean().optional().default(false),
+    series: z.string().optional(),
+    seriesOrder: z.number().optional(),
   }),
 });
 
