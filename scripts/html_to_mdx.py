@@ -1,40 +1,34 @@
 #!/usr/bin/env python3
 """
-Convert a WordPress-exported or pp-zt-style HTML post into an Astro .mdx file
-suitable for src/content/blog/.
+Convert a WordPress-exported HTML post OR a plain Markdown file into an Astro
+.mdx file suitable for src/content/blog/.
 
-Handles two input formats:
-  1. FULL — has <div id="pp-zt"><article class="pp-article"> with a
+Handles three input formats:
+  1. FULL HTML — has <div id="pp-zt"><article class="pp-article"> with a
      pp-title / pp-meta / pp-subtitle / pp-toc block already present.
-  2. FRAGMENT — bare <p> and <h2> tags, no wrapper, no title block, no TOC.
-     The converter synthesises the wrapper from CLI flags / sensible defaults.
+  2. FRAGMENT HTML — bare <p> and <h2> tags, no wrapper, no title block, no
+     TOC. The converter synthesises the wrapper from CLI flags / defaults.
+  3. MARKDOWN (.md) — standard Markdown (h1-h3, fenced code blocks, **bold**,
+     `inline code`, [links], numbered/bulleted lists). Converted to the same
+     pp-* classed HTML format.
 
 Usage:
-    # Full format (Zero Trust / Pentesting Lab files):
+    # Full HTML (Zero Trust / Pentesting Lab files):
     python3 scripts/html_to_mdx.py path/to/zero-trust-fixed.html
 
-    # Fragment format (User Management style — provide title etc.):
+    # Fragment HTML (User Management style — provide metadata):
     python3 scripts/html_to_mdx.py path/to/file.html \\
         --slug user-management-rhel-9 \\
         --title "User Management on RHEL 9" \\
-        --description "Going deep on every aspect of user and group management on RHEL 9." \\
-        --category sysadmin \\
-        --date 2026-04-24 \\
-        --read-time 14
+        --description "..." \\
+        --category sysadmin --date 2026-04-24 --read-time 14
 
-What it does:
-  1. Strips any <style>...</style> block (PostLayout provides styles).
-  2. Strips outer <div id="pp-zt"> and <article class="pp-article"> wrappers
-     when present.
-  3. Strips HTML comments (MDX 3 rejects them).
-  4. Self-closes void tags (<br>, <hr>, <img>, etc.) so MDX 3 accepts them.
-  5. Wraps multi-line <pre>...</pre> bodies as JSX template literals so MDX 3
-     doesn't try to markdown-parse content inside <pre>.
-  6. Adds class="pp-h2" and an auto-generated id to bare <h2> tags.
-  7. Converts inline <strong style="color:#hex"> -> <span class="c-name">.
-  8. If the input lacks a pp-title/meta/subtitle/toc block, synthesises one
-     from CLI flags, derives a TOC from the h2 sections.
-  9. Writes the result to src/content/blog/<slug>.mdx (or --out PATH).
+    # Markdown:
+    python3 scripts/html_to_mdx.py path/to/post.md \\
+        --slug docker-for-beginners \\
+        --title "Docker for Beginners" \\
+        --description "..." \\
+        --category devops --date 2026-04-24 --read-time 16
 """
 import argparse
 import re
@@ -255,6 +249,176 @@ def build_synthesised_header(
     return "\n".join(parts)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Markdown → pp-styled HTML body
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _md_inline(text: str) -> str:
+    """Apply inline Markdown transforms inside a single line of text."""
+    # Inline code first so its contents aren't matched by other rules.
+    placeholders: list[str] = []
+
+    def stash_code(m: re.Match) -> str:
+        # MDX 3 reads { and } as JSX expression delimiters even inside <code>.
+        # Escape them as HTML entities so they render literally.
+        content = m.group(1).replace("{", "&#123;").replace("}", "&#125;")
+        placeholders.append(content)
+        return f"\x00{len(placeholders) - 1}\x00"
+
+    text = re.sub(r"`([^`]+)`", stash_code, text)
+
+    # Bold: **text**
+    text = re.sub(r"\*\*([^*]+)\*\*", r"<strong>\1</strong>", text)
+    # Links: [text](url)
+    text = re.sub(r"\[([^\]]+)\]\(([^)]+)\)", r'<a href="\2">\1</a>', text)
+
+    # Restore inline code placeholders
+    def restore(m: re.Match) -> str:
+        return f"<code>{placeholders[int(m.group(1))]}</code>"
+
+    text = re.sub(r"\x00(\d+)\x00", restore, text)
+    return text
+
+
+def markdown_to_pp_body(md: str) -> tuple[str, list[tuple[str, str]]]:
+    """
+    Convert a Markdown document body to pp-* classed HTML.
+    Returns (body_html, [(h2_id, h2_text), ...]) for TOC synthesis.
+    """
+    lines = md.splitlines()
+    out: list[str] = []
+    sections: list[tuple[str, str]] = []
+    seen_ids: set[str] = set()
+
+    def make_id(text: str) -> str:
+        slug = slugify(text) or "section"
+        if slug in seen_ids:
+            i = 2
+            while f"{slug}-{i}" in seen_ids:
+                i += 1
+            slug = f"{slug}-{i}"
+        seen_ids.add(slug)
+        return slug
+
+    i = 0
+    in_toc_skip = False
+    while i < len(lines):
+        line = lines[i]
+        stripped = line.strip()
+
+        # Skip the manual "## Table of Contents" block — we autogen our own TOC.
+        if stripped.lower() == "## table of contents":
+            in_toc_skip = True
+            i += 1
+            continue
+        if in_toc_skip:
+            # Skip until we hit a blank line followed by something that's not the TOC list.
+            if stripped == "" or re.match(r"^\d+\.\s", stripped) or stripped.startswith("---"):
+                i += 1
+                continue
+            in_toc_skip = False
+            # Fall through to handle this line normally.
+
+        # Skip horizontal rules (visual separators in source MD).
+        if stripped == "---":
+            i += 1
+            continue
+
+        # Top-level title — drop it; we synthesise from --title.
+        if stripped.startswith("# ") and not stripped.startswith("## "):
+            i += 1
+            continue
+
+        # H2
+        if stripped.startswith("## ") and not stripped.startswith("### "):
+            text = stripped[3:].strip()
+            hid = make_id(text)
+            sections.append((hid, text))
+            out.append(f'<h2 class="pp-h2" id="{hid}">{_md_inline(text)}</h2>')
+            i += 1
+            continue
+
+        # H3
+        if stripped.startswith("### "):
+            text = stripped[4:].strip()
+            out.append(f'<h3 class="pp-h3">{_md_inline(text)}</h3>')
+            i += 1
+            continue
+
+        # Fenced code block: ```lang ... ```
+        m = re.match(r"^```\s*([\w-]+)?\s*$", stripped)
+        if m:
+            lang = m.group(1) or "bash"
+            i += 1
+            code_lines: list[str] = []
+            while i < len(lines) and lines[i].rstrip() != "```":
+                code_lines.append(lines[i])
+                i += 1
+            i += 1  # consume closing ```
+            code_text = "\n".join(code_lines)
+            esc = (
+                code_text.replace("\\", "\\\\")
+                .replace("`", "\\`")
+                .replace("${", "\\${")
+                .replace("\n", "\\n")
+            )
+            out.append(
+                '<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots">'
+                '<div class="pp-code-dot" style="background:#ff5f57"></div>'
+                '<div class="pp-code-dot" style="background:#febc2e"></div>'
+                '<div class="pp-code-dot" style="background:#28c840"></div></div>'
+                f'<div class="pp-code-lang">{lang}</div>'
+                '<button class="pp-code-copy" '
+                "onclick=\"navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);"
+                "this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)\">copy</button>"
+                '</div><div class="pp-code-body">'
+                f"<pre>{{`{esc}`}}</pre>"
+                "</div></div>"
+            )
+            continue
+
+        # Numbered list block (consecutive `N. ...` lines)
+        if re.match(r"^\d+\.\s+", stripped):
+            items: list[str] = []
+            while i < len(lines) and re.match(r"^\s*\d+\.\s+", lines[i]):
+                item_text = re.sub(r"^\s*\d+\.\s+", "", lines[i]).rstrip()
+                items.append(f"  <li>{_md_inline(item_text)}</li>")
+                i += 1
+            out.append("<ol>\n" + "\n".join(items) + "\n</ol>")
+            continue
+
+        # Bulleted list block (consecutive `- ...` lines)
+        if re.match(r"^-\s+", stripped):
+            items = []
+            while i < len(lines) and re.match(r"^\s*-\s+", lines[i]):
+                item_text = re.sub(r"^\s*-\s+", "", lines[i]).rstrip()
+                items.append(f"  <li>{_md_inline(item_text)}</li>")
+                i += 1
+            out.append("<ul>\n" + "\n".join(items) + "\n</ul>")
+            continue
+
+        # Blank line — paragraph separator
+        if stripped == "":
+            i += 1
+            continue
+
+        # Paragraph: gather contiguous non-blank, non-block lines
+        para_lines: list[str] = []
+        while i < len(lines):
+            l = lines[i]
+            ls = l.strip()
+            if ls == "" or ls.startswith("#") or ls.startswith("```") or ls == "---" \
+               or re.match(r"^\d+\.\s+", ls) or re.match(r"^-\s+", ls):
+                break
+            para_lines.append(ls)
+            i += 1
+        para = " ".join(para_lines)
+        if para:
+            out.append(f"<p>{_md_inline(para)}</p>")
+
+    return "\n\n".join(out), sections
+
+
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("input", help="Path to the standalone HTML file")
@@ -269,11 +433,20 @@ def main() -> int:
 
     src_path = Path(args.input)
     src = src_path.read_text(encoding="utf-8")
+    is_markdown = src_path.suffix.lower() in (".md", ".markdown")
 
     # --- Resolve metadata -----------------------------------------------------
-    html_title = extract_title_from_html(src)
-    html_subtitle = extract_subtitle_from_html(src)
-    html_cat, html_date, html_rt = extract_meta_from_html(src)
+    if is_markdown:
+        # Pull the first `# title` from the markdown if --title isn't passed.
+        m = re.search(r"^#\s+(.+)$", src, flags=re.MULTILINE)
+        md_title = m.group(1).strip() if m else None
+        html_title = md_title
+        html_subtitle = None
+        html_cat = html_date = html_rt = None
+    else:
+        html_title = extract_title_from_html(src)
+        html_subtitle = extract_subtitle_from_html(src)
+        html_cat, html_date, html_rt = extract_meta_from_html(src)
 
     title = args.title or html_title or src_path.stem.replace("-", " ").title()
     subtitle = args.description or html_subtitle or ""
@@ -284,33 +457,40 @@ def main() -> int:
     read_time = args.read_time or html_rt or 5
 
     # --- Body cleanup --------------------------------------------------------
-    body = get_body(src)
-    body = re.sub(r"<style\b[^>]*>.*?</style>", "", body, flags=re.DOTALL | re.IGNORECASE)
-    body = re.sub(r"<!--.*?-->", "", body, flags=re.DOTALL)
-    body = re.sub(r"\n{3,}", "\n\n", body).strip()
+    if is_markdown:
+        body, sections = markdown_to_pp_body(src)
+        needs_synthesis = True
+    else:
+        body = get_body(src)
+        body = re.sub(r"<style\b[^>]*>.*?</style>", "", body, flags=re.DOTALL | re.IGNORECASE)
+        body = re.sub(r"<!--.*?-->", "", body, flags=re.DOTALL)
+        body = re.sub(r"\n{3,}", "\n\n", body).strip()
 
-    # MDX 3 (JSX) requires void HTML elements to be self-closing.
-    void_tags = ["br", "hr", "img", "input", "meta", "link", "area",
-                 "base", "col", "embed", "source", "track", "wbr", "param"]
-    for tag in void_tags:
-        body = re.sub(rf"<{tag}\s*>", f"<{tag}/>", body)
-        body = re.sub(rf"<{tag}(\s[^>]*[^/])>", rf"<{tag}\1/>", body)
+        # MDX 3 (JSX) requires void HTML elements to be self-closing.
+        void_tags = ["br", "hr", "img", "input", "meta", "link", "area",
+                     "base", "col", "embed", "source", "track", "wbr", "param"]
+        for tag in void_tags:
+            body = re.sub(rf"<{tag}\s*>", f"<{tag}/>", body)
+            body = re.sub(rf"<{tag}(\s[^>]*[^/])>", rf"<{tag}\1/>", body)
 
-    # Inline <strong style="color:..."> -> <span class="c-...">
-    body = convert_inline_color_styles(body)
+        # Inline <strong style="color:..."> -> <span class="c-...">
+        body = convert_inline_color_styles(body)
 
-    # Annotate h2 tags with class+id, harvest TOC sections.
-    body, sections = annotate_h2s(body)
+        # Annotate h2 tags with class+id, harvest TOC sections.
+        body, sections = annotate_h2s(body)
 
-    # If the original HTML lacked the wrapper, prepend a synthesised one.
-    needs_synthesis = not (html_title and html_subtitle is not None)
+        # If the original HTML lacked the wrapper, prepend a synthesised one.
+        needs_synthesis = not (html_title and html_subtitle is not None)
+
+    # Prepend the synthesised header (meta + title + subtitle + auto-TOC)
     if needs_synthesis:
         header = build_synthesised_header(
             title, subtitle, category, date_iso, read_time, sections
         )
         body = header + "\n" + body
 
-    body = fix_multiline_pre(body)
+    if not is_markdown:
+        body = fix_multiline_pre(body)
 
     # --- Output --------------------------------------------------------------
     slug = args.slug or slugify(title) or "untitled"

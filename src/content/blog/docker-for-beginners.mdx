@@ -1,0 +1,320 @@
+---
+title: "Docker for Beginners. you just got told to containerize everything."
+description: "You're a junior sysadmin, your manager just dropped \"migrate everything to containers by end of sprint\" in Slack, and you Google'd what is a container. Welcome. Let's actually fix that."
+date: 2026-04-30
+category: devops
+readTime: 16
+---
+
+<div class="pp-meta"><span>devops</span> · Apr 30, 2026 · 16 min read</div>
+
+<h1 class="pp-title">Docker for Beginners. you just got told to containerize everything.</h1>
+
+<p class="pp-subtitle">You're a junior sysadmin, your manager just dropped "migrate everything to containers by end of sprint" in Slack, and you Google'd what is a container. Welcome. Let's actually fix that.</p>
+
+<div class="pp-toc">
+  <div class="pp-toc-label">// <span>what we're getting into</span></div>
+  <ol>
+    <li><a href="#the-scenario">The Scenario</a></li>
+    <li><a href="#the-problem">The Problem</a></li>
+    <li><a href="#the-plan">The Plan</a></li>
+    <li><a href="#the-walkthrough">The Walkthrough</a></li>
+    <li><a href="#the-verification">The Verification</a></li>
+    <li><a href="#the-recap">The Recap</a></li>
+    <li><a href="#the-next-step">The Next Step</a></li>
+    <li><a href="#checklist">Final checklist: confirm Docker is fully working</a></li>
+  </ol>
+</div>
+
+<h2 class="pp-h2" id="the-scenario">The Scenario</h2>
+
+<p>It's your second month at NovaTech Solutions. You're the junior sysadmin. Life is good. You've been racking up small wins, resetting passwords, fixing printer issues, feeling like a tech hero. Then your manager drops this in the team Slack channel: "We're migrating all our internal apps to containers. Everyone needs to be up to speed on Docker by end of sprint."</p>
+
+<p>You smile and give it a thumbs up emoji. Then you close Slack and quietly Google "what is a container."</p>
+
+<p>Don't worry. That was me too. And honestly, that's most people. Nobody is born knowing this stuff, and the Docker documentation reads like it was written by someone who already knows Docker. So let's fix that right now.</p>
+
+<h2 class="pp-h2" id="the-problem">The Problem</h2>
+
+<p>Here's the actual business problem that Docker solves, and once you understand this, everything else clicks.</p>
+
+<p>NovaTech has an internal inventory app. The dev team built it on their MacBooks using Python 3.11, Flask, and PostgreSQL 15. Works perfectly on their machines. Then they hand it off to you to deploy on the company's Ubuntu 22.04 server. You install Python, but the server has 3.9. You install Flask, but it pulls a different version of a dependency. You install PostgreSQL, but it's version 14. The app crashes. The dev says "it works on my machine." You say "cool, can I have your machine then?"</p>
+
+<p>This is called the "works on my machine" problem, and it has been ruining the relationship between developers and operations teams since the beginning of time.</p>
+
+<p>Docker fixes this by packaging the application AND its entire environment (the right Python version, the right libraries, the right database version, all of it) into a single portable unit called a container. You don't install anything on the server except Docker itself. The container brings everything it needs with it. It runs the same way on your laptop, on the Ubuntu server, on AWS, on your grandma's computer if she had Docker installed.</p>
+
+<p>That's the pitch. Now let's actually do it.</p>
+
+<h2 class="pp-h2" id="the-plan">The Plan</h2>
+
+<p>Here's what we're going to do in this walkthrough, step by step:</p>
+
+<ol>
+  <li>Install Docker on Ubuntu, macOS, and Windows (pick your OS, skip the rest)</li>
+  <li>Understand images vs containers (the concept that trips everyone up)</li>
+  <li>Pull and run your first container</li>
+  <li>Run a real web server in a container</li>
+  <li>Build your own custom Docker image from scratch using a Dockerfile</li>
+  <li>Deploy a simple Python Flask app inside a container</li>
+  <li>Manage containers like a professional (stop, start, remove, logs, the works)</li>
+</ol>
+
+<p>By the end of this post, you will have a working containerized application running on your machine and you'll actually understand what every piece does and why.</p>
+
+<h2 class="pp-h2" id="the-walkthrough">The Walkthrough</h2>
+
+<h3 class="pp-h3">Step 1: Installing Docker</h3>
+
+<p>I'm covering all three operating systems. Find yours and skip the other two.</p>
+
+<p><strong>Ubuntu / Debian Linux:</strong></p>
+
+<p>First, remove any ancient Docker packages that might be lurking from previous attempts:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo apt-get remove docker docker-engine docker.io containerd runc`}</pre></div></div>
+
+<p>Now install the prerequisites and add Docker's official repository. Do not install Docker from the default Ubuntu repos. They're outdated and will cause you headaches later.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# Install dependencies\nsudo apt-get update\nsudo apt-get install ca-certificates curl gnupg\n\n# Add Docker's official GPG key\nsudo install -m 0755 -d /etc/apt/keyrings\ncurl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg\nsudo chmod a+r /etc/apt/keyrings/docker.gpg\n\n# Add the repository\necho \\\n  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \\\n  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \\\n  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null\n\n# Install Docker Engine\nsudo apt-get update\nsudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin`}</pre></div></div>
+
+<p>Now add your user to the docker group so you don't have to type <code>sudo</code> every single time:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo usermod -aG docker $USER`}</pre></div></div>
+
+<p>Log out and log back in for this to take effect. Seriously, do it. Don't just open a new terminal and wonder why it doesn't work.</p>
+
+<p><strong>macOS:</strong></p>
+
+<p>Download Docker Desktop from <a href="https://www.docker.com/products/docker-desktop">docker.com/products/docker-desktop</a>. Open the <code>.dmg</code>, drag Docker to Applications, launch it. It'll ask for your password. Let it do its thing. When you see the whale icon in your menu bar, you're good.</p>
+
+<p><strong>Windows:</strong></p>
+
+<p>Download Docker Desktop from the same link. During installation, make sure "Use WSL 2 instead of Hyper-V" is checked. If you haven't enabled WSL 2 yet, Docker will walk you through it. Restart your computer when it asks. Yes, actually restart. Don't just close the dialog.</p>
+
+<p><strong>Verify the install (all operating systems):</strong></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`docker --version`}</pre></div></div>
+
+<p>You should see something like <code>Docker version 27.x.x</code>. If you see "command not found," go back and re-read the install steps for your OS. Something got missed.</p>
+
+<p>Now run the classic test:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`docker run hello-world`}</pre></div></div>
+
+<p>If you see "Hello from Docker!" in your terminal, congratulations. Docker is installed, running, and just pulled and executed your first container. Let's talk about what actually just happened.</p>
+
+<h3 class="pp-h3">Step 2: Images vs Containers (The Concept That Trips Everyone Up)</h3>
+
+<p>This is where most tutorials lose people, so I'm going to use an analogy that actually makes sense.</p>
+
+<p>An <strong>image</strong> is a recipe. It's a set of instructions that says "here's what this application needs to run." It includes the operating system base, the installed software, the application code, the configuration files, everything. An image is read-only. You don't change it. You use it to create things.</p>
+
+<p>A <strong>container</strong> is the meal you cooked from that recipe. It's a running instance of an image. You can have one image and spin up 10 containers from it. Each container runs independently. If one crashes, the others don't care.</p>
+
+<p>When you ran <code>docker run hello-world</code>, here's what actually happened behind the scenes:</p>
+
+<ol>
+  <li>Docker checked your local machine for an image called <code>hello-world</code>. It didn't find one.</li>
+  <li>Docker pulled (downloaded) the <code>hello-world</code> image from Docker Hub, which is like the app store for Docker images.</li>
+  <li>Docker created a new container from that image.</li>
+  <li>The container ran, printed the message, and stopped.</li>
+</ol>
+
+<p>That's the entire lifecycle: pull image, create container, run container.</p>
+
+<h3 class="pp-h3">Step 3: Running a Real Web Server</h3>
+
+<p>The hello-world container is cute but useless. Let's run something real. We're going to spin up a full Nginx web server in one command.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`docker run -d -p 8080:80 --name my-webserver nginx`}</pre></div></div>
+
+<p>Let me break down every flag because you need to understand what you're telling Docker to do:</p>
+
+<ul>
+  <li><code>docker run</code> — create and start a new container</li>
+  <li><code>-d</code> — run it in detached mode (in the background, so it doesn't hijack your terminal)</li>
+  <li><code>-p 8080:80</code> — map port 8080 on YOUR machine to port 80 inside the container. Nginx listens on port 80 by default. So when you visit localhost:8080, Docker routes that traffic into the container's port 80.</li>
+  <li><code>--name my-webserver</code> — give this container a human-readable name instead of Docker's random name generator (which gives you stuff like "angry_panda")</li>
+  <li><code>nginx</code> — the image to use</li>
+</ul>
+
+<p>Open your browser and go to <code>http://localhost:8080</code>. You should see the Nginx welcome page. You just deployed a web server without installing Nginx, without configuring anything, without touching a single config file on your actual machine. The web server is running inside its own isolated environment.</p>
+
+<p>Let's look at what's running:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`docker ps`}</pre></div></div>
+
+<p>This shows all running containers. You'll see your <code>my-webserver</code> container, the ports it's using, how long it's been running, and the image it was created from.</p>
+
+<p>Now let's look at the logs:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`docker logs my-webserver`}</pre></div></div>
+
+<p>You'll see Nginx's access and error logs. Every time you refreshed that browser page, a log entry was created. This is how you troubleshoot containers in production.</p>
+
+<p>Let's stop it:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`docker stop my-webserver`}</pre></div></div>
+
+<p>And start it back up:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`docker start my-webserver`}</pre></div></div>
+
+<p>And when you're done with it completely:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`docker stop my-webserver\ndocker rm my-webserver`}</pre></div></div>
+
+<p><code>stop</code> shuts it down. <code>rm</code> deletes the container entirely. The image is still on your machine though. To see all images:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`docker images`}</pre></div></div>
+
+<h3 class="pp-h3">Step 4: Building Your Own Custom Image</h3>
+
+<p>Pulling pre-built images is great for existing software. But the real power of Docker is building your own images for your own applications. That's what your team at NovaTech actually needs you to do.</p>
+
+<p>Let's build a containerized Python Flask application from scratch.</p>
+
+<p>First, create a project directory:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`mkdir ~/docker-flask-demo\ncd ~/docker-flask-demo`}</pre></div></div>
+
+<p>Create the Flask application. This is a simple API that returns server information:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`cat > app.py << 'EOF'\nfrom flask import Flask, jsonify\nimport platform\nimport os\n\napp = Flask(__name__)\n\n@app.route('/')\ndef home():\n    return jsonify({\n        "message": "Hello from inside a Docker container!",\n        "hostname": platform.node(),\n        "python_version": platform.python_version(),\n        "os": platform.platform(),\n        "container_id": os.environ.get("HOSTNAME", "unknown")\n    })\n\n@app.route('/health')\ndef health():\n    return jsonify({"status": "healthy"}), 200\n\nif __name__ == '__main__':\n    app.run(host='0.0.0.0', port=5000)\nEOF`}</pre></div></div>
+
+<p>Create the requirements file:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`cat > requirements.txt << 'EOF'\nflask==3.1.0\nEOF`}</pre></div></div>
+
+<p>Now here's the important part. Create a <code>Dockerfile</code>. This is the recipe that tells Docker how to build your image. No file extension. Just <code>Dockerfile</code>.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`cat > Dockerfile << 'EOF'\n# Start from a lightweight Python base image\nFROM python:3.11-slim\n\n# Set the working directory inside the container\nWORKDIR /app\n\n# Copy the requirements file first (this layer gets cached)\nCOPY requirements.txt .\n\n# Install Python dependencies\nRUN pip install --no-cache-dir -r requirements.txt\n\n# Copy the application code\nCOPY app.py .\n\n# Tell Docker this container listens on port 5000\nEXPOSE 5000\n\n# The command to run when the container starts\nCMD ["python", "app.py"]\nEOF`}</pre></div></div>
+
+<p>Let me explain why the order matters. Docker builds images in layers. Each instruction in the Dockerfile creates a new layer. Docker caches these layers. If nothing changed in a layer, Docker skips rebuilding it. By copying <code>requirements.txt</code> and installing dependencies BEFORE copying the application code, Docker can cache the dependency layer. So when you change your Python code (which you'll do constantly), Docker doesn't have to reinstall all your pip packages every single time. It just rebuilds the layer that changed. This is a huge time saver and it's a best practice that separates people who know Docker from people who just copy-paste Dockerfiles.</p>
+
+<p>Now build the image:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`docker build -t novatech-flask-app:v1 .`}</pre></div></div>
+
+<ul>
+  <li><code>-t novatech-flask-app:v1</code> — tag (name) the image. The <code>:v1</code> is the version tag. Always version your images.</li>
+  <li><code>.</code> — the build context. This tells Docker "all the files you need are in the current directory."</li>
+</ul>
+
+<p>You'll see Docker execute each step in the Dockerfile. When it's done:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`docker images | grep novatech`}</pre></div></div>
+
+<p>There's your image. Now run it:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`docker run -d -p 5000:5000 --name novatech-api novatech-flask-app:v1`}</pre></div></div>
+
+<p>Hit <code>http://localhost:5000</code> in your browser. You'll see the JSON response from your Flask app, running inside a container, with the correct Python version, completely isolated from your host machine. Hit <code>http://localhost:5000/health</code> for the health check endpoint.</p>
+
+<h3 class="pp-h3">Step 5: Real World Container Management</h3>
+
+<p>In a real production environment, you need to know more than just <code>docker run</code>. Here are the commands that will actually save your life.</p>
+
+<p><strong>View running containers:</strong></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`docker ps`}</pre></div></div>
+
+<p><strong>View ALL containers (including stopped ones):</strong></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`docker ps -a`}</pre></div></div>
+
+<p><strong>Get inside a running container (for troubleshooting):</strong></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`docker exec -it novatech-api /bin/bash`}</pre></div></div>
+
+<p>This drops you into a shell inside the container. You can poke around, check files, test things. Type <code>exit</code> to leave. The container keeps running.</p>
+
+<p><strong>View real-time logs:</strong></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`docker logs -f novatech-api`}</pre></div></div>
+
+<p>The <code>-f</code> flag follows the log output in real time, just like <code>tail -f</code>. Press Ctrl+C to stop watching.</p>
+
+<p><strong>Check resource usage:</strong></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`docker stats novatech-api`}</pre></div></div>
+
+<p>This shows CPU, memory, network I/O, and disk I/O in real time. This is how you catch a container that's eating all your server's RAM at 3am.</p>
+
+<p><strong>Copy files in and out of a container:</strong></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# Copy a file FROM a container to your host\ndocker cp novatech-api:/app/app.py ./app-backup.py\n\n# Copy a file FROM your host INTO a container\ndocker cp ./new-config.json novatech-api:/app/config.json`}</pre></div></div>
+
+<p><strong>Inspect a container's full configuration:</strong></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`docker inspect novatech-api`}</pre></div></div>
+
+<p>This dumps a massive JSON blob with every detail about the container: IP address, mounted volumes, environment variables, network settings, all of it. When something is broken and you can't figure out why, this is where you look.</p>
+
+<p><strong>Clean up everything (nuclear option for your dev environment):</strong></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# Stop all running containers\ndocker stop $(docker ps -q)\n\n# Remove all stopped containers\ndocker rm $(docker ps -aq)\n\n# Remove all unused images\ndocker image prune -a\n\n# The "I give up, clean everything" command\ndocker system prune -a --volumes`}</pre></div></div>
+
+<p>That last command removes all stopped containers, all unused networks, all unused images, AND all unused volumes. Don't run this in production. Do run it on your dev machine when Docker is eating 40GB of disk space and you can't figure out why.</p>
+
+<h2 class="pp-h2" id="the-verification">The Verification</h2>
+
+<p>Let's make sure everything actually works end to end. Run through this checklist:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# 1. Check Docker is running\ndocker --version\n\n# 2. Check your custom image exists\ndocker images | grep novatech\n\n# 3. Run your container\ndocker run -d -p 5000:5000 --name verify-test novatech-flask-app:v1\n\n# 4. Verify it's running\ndocker ps | grep verify-test\n\n# 5. Test the endpoint\ncurl http://localhost:5000\n\n# 6. Check logs\ndocker logs verify-test\n\n# 7. Clean up\ndocker stop verify-test && docker rm verify-test`}</pre></div></div>
+
+<p>If every step returned what you expected, you're solid. If step 5 failed, check step 4. If step 4 shows the container exited, check <code>docker logs verify-test</code> for the error. 99% of the time it's a typo in the Dockerfile or a missing dependency in requirements.txt.</p>
+
+<h2 class="pp-h2" id="the-recap">The Recap</h2>
+
+<p>Here's what you just learned and what to remember:</p>
+
+<p><strong>Images</strong> are the blueprint. <strong>Containers</strong> are the running thing built from that blueprint. You can have many containers from one image.</p>
+
+<p><strong>Dockerfile</strong> is where you define how your image gets built. Order matters because of layer caching. Put things that change less (dependencies) before things that change often (your code).</p>
+
+<p><strong>Port mapping</strong> (<code>-p host:container</code>) connects the outside world to your container. Without it, your container is running but nobody can talk to it.</p>
+
+<p><strong>Key commands you'll use every single day:</strong></p>
+
+<ul>
+  <li><code>docker build</code> — make an image</li>
+  <li><code>docker run</code> — make a container from an image</li>
+  <li><code>docker ps</code> — what's running</li>
+  <li><code>docker logs</code> — what happened</li>
+  <li><code>docker exec</code> — get inside a container</li>
+  <li><code>docker stop/rm</code> — shut it down and clean up</li>
+</ul>
+
+<p>The real skill isn't memorizing commands. It's understanding the flow: write code, write Dockerfile, build image, run container, test, iterate. That's the Docker workflow, and everything else is just details.</p>
+
+<h2 class="pp-h2" id="the-next-step">The Next Step</h2>
+
+<p>You can now containerize a single application. That's genuinely useful. But in the real world, applications don't run alone. Your Flask app needs a database. The database needs a cache layer. The cache needs a message queue. Now you've got 4 containers that all need to talk to each other, start in the right order, and share a network.</p>
+
+<p>That's where <strong>Docker Compose</strong> comes in, and that's the next post in this series. We're going to take this Flask app and give it a PostgreSQL database, wire them together with a single YAML file, and spin up the whole stack with one command.</p>
+
+<p>If you want to practice before the next post drops, try these challenges:</p>
+
+<ol>
+  <li>Modify the Flask app to add a <code>/version</code> endpoint that returns <code>&#123;"version": "1.0.0"&#125;</code></li>
+  <li>Rebuild the image as <code>novatech-flask-app:v2</code></li>
+  <li>Run both v1 and v2 at the same time on different ports</li>
+  <li>Compare the output of both by hitting their endpoints</li>
+</ol>
+
+<p>That's Docker versioning in action. See you in the next one.</p>
+
+<h2 class="pp-h2" id="checklist">Final checklist: confirm Docker is fully working</h2>
+
+<p>Run these in your terminal. If every step gives the expected output, you've completed the post and you're ready for Docker Compose.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# 1. Docker daemon is installed and reachable\ndocker --version\n#    -> Docker version 24.x or newer\n\n# 2. Your user can talk to the daemon without sudo (Linux only)\ndocker info | head\n#    -> no permission errors\n\n# 3. The hello-world image runs\ndocker run --rm hello-world\n#    -> "Hello from Docker!" message\n\n# 4. Your custom Flask image exists\ndocker images | grep novatech-flask-app\n#    -> shows the image you built\n\n# 5. The Flask container responds on port 5000\ncurl -s http://localhost:5000\n#    -> JSON response from your app\n\n# 6. You can read container logs\ndocker logs novatech-flask\n#    -> output from Flask startup and any requests\n\n# 7. Container management commands work end-to-end\ndocker ps                       # list running\ndocker stop novatech-flask      # stop\ndocker rm novatech-flask        # remove\ndocker images                   # confirm image still cached\n\n# 8. You can clean up dangling resources\ndocker system df                # see what's using disk\n# (optional) docker system prune    # remove stopped containers, unused networks, dangling images`}</pre></div></div>
+
+<p>Eight checks. If any step errors, scroll back to the matching section above and walk through it again. Once they all pass, Docker is ready and you're set up for Docker Compose in the next post.</p>
+
+<div class="pp-next">
+  <div class="pp-next-label">next post</div>
+  <div class="pp-next-title">Docker Compose: wiring a Flask app to a PostgreSQL database with a single YAML file</div>
+</div>
