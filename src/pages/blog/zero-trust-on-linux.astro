@@ -1,0 +1,191 @@
+---
+import Nav from '../../components/Nav.astro';
+import Footer from '../../components/Footer.astro';
+---
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zero Trust on Linux — projectpattie;</title>
+  <meta name="description" content="Every vendor has it on their website. Every job post wants it. Nobody can actually explain it. Let's fix that." />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0d0d14; color: #c0c0d0; font-family: 'Source Code Pro', 'JetBrains Mono', monospace; font-size: 15px; line-height: 1.85; -webkit-font-smoothing: antialiased; }
+    .pp-article { max-width: 740px; margin: 0 auto; padding: 60px 24px 100px; }
+    .pp-meta { color: #6a6a8a; font-size: 11px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 40px; }
+    .pp-meta span { color: #00ff9d; }
+    .pp-title { font-size: clamp(28px, 5vw, 42px); font-weight: 700; color: #e0e0f0; line-height: 1.2; margin-bottom: 12px; }
+    .pp-title em { color: #ff00ff; font-style: normal; }
+    .pp-subtitle { color: #7a7a9a; font-size: 15px; line-height: 1.7; margin-bottom: 50px; }
+    .pp-toc { background: #0a0a12; border: 1px solid #1a1a2e; border-radius: 6px; padding: 24px 28px; margin-bottom: 50px; }
+    .pp-toc-label { color: #3a3a5a; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 16px; }
+    .pp-toc-label span { color: #00ff9d; }
+    .pp-toc ol { padding: 0; counter-reset: toc; list-style: none; }
+    .pp-toc li { counter-increment: toc; margin-bottom: 8px; }
+    .pp-toc li::before { content: counter(toc) "."; color: #3a3a5a; margin-right: 10px; font-size: 12px; }
+    .pp-toc a { color: #c0c0d0; font-size: 13px; text-decoration: none; transition: color .2s; }
+    .pp-toc a:hover { color: #00ff9d; }
+    h2.pp-h2 { font-size: 22px; font-weight: 700; color: #e0e0f0; margin: 56px 0 20px; padding-bottom: 8px; border-bottom: 1px solid #1a1a2e; scroll-margin-top: 30px; line-height: 1.3; }
+    p { margin-bottom: 20px; color: #c0c0d0; }
+    code { background: #12121f; border: 1px solid #1a1a2e; border-radius: 3px; padding: 1px 6px; font-size: 13px; color: #00d4ff; }
+    .c-pink   { color: #ff00ff; font-weight: 600; }
+    .c-cyan   { color: #00d4ff; font-weight: 600; }
+    .c-green  { color: #00ff9d; font-weight: 600; }
+    .c-orange { color: #ff9d00; font-weight: 600; }
+    .c-light  { color: #e0e0f0; font-weight: 600; }
+    .pp-code { background: #0a0a0f; border: 1px solid #1a1a2e; border-radius: 6px; margin: 20px 0; overflow: hidden; display: block; }
+    .pp-code-head { background: #12121f; border-bottom: 1px solid #1a1a2e; padding: 7px 14px; display: flex; align-items: center; gap: 10px; }
+    .pp-code-dots { display: flex; gap: 5px; flex-shrink: 0; }
+    .pp-code-dot { width: 7px; height: 7px; border-radius: 50%; }
+    .pp-code-dot:nth-child(1) { background: #ff5f57; }
+    .pp-code-dot:nth-child(2) { background: #febc2e; }
+    .pp-code-dot:nth-child(3) { background: #28c840; }
+    .pp-code-lang { color: #ff00ff; font-size: 11px; flex: 1; }
+    .pp-code-copy { color: #ff00ff; font-size: 9px; border: 1px solid #1a1a2e; border-radius: 3px; padding: 2px 8px; background: none; cursor: pointer; margin-left: auto; transition: all .2s; font-family: 'Source Code Pro', monospace; }
+    .pp-code-copy:hover { color: #00ff9d; border-color: #00ff9d; }
+    .pp-code-body { padding: 16px 18px; overflow-x: auto; display: block; }
+    .pp-code-body pre { font-size: 13px; line-height: 1.75; color: #e0e0f0; white-space: pre; margin: 0; padding: 0; background: transparent; display: block; font-family: 'Source Code Pro', monospace; }
+    .pp-note { background: #0f0f1a; border-left: 3px solid #ff9d00; padding: 14px 18px; margin: 20px 0; font-size: 13px; color: #8a8aa0; border-radius: 0 6px 6px 0; }
+    .pp-note strong { color: #ff9d00; }
+    .pp-next { margin-top: 60px; padding-top: 30px; border-top: 1px solid #1a1a2e; }
+    .pp-next-label { color: #3a3a5a; font-size: 10px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; }
+    .pp-next-title { color: #00ff9d; font-size: 15px; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <Nav />
+  <article class="pp-article">
+
+    <div class="pp-meta"><span>cybersecurity</span> · Apr 24, 2026 · 7 min read</div>
+    <h1 class="pp-title">Zero Trust on Linux.<br><em>explained like a real person.</em></h1>
+    <p class="pp-subtitle">Every vendor has it on their website. Every job post wants it. Nobody can actually explain it. Let's fix that.</p>
+
+    <div class="pp-toc">
+      <div class="pp-toc-label">// <span>what we're getting into</span></div>
+      <ol>
+        <li><a href="#old-model">Where the old model came from and why it completely fell apart</a></li>
+        <li><a href="#what-zt-says">What Zero Trust actually says — not the sales pitch version</a></li>
+        <li><a href="#three-principles">The three core principles, broken down like you're a person</a></li>
+        <li><a href="#linux-mapping">How this maps to stuff you already do on Linux servers</a></li>
+        <li><a href="#hands-on">Hands-on: applying it to a real server right now</a></li>
+        <li><a href="#what-zt-is-not">What Zero Trust is NOT (vendor edition)</a></li>
+        <li><a href="#checklist">Final checklist to audit where you stand</a></li>
+      </ol>
+    </div>
+
+    <h2 class="pp-h2" id="old-model">Where the old model came from and why it completely fell apart</h2>
+    <p>Picture it: it's 2003. Everyone works in the office. The servers are in the building. The firewall is the big scary wall between you and the internet, and if you're inside the wall you're basically family. Trusted. Welcome. Help yourself to the file share.</p>
+    <p>This is called perimeter-based security and for its time it made total sense. The logic was: we know who's inside, the bad guys are outside, and the wall keeps them out. Simple. Clean. Wrong, eventually, but clean.</p>
+    <p>Then a few things happened all at once. Cloud computing put servers outside the building. VPNs let people work from anywhere. Mobile devices meant your "trusted employee" was now connecting from a coffee shop on public wifi. SaaS apps meant company data lived in systems the company didn't even own. The perimeter just dissolved. There was no inside anymore.</p>
+    <p>But companies kept building thicker walls around a perimeter that didn't exist anymore. Which is like putting a really good lock on a door that has no walls around it. Classic.</p>
+    <p>The real nail in the coffin: attackers figured out the easiest way in wasn't through the firewall. It was a phishing email. One click from one tired employee and suddenly someone with bad intentions is inside the network, being treated like a trusted colleague, moving around freely. The firewall never saw it coming because the threat came from inside the house.</p>
+
+    <h2 class="pp-h2" id="what-zt-says">What Zero Trust actually says</h2>
+    <p>Zero Trust is built on one principle: <span class="c-pink">never trust, always verify.</span> That's it. That's the whole thing. Everything else is implementation details.</p>
+    <p>In the old model, trust came from location. You're inside the network? You're trusted. Zero Trust throws that out entirely. It does not care where your request comes from. Every single request gets verified. Every time. No free passes.</p>
+    <p>John Kindervag coined the term at Forrester in 2010. Core idea: treat every user, device, and network flow as untrusted by default. Verify identity explicitly. Use least-privilege access. And crucially: <span class="c-pink">assume breach.</span></p>
+    <p>Those last two words are doing heavy lifting. Assume breach. Traditional security assumed the goal was keeping attackers out. Zero Trust assumes they're already in, or will be, and asks: how do we limit the damage? Instead of one big wall, you build a lot of small walls everywhere. So when something breaks through, it can't go anywhere.</p>
+
+    <h2 class="pp-h2" id="three-principles">The three core principles, broken down like you're a person</h2>
+    <p><span class="c-cyan">1. Verify explicitly.</span> Every access request gets checked against everything available: who are you, what device are you on, is that device patched and healthy, where are you connecting from, does this behavior look normal for you? It's not just "what's your password." It's a whole vibe check every single time.</p>
+    <p>In practice this means MFA is not optional anymore. It means short-lived credentials that expire instead of sessions that stay open for a week. It means checking device health before handing over access.</p>
+    <p><span class="c-cyan">2. Least privilege access.</span> You get exactly what you need to do your job and not one byte more. The developers in the RHEL 9 post could restart Apache. That was it. They couldn't touch <code>/etc/shadow</code>, modify users, or mess with system configs. That's least privilege doing its job.</p>
+    <p><span class="c-cyan">3. Assume breach.</span> Build every system like someone is already inside watching. Encrypt internal traffic because maybe someone is sniffing it. Log everything because you'll want receipts when something goes sideways. Segment the network so one compromised machine doesn't hand over the whole environment.</p>
+
+    <h2 class="pp-h2" id="linux-mapping">How this maps to stuff you already do on Linux servers</h2>
+    <p>If you've been following good sysadmin hygiene, you're already doing Zero Trust. You just weren't calling it that because the name is annoying.</p>
+    <p><span class="c-green">SSH key auth instead of passwords</span> is explicit verification. Cryptographic proof of identity instead of a string of characters someone can guess or steal from a sticky note.</p>
+    <p><span class="c-green">The sudoers config from the RHEL 9 post</span> is least privilege. Scoped access by role, not "everyone gets sudo because it's easier."</p>
+    <p><span class="c-green">Disabling root login over SSH</span> is assume breach. Even if credentials get stolen, direct root access is blocked. Audit trail stays intact.</p>
+    <p><span class="c-green">firewalld zones</span> are network segmentation. Traffic only flows where it's supposed to. Everything else gets quietly dropped.</p>
+    <p>The difference between doing these things randomly and doing them as a Zero Trust strategy is intentionality. One is good habits. The other is a system designed to contain damage when something breaks.</p>
+
+    <h2 class="pp-h2" id="hands-on">Hands-on: applying it to a real server right now</h2>
+    <p><span class="c-pink">Add MFA to SSH.</span> Key auth is solid. Key auth plus a one-time code is better.</p>
+    <div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre># RHEL 9 / Rocky / CentOS Stream
+sudo dnf install google-authenticator -y
+google-authenticator  # run as the user, not root</pre></div></div>
+
+    <p>Update <code>sshd_config</code> to require both factors:</p>
+    <div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">sshd_config</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>ChallengeResponseAuthentication yes
+AuthenticationMethods           publickey,keyboard-interactive</pre></div></div>
+
+    <p>Keep your existing SSH session open while you test this in a second terminal. If you lock yourself out, you're not the first person to do it, but you will feel a certain type of way about it.</p>
+    <p><span class="c-pink">Segment services with firewalld.</span> Your database should not be visible to the internet. Just no.</p>
+    <div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre># remove mysql from public zone entirely
+sudo firewall-cmd --zone=public --remove-service=mysql --permanent
+
+# only allow your app server to reach it
+sudo firewall-cmd --zone=public \
+  --add-rich-rule='rule family="ipv4" source address="192.168.1.50" port port="3306" protocol="tcp" accept' \
+  --permanent
+sudo firewall-cmd --reload</pre></div></div>
+
+    <p><span class="c-pink">Log everything and actually look at it.</span></p>
+    <div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>sudo dnf install audit -y
+sudo systemctl enable --now auditd
+
+# watch sudo usage in real time
+sudo journalctl -f | grep sudo
+
+# check recent auth events
+sudo ausearch -m USER_AUTH,USER_ACCT -ts recent</pre></div></div>
+
+    <p><span class="c-pink">Review access regularly.</span></p>
+    <div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre># who has sudo access right now
+sudo grep -r 'ALL=(ALL)' /etc/sudoers /etc/sudoers.d/
+
+# accounts that haven't logged in recently
+sudo lastlog | grep -v 'Never logged in' | grep -v Username</pre></div></div>
+
+    <div class="pp-note"><strong>note:</strong> Unexpected sudo usage outside business hours or from an account that doesn't normally use it is a signal worth investigating. That's the whole point of logging. You're building visibility so you can catch things early.</div>
+
+    <h2 class="pp-h2" id="what-zt-is-not">What Zero Trust is NOT (vendor edition)</h2>
+    <p><span class="c-orange">It's not a product.</span> Every security vendor on earth will try to sell you a "Zero Trust solution." Some of those tools are genuinely useful. None of them are Zero Trust by themselves. You can buy all of them and still have a fundamentally broken architecture if the thinking isn't there.</p>
+    <p><span class="c-orange">It's not all-or-nothing.</span> You don't flip a switch and achieve Zero Trust. You improve incrementally. MFA here, segmentation there, least privilege everywhere you can reach.</p>
+    <p><span class="c-orange">VPN is not Zero Trust.</span> A VPN puts you inside the perimeter. That's literally the opposite of what Zero Trust is about.</p>
+    <p><span class="c-orange">"Zero Trust means trusting nothing ever" is wrong.</span> It doesn't mean trust is never granted. It means trust is never assumed. Big difference. One is paranoia, the other is architecture.</p>
+
+    <h2 class="pp-h2" id="checklist">Final checklist: audit where you stand</h2>
+    <div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre># 1. root SSH login is off
+sudo sshd -T | grep permitrootlogin
+
+# 2. password auth is disabled
+sudo sshd -T | grep passwordauthentication
+
+# 3. MFA is configured
+sudo grep pam_google_authenticator /etc/pam.d/sshd
+
+# 4. firewalld zones are intentional
+sudo firewall-cmd --get-active-zones
+sudo firewall-cmd --zone=public --list-all
+
+# 5. no unnecessary services exposed
+sudo firewall-cmd --zone=public --list-services
+
+# 6. sudo is scoped
+sudo grep -r 'ALL=(ALL)' /etc/sudoers /etc/sudoers.d/
+
+# 7. app processes not running as root
+ps aux | grep -E 'httpd|nginx|mysql|postgres' | grep -v root
+
+# 8. auditd is running
+sudo systemctl status auditd
+
+# 9. no dormant accounts with active permissions
+sudo lastlog | grep -v 'Never logged in'</pre></div></div>
+
+    <p>Nine checks. No enterprise software required. No security budget needed. Just understanding the model and applying it on purpose, one layer at a time. That's it. That's Zero Trust.</p>
+
+    <div class="pp-next">
+      <div class="pp-next-label">next post</div>
+      <div class="pp-next-title">SSH hardening checklist: ten things to do on every new server</div>
+    </div>
+
+  </article>
+  <Footer />
+</body>
+</html>
