@@ -1,0 +1,109 @@
+---
+import { getCollection } from 'astro:content';
+
+const entries = await getCollection('kubecraft', ({ data }) => !data.draft);
+const sorted = entries.sort((a, b) => new Date(b.data.date).getTime() - new Date(a.data.date).getTime());
+---
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>kubecraft // journal — projectpattie;</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0d0f0f;--bg2:#111416;--bg3:#161a1b;--border:#1e2526;--border2:#243032;--cyan:#00e5c8;--magenta:#ff2d9b;--green:#39ff6e;--yellow:#f5c518;--dim:#4a5a5c;--muted:#6b8082;--text:#c8d8da;--text2:#e8f0f1;--mono:'JetBrains Mono',monospace}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:14px;line-height:1.7;min-height:100vh}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,229,200,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,200,0.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
+.ticker{background:var(--bg2);border-bottom:1px solid var(--border2);overflow:hidden;padding:6px 0;position:sticky;top:0;z-index:100}
+.ticker-inner{display:flex;gap:60px;white-space:nowrap;animation:ticker 28s linear infinite;font-size:11px;color:var(--dim)}
+.ticker-inner span{color:var(--cyan)}
+@keyframes ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+nav{display:flex;justify-content:space-between;align-items:center;padding:18px 40px;border-bottom:1px solid var(--border);position:relative;z-index:10}
+.logo{color:var(--cyan);font-size:15px;font-weight:700}
+.logo em{color:var(--magenta);font-style:normal}
+nav a{color:var(--muted);text-decoration:none;font-size:12px;letter-spacing:0.08em;transition:color 0.2s}
+nav a:hover,nav a.active{color:var(--cyan)}
+.container{max-width:900px;margin:0 auto;padding:48px 40px 80px;position:relative;z-index:1}
+.prompt-line{color:var(--muted);font-size:12px;margin-bottom:8px}
+.prompt-line .u{color:var(--green)}.prompt-line .p{color:var(--cyan)}
+.page-title{font-size:28px;font-weight:700;color:var(--text2);margin-bottom:4px;letter-spacing:-0.02em}
+.page-title em{color:var(--magenta);font-style:normal}
+.page-sub{font-size:12px;color:var(--muted);margin-bottom:40px}
+.cursor{display:inline-block;width:9px;height:14px;background:var(--magenta);vertical-align:middle;animation:blink 1s step-end infinite;margin-left:2px}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+.sl{font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--cyan);margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.sl::before{content:'//';color:var(--dim)}
+.entries{display:flex;flex-direction:column;gap:12px}
+.entry-card{background:var(--bg2);border:1px solid var(--border2);border-radius:4px;padding:20px 24px;text-decoration:none;display:block;position:relative;transition:border-color 0.2s;overflow:hidden}
+.entry-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;background:var(--border2);border-radius:4px 0 0 4px;transition:background 0.2s}
+.entry-card:hover::before{background:var(--cyan)}
+.card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:12px}
+.card-title{font-size:14px;font-weight:700;color:var(--text2);margin-bottom:2px}
+.card-section{font-size:11px;color:var(--muted)}
+.card-date{font-size:11px;color:var(--dim);margin-bottom:6px;text-align:right}
+.confidence{display:flex;gap:4px;justify-content:flex-end}
+.cdot{width:8px;height:8px;border-radius:50%;background:var(--border2)}
+.cdot.on{background:var(--cyan);box-shadow:0 0 4px var(--cyan)}
+.card-footer{display:flex;justify-content:space-between;align-items:center}
+.card-tags{display:flex;gap:6px;flex-wrap:wrap}
+.tag{font-size:10px;padding:2px 8px;border-radius:2px;border:1px solid var(--border2);color:var(--muted)}
+.time{font-size:11px;color:var(--dim)}
+</style>
+</head>
+<body>
+<div class="ticker">
+  <div class="ticker-inner">
+    <span>kubectl</span> get pods -A &nbsp;|&nbsp; <span>kubecraft</span> journal &nbsp;|&nbsp; <span>0xCAFEBABE</span> &nbsp;|&nbsp; docker compose up -d &nbsp;|&nbsp; <span>helm</span> install ingress-nginx &nbsp;|&nbsp; chmod 2770 &nbsp;|&nbsp;
+    <span>kubectl</span> get pods -A &nbsp;|&nbsp; <span>kubecraft</span> journal &nbsp;|&nbsp; <span>0xCAFEBABE</span> &nbsp;|&nbsp; docker compose up -d &nbsp;|&nbsp; <span>helm</span> install ingress-nginx &nbsp;|&nbsp; chmod 2770 &nbsp;|&nbsp;
+  </div>
+</div>
+<nav>
+  <a href="/" class="logo">projectpattie<em>;</em></a>
+  <div style="display:flex;gap:28px">
+    <a href="/sysadmin">sysadmin</a>
+    <a href="/cybersecurity">cybersecurity</a>
+    <a href="/hackerbox">hackerbox</a>
+    <a href="/tryhackme">tryhackme</a>
+    <a href="/devops">devops</a>
+    <a href="/kubecraft" class="active">kubecraft</a>
+    <a href="/thoughts">thoughts</a>
+    <a href="/about">about</a>
+  </div>
+</nav>
+<div class="container">
+  <div class="prompt-line"><span class="u">root@pattie</span> ~ <span class="p">/kubecraft</span></div>
+  <h1 class="page-title">kubecraft <em>journal</em><span class="cursor"></span></h1>
+  <p class="page-sub">// learning log. every lesson. every break. every fix.</p>
+  <div class="sl">entries</div>
+  <div class="entries">
+    {sorted.map(entry => (
+      <a href={`/kubecraft/${entry.slug}`} class="entry-card">
+        <div class="card-top">
+          <div>
+            <div class="card-title">{entry.data.title}</div>
+            <div class="card-section">section: {entry.data.section}</div>
+          </div>
+          <div>
+            <div class="card-date">{entry.data.date.toISOString().split('T')[0]}</div>
+            <div class="confidence">
+              {[1,2,3,4,5].map(i => (
+                <div class={`cdot ${i <= entry.data.confidence ? 'on' : ''}`}></div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div class="card-footer">
+          <div class="card-tags">
+            {entry.data.tags?.map(tag => <span class="tag">{tag}</span>)}
+          </div>
+          {entry.data.timeSpent && <span class="time">{entry.data.timeSpent}</span>}
+        </div>
+      </a>
+    ))}
+  </div>
+</div>
+</body>
+</html>

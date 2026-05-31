@@ -8,6 +8,13 @@ export default defineConfig({
     shikiConfig: {
       theme: 'github-dark',
       wrap: true,
+      transformers: [
+        {
+          pre(node) {
+            node.properties['data-language'] = this.options.lang;
+          },
+        },
+      ],
     },
   },
 });

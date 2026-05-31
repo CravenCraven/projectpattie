@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>kubecraft // new entry — projectpattie;</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#0d0f0f;--bg2:#111416;--bg3:#161a1b;--border:#1e2526;--border2:#243032;--cyan:#00e5c8;--magenta:#ff2d9b;--green:#39ff6e;--yellow:#f5c518;--dim:#4a5a5c;--muted:#6b8082;--text:#c8d8da;--text2:#e8f0f1;--mono:'JetBrains Mono',monospace}
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:14px;line-height:1.7;min-height:100vh}
+  body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,229,200,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,229,200,0.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0}
+
+  /* ticker */
+  .ticker{background:var(--bg2);border-bottom:1px solid var(--border2);overflow:hidden;padding:6px 0;position:sticky;top:0;z-index:100}
+  .ticker-inner{display:flex;gap:60px;white-space:nowrap;animation:ticker 28s linear infinite;font-size:11px;color:var(--dim)}
+  .ticker-inner span{color:var(--cyan)}
+  @keyframes ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+
+  /* nav */
+  nav{display:flex;justify-content:space-between;align-items:center;padding:18px 40px;border-bottom:1px solid var(--border);position:relative;z-index:10}
+  .logo{color:var(--cyan);font-size:15px;font-weight:700}.logo em{color:var(--magenta);font-style:normal}
+  nav a{color:var(--muted);text-decoration:none;font-size:12px;letter-spacing:0.08em;transition:color 0.2s}
+  nav a:hover,nav a.active{color:var(--cyan)}
+
+  /* autosave bar */
+  .autosave-bar{background:var(--bg2);border-bottom:1px solid var(--border);padding:8px 40px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:33px;z-index:99}
+  .autosave-status{font-size:11px;color:var(--dim);display:flex;align-items:center;gap:8px}
+  .autosave-dot{width:7px;height:7px;border-radius:50%;background:var(--dim)}
+  .autosave-dot.saved{background:var(--green);box-shadow:0 0 4px var(--green)}
+  .autosave-actions{display:flex;gap:10px}
+  .bar-btn{font-family:var(--mono);font-size:11px;padding:5px 14px;background:transparent;border:1px solid var(--border2);border-radius:2px;color:var(--muted);cursor:pointer;letter-spacing:0.06em;transition:all 0.15s}
+  .bar-btn:hover{border-color:var(--muted);color:var(--text)}
+  .bar-btn.primary{border-color:var(--cyan);color:var(--cyan)}
+  .bar-btn.primary:hover{background:var(--cyan);color:var(--bg)}
+  .bar-btn.danger{border-color:var(--dim);color:var(--dim)}
+  .bar-btn.danger:hover{border-color:var(--magenta);color:var(--magenta)}
+
+  /* layout */
+  .container{max-width:860px;margin:0 auto;padding:40px 40px 80px;position:relative;z-index:1}
+  .back{display:inline-flex;align-items:center;gap:6px;color:var(--muted);text-decoration:none;font-size:11px;margin-bottom:24px;transition:color 0.2s}
+  .back:hover{color:var(--cyan)}
+  .prompt-line{color:var(--muted);font-size:12px;margin-bottom:8px}
+  .prompt-line .u{color:var(--green)}.prompt-line .p{color:var(--cyan)}
+  .page-title{font-size:26px;font-weight:700;color:var(--text2);margin-bottom:4px;letter-spacing:-0.02em}
+  .page-title em{color:var(--magenta);font-style:normal}
+  .page-sub{font-size:12px;color:var(--muted);margin-bottom:36px}
+  .cursor{display:inline-block;width:9px;height:14px;background:var(--magenta);vertical-align:middle;animation:blink 1s step-end infinite;margin-left:2px}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+
+  /* section label */
+  .sl{font-size:10px;font-weight:700;letter-spacing:0.14em;text-transform:uppercase;color:var(--cyan);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+  .sl::before{content:'//';color:var(--dim)}
+
+  /* blocks */
+  .block{background:var(--bg2);border:1px solid var(--border2);border-radius:4px;padding:20px 24px;margin-bottom:16px;position:relative}
+  .block::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%;border-radius:4px 0 0 4px;background:var(--border2)}
+  .block.c::before{background:var(--cyan)}.block.m::before{background:var(--magenta)}
+  .block.g::before{background:var(--green)}.block.y::before{background:var(--yellow)}
+
+  /* form fields */
+  .fl{font-size:10px;letter-spacing:0.12em;text-transform:uppercase;color:var(--dim);margin-bottom:6px}
+  textarea,input[type=text],input[type=date],input[type=number]{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:3px;color:var(--text);font-family:var(--mono);font-size:13px;line-height:1.7;padding:10px 14px;outline:none;transition:border-color 0.2s}
+  textarea{resize:vertical;min-height:90px}
+  textarea:focus,input:focus{border-color:var(--cyan)}
+  textarea::placeholder,input::placeholder{color:var(--dim)}
+  select{background:var(--bg3);border:1px solid var(--border2);border-radius:3px;color:var(--text);font-family:var(--mono);font-size:12px;padding:7px 10px;outline:none;cursor:pointer;width:100%}
+  select:focus{border-color:var(--cyan)}
+
+  /* meta row */
+  .meta-row{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:32px;padding:20px 24px;background:var(--bg2);border:1px solid var(--border);border-radius:4px}
+  .mi{display:flex;flex-direction:column;gap:4px}
+  .mk{font-size:10px;letter-spacing:0.1em;color:var(--dim);text-transform:uppercase}
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+
+  /* code blocks */
+  .cw{background:var(--bg);border:1px solid var(--border2);border-radius:4px;margin-top:8px;overflow:hidden}
+  .ch{display:flex;align-items:center;justify-content:space-between;padding:7px 14px;background:var(--bg3);border-bottom:1px solid var(--border)}
+  .cd{display:flex;gap:6px}.cd span{width:10px;height:10px;border-radius:50%}
+  .cd .r{background:#ff5f56}.cd .y{background:#ffbd2e}.cd .g{background:#27c93f}
+  .cl{font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted)}
+  .cl.bash{color:var(--green)}.cl.yaml{color:var(--yellow)}.cl.kubectl{color:var(--magenta)}
+  .ce{width:100%;background:transparent;border:none;color:var(--text);font-family:var(--mono);font-size:12px;line-height:1.8;padding:14px 16px;resize:vertical;outline:none;min-height:100px}
+  .ce::placeholder{color:var(--dim)}
+  .tb{font-family:var(--mono);font-size:10px;letter-spacing:0.1em;text-transform:uppercase;padding:4px 12px;background:transparent;border:1px solid var(--border2);border-radius:2px;color:var(--muted);cursor:pointer;transition:all 0.15s}
+  .tb:hover,.tb.on{border-color:var(--cyan);color:var(--cyan)}
+  .tb.yaml.on{border-color:var(--yellow);color:var(--yellow)}
+  .tb.bash.on{border-color:var(--green);color:var(--green)}
+  .tb.kubectl.on{border-color:var(--magenta);color:var(--magenta)}
+  .add-btn{display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:7px 14px;background:transparent;border:1px dashed var(--border2);border-radius:3px;color:var(--dim);font-family:var(--mono);font-size:11px;cursor:pointer;transition:all 0.2s}
+  .add-btn:hover{border-color:var(--cyan);color:var(--cyan)}
+
+  /* tags */
+  .tr{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .tag{font-size:11px;padding:3px 10px;border-radius:2px;border:1px solid var(--border2);color:var(--muted);background:var(--bg3)}
+  .tag.c{border-color:var(--cyan);color:var(--cyan)}.tag.m{border-color:var(--magenta);color:var(--magenta)}.tag.g{border-color:var(--green);color:var(--green)}
+
+  /* confidence */
+  .conf{display:flex;gap:5px;align-items:center}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--border2);cursor:pointer;transition:background 0.15s}
+  .dot.on{background:var(--cyan);box-shadow:0 0 4px var(--cyan)}
+
+  /* snippet desc */
+  .sd{background:transparent;border:none;border-bottom:1px solid var(--border);border-radius:0;font-size:11px;color:var(--muted);padding:4px 0;letter-spacing:0.04em;width:220px}
+  .sd:focus{outline:none;border-bottom-color:var(--cyan)}
+
+  hr{border:none;border-top:1px solid var(--border);margin:28px 0}
+
+  /* export modal overlay (in-flow) */
+  .export-panel{display:none;background:var(--bg2);border:1px solid var(--cyan);border-radius:4px;padding:24px;margin-top:20px}
+  .export-panel.show{display:block}
+  .export-filename{width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:3px;color:var(--cyan);font-family:var(--mono);font-size:14px;padding:10px 14px;outline:none;margin-bottom:12px}
+  .export-filename:focus{border-color:var(--cyan)}
+  .export-btns{display:flex;gap:10px;flex-wrap:wrap}
+  .dl-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 24px;background:var(--cyan);border:none;border-radius:3px;color:var(--bg);font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:0.1em;cursor:pointer;text-transform:uppercase;transition:opacity 0.2s}
+  .dl-btn:hover{opacity:0.85}
+  .cancel-btn{display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:transparent;border:1px solid var(--border2);border-radius:3px;color:var(--muted);font-family:var(--mono);font-size:12px;cursor:pointer}
+  .cancel-btn:hover{border-color:var(--muted);color:var(--text)}
+  .export-note{font-size:11px;color:var(--dim);margin-top:10px;line-height:1.7}
+  .export-note code{color:var(--cyan);font-size:11px}
+</style>
+</head>
+<body>
+
+<div class="ticker">
+  <div class="ticker-inner">
+    <span>kubectl</span> get pods -A &nbsp;|&nbsp; <span>kubecraft</span> journal &nbsp;|&nbsp; <span>autosave</span> enabled &nbsp;|&nbsp; <span>0xCAFEBABE</span> &nbsp;|&nbsp; docker compose up -d &nbsp;|&nbsp; <span>helm</span> install ingress-nginx &nbsp;|&nbsp; chmod 2770 &nbsp;|&nbsp;
+    <span>kubectl</span> get pods -A &nbsp;|&nbsp; <span>kubecraft</span> journal &nbsp;|&nbsp; <span>autosave</span> enabled &nbsp;|&nbsp; <span>0xCAFEBABE</span> &nbsp;|&nbsp; docker compose up -d &nbsp;|&nbsp; <span>helm</span> install ingress-nginx &nbsp;|&nbsp; chmod 2770 &nbsp;|&nbsp;
+  </div>
+</div>
+
+<nav>
+  <div class="logo">projectpattie<em>;</em></div>
+  <div style="display:flex;gap:28px">
+    <a href="#">sysadmin</a><a href="#">cybersecurity</a><a href="#">devops</a>
+    <a href="/kubecraft" class="active">kubecraft</a><a href="#">about</a>
+  </div>
+</nav>
+
+<!-- autosave bar -->
+<div class="autosave-bar">
+  <div class="autosave-status">
+    <div class="autosave-dot" id="save-dot"></div>
+    <span id="save-msg">not saved yet</span>
+  </div>
+  <div class="autosave-actions">
+    <button class="bar-btn danger" onclick="clearDraft()">clear draft</button>
+    <button class="bar-btn primary" onclick="showExport()">$ export_entry.html</button>
+  </div>
+</div>
+
+<div class="container">
+  <a href="/kubecraft" class="back">&larr; back to journal</a>
+  <div class="prompt-line"><span class="u">root@pattie</span> ~ <span class="p">/kubecraft/new-entry</span></div>
+  <h1 class="page-title">new <em>entry</em><span class="cursor"></span></h1>
+  <p class="page-sub">// autosaves as you type. when done, hit export to download the finished file.</p>
+
+  <!-- METADATA -->
+  <div class="sl">entry metadata</div>
+  <div class="meta-row">
+    <div class="mi" style="flex:2;min-width:200px">
+      <span class="mk">lesson title</span>
+      <input type="text" id="f-title" placeholder="e.g. ingress controllers & routing" oninput="autosave()">
+    </div>
+    <div class="mi" style="min-width:150px">
+      <span class="mk">section / topic</span>
+      <input type="text" id="f-section" placeholder="e.g. networking" oninput="autosave()">
+    </div>
+    <div class="mi">
+      <span class="mk">date</span>
+      <input type="date" id="f-date" style="width:150px" oninput="autosave()">
+    </div>
+    <div class="mi">
+      <span class="mk">time spent</span>
+      <input type="text" id="f-time" placeholder="45 min" style="width:100px" oninput="autosave()">
+    </div>
+    <div class="mi">
+      <span class="mk">confidence</span>
+      <div class="conf" style="margin-top:8px" id="conf">
+        <div class="dot on" onclick="setConf(1)"></div>
+        <div class="dot on" onclick="setConf(2)"></div>
+        <div class="dot on" onclick="setConf(3)"></div>
+        <div class="dot"    onclick="setConf(4)"></div>
+        <div class="dot"    onclick="setConf(5)"></div>
+      </div>
+    </div>
+  </div>
+
+  <hr>
+
+  <!-- WHAT I LEARNED -->
+  <div class="sl">what i learned</div>
+  <div class="block c">
+    <div class="fl">plain english summary</div>
+    <textarea id="f-summary" style="min-height:110px" placeholder="Explain the core concept in your own words..." oninput="autosave()"></textarea>
+    <div class="fl" style="margin-top:14px">key concepts covered</div>
+    <textarea id="f-concepts" style="min-height:70px" placeholder="• concept one&#10;• concept two&#10;• concept three" oninput="autosave()"></textarea>
+  </div>
+
+  <!-- MY THOUGHTS -->
+  <div class="sl">my thoughts</div>
+  <div class="block m">
+    <div class="fl">reflections — write freely, no format needed</div>
+    <textarea id="f-thoughts" style="min-height:160px" placeholder="How does this feel? What's clicking? What's still fuzzy? What surprised you? Write anything..." oninput="autosave()"></textarea>
+    <div class="fl" style="margin-top:14px">connections to existing knowledge</div>
+    <textarea id="f-connections" style="min-height:70px" placeholder="e.g. this is like nginx virtual hosts but for Kubernetes..." oninput="autosave()"></textarea>
+  </div>
+
+  <!-- CODE SNIPPETS -->
+  <div class="sl">code snippets</div>
+  <div id="sw">
+    <div class="block g" data-snippet="0">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+        <span style="font-size:10px;color:var(--dim)">TYPE:</span>
+        <button class="tb kubectl on" onclick="setType(this,'kubectl')">kubectl</button>
+        <button class="tb yaml"       onclick="setType(this,'yaml')">yaml</button>
+        <button class="tb bash"       onclick="setType(this,'bash')">bash</button>
+        <div style="margin-left:auto"><input class="sd" type="text" placeholder="// what does this do?" oninput="autosave()"></div>
+      </div>
+      <div class="cw">
+        <div class="ch"><div class="cd"><span class="r"></span><span class="y"></span><span class="g"></span></div><span class="cl kubectl">kubectl</span></div>
+        <textarea class="ce" placeholder="$ " oninput="autosave()"></textarea>
+      </div>
+    </div>
+  </div>
+  <button class="add-btn" onclick="addSnippet()">+ add another snippet</button>
+
+  <hr>
+
+  <!-- MISTAKES & FIXES -->
+  <div class="sl">mistakes &amp; fixes</div>
+  <div class="block y">
+    <div class="g2" style="margin-bottom:14px">
+      <div><div class="fl">what broke</div><textarea id="f-broke" style="min-height:80px" placeholder="Describe the error or what didn't work..." oninput="autosave()"></textarea></div>
+      <div><div class="fl">how i fixed it</div><textarea id="f-fixed" style="min-height:80px" placeholder="What was the fix? What did you learn?" oninput="autosave()"></textarea></div>
+    </div>
+    <div class="fl">error output</div>
+    <div class="cw">
+      <div class="ch"><div class="cd"><span class="r"></span><span class="y"></span><span class="g"></span></div><span class="cl bash">terminal output</span></div>
+      <textarea class="ce" id="f-error" placeholder="Paste error message or output here..." oninput="autosave()"></textarea>
+    </div>
+  </div>
+
+  <!-- AHA MOMENT -->
+  <div class="sl">aha moment</div>
+  <div class="block m">
+    <div class="fl">the thing that clicked</div>
+    <textarea id="f-aha" style="min-height:90px" placeholder="That moment when it all made sense. What was the insight?" oninput="autosave()"></textarea>
+  </div>
+
+  <!-- QUESTIONS -->
+  <div class="sl">questions to research</div>
+  <div class="block">
+    <div class="fl">open questions &amp; rabbit holes</div>
+    <textarea id="f-questions" style="min-height:100px" placeholder="• What is maxSurge?&#10;• Difference between ClusterIP and NodePort?&#10;• How does the scheduler pick a node?" oninput="autosave()"></textarea>
+  </div>
+
+  <!-- REAL WORLD -->
+  <div class="sl">real world application</div>
+  <div class="block c">
+    <div class="fl">where could i use this?</div>
+    <textarea id="f-realworld" placeholder="Think about your home lab, projects, or work. Where would this apply?" oninput="autosave()"></textarea>
+  </div>
+
+  <!-- TAGS + RATING -->
+  <div class="sl">tags &amp; session rating</div>
+  <div class="block">
+    <div class="fl">tags (comma separated)</div>
+    <input type="text" id="f-tags" placeholder="pods, networking, kubectl, ingress" oninput="renderTags();autosave()">
+    <div class="tr" id="tags-out"></div>
+    <div class="g3" style="margin-top:18px">
+      <div><div class="fl">difficulty</div>
+        <select id="f-diff" onchange="autosave()">
+          <option value="">// select</option>
+          <option>easy</option><option>medium</option><option>hard</option><option>brain_melt</option>
+        </select>
+      </div>
+      <div><div class="fl">energy level</div>
+        <select id="f-energy" onchange="autosave()">
+          <option value="">// select</option>
+          <option>low</option><option>medium</option><option>high</option><option>coffee++</option>
+        </select>
+      </div>
+      <div><div class="fl">next session goal</div>
+        <input type="text" id="f-next" placeholder="e.g. services & networking" oninput="autosave()">
+      </div>
+    </div>
+  </div>
+
+  <!-- EXPORT PANEL -->
+  <div class="export-panel" id="export-panel">
+    <div class="sl" style="margin-bottom:14px">export entry</div>
+    <div class="fl">filename</div>
+    <input class="export-filename" type="text" id="export-filename" placeholder="pods-and-containers.html">
+    <div class="export-btns">
+      <button class="dl-btn" onclick="downloadEntry()">download .md file</button>
+      <button class="cancel-btn" onclick="hideExport()">cancel</button>
+    </div>
+    <div class="export-note">
+      After downloading:<br>
+      1. Move the file into your <code>kubecraft/</code> folder<br>
+      2. Add a card to <code>index.html</code><br>
+      3. <code>git add . → git commit → git push</code>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<script>
+// ── confidence ──
+let confVal = 3;
+function setConf(n) {
+  confVal = n;
+  document.querySelectorAll('#conf .dot').forEach((d,i) => d.classList.toggle('on', i < n));
+  autosave();
+}
+
+// ── type toggle ──
+function setType(btn, type) {
+  const block = btn.closest('.block');
+  block.querySelectorAll('.tb').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  const l = block.querySelector('.cl');
+  l.className = 'cl ' + type;
+  l.textContent = type;
+  autosave();
+}
+
+// ── add snippet ──
+let sc = 1;
+function addSnippet() {
+  sc++;
+  const d = document.createElement('div');
+  d.className = 'block g';
+  d.dataset.snippet = sc;
+  d.style.marginTop = '12px';
+  d.innerHTML = `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+      <span style="font-size:10px;color:var(--dim)">TYPE:</span>
+      <button class="tb kubectl on" onclick="setType(this,'kubectl')">kubectl</button>
+      <button class="tb yaml" onclick="setType(this,'yaml')">yaml</button>
+      <button class="tb bash" onclick="setType(this,'bash')">bash</button>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+        <input class="sd" type="text" placeholder="// what does this do?" oninput="autosave()">
+        <button onclick="this.closest('.block').remove();autosave()" style="background:transparent;border:none;color:var(--dim);cursor:pointer;font-size:18px;padding:0 4px">×</button>
+      </div>
+    </div>
+    <div class="cw">
+      <div class="ch"><div class="cd"><span class="r"></span><span class="y"></span><span class="g"></span></div><span class="cl kubectl">kubectl</span></div>
+      <textarea class="ce" placeholder="$ " oninput="autosave()"></textarea>
+    </div>`;
+  document.getElementById('sw').appendChild(d);
+}
+
+// ── tags ──
+const tc = ['c','m','g','','c','m','g'];
+function renderTags() {
+  const v = document.getElementById('f-tags').value;
+  document.getElementById('tags-out').innerHTML = v.split(',')
+    .map((t,i) => t.trim() ? `<span class="tag ${tc[i%tc.length]}">${t.trim()}</span>` : '')
+    .join('');
+}
+
+// ── autosave to localStorage ──
+let saveTimer;
+function autosave() {
+  clearTimeout(saveTimer);
+  document.getElementById('save-dot').className = 'autosave-dot';
+  document.getElementById('save-msg').textContent = 'saving...';
+  saveTimer = setTimeout(() => {
+    const data = collectData();
+    localStorage.setItem('kubecraft-draft', JSON.stringify(data));
+    document.getElementById('save-dot').className = 'autosave-dot saved';
+    document.getElementById('save-msg').textContent = 'draft saved — ' + new Date().toLocaleTimeString();
+  }, 600);
+}
+
+function collectData() {
+  const snippets = [];
+  document.querySelectorAll('#sw .block').forEach(b => {
+    snippets.push({
+      type: (b.querySelector('.cl') || {}).textContent || 'kubectl',
+      desc: (b.querySelector('.sd') || {}).value || '',
+      code: (b.querySelector('.ce') || {}).value || ''
+    });
+  });
+  return {
+    title: document.getElementById('f-title').value,
+    section: document.getElementById('f-section').value,
+    date: document.getElementById('f-date').value,
+    time: document.getElementById('f-time').value,
+    confidence: confVal,
+    summary: document.getElementById('f-summary').value,
+    concepts: document.getElementById('f-concepts').value,
+    thoughts: document.getElementById('f-thoughts').value,
+    connections: document.getElementById('f-connections').value,
+    snippets,
+    broke: document.getElementById('f-broke').value,
+    fixed: document.getElementById('f-fixed').value,
+    error: document.getElementById('f-error').value,
+    aha: document.getElementById('f-aha').value,
+    questions: document.getElementById('f-questions').value,
+    realworld: document.getElementById('f-realworld').value,
+    tags: document.getElementById('f-tags').value,
+    diff: document.getElementById('f-diff').value,
+    energy: document.getElementById('f-energy').value,
+    next: document.getElementById('f-next').value
+  };
+}
+
+// ── restore draft on load ──
+window.addEventListener('load', () => {
+  const raw = localStorage.getItem('kubecraft-draft');
+  if (!raw) return;
+  try {
+    const d = JSON.parse(raw);
+    const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+    set('f-title', d.title); set('f-section', d.section); set('f-date', d.date);
+    set('f-time', d.time); set('f-summary', d.summary); set('f-concepts', d.concepts);
+    set('f-thoughts', d.thoughts); set('f-connections', d.connections);
+    set('f-broke', d.broke); set('f-fixed', d.fixed); set('f-error', d.error);
+    set('f-aha', d.aha); set('f-questions', d.questions); set('f-realworld', d.realworld);
+    set('f-tags', d.tags); set('f-diff', d.diff); set('f-energy', d.energy); set('f-next', d.next);
+    if (d.confidence) setConf(d.confidence);
+    if (d.snippets && d.snippets.length > 0) {
+      const first = document.querySelector('#sw .block');
+      if (first && d.snippets[0]) {
+        const ce = first.querySelector('.ce'); if (ce) ce.value = d.snippets[0].code || '';
+        const sd = first.querySelector('.sd'); if (sd) sd.value = d.snippets[0].desc || '';
+        const cl = first.querySelector('.cl');
+        if (cl && d.snippets[0].type) { cl.className = 'cl ' + d.snippets[0].type; cl.textContent = d.snippets[0].type; }
+        const tb = first.querySelector('.tb.kubectl'); if (tb) { tb.classList.remove('on'); }
+        const activeBtn = first.querySelector(`.tb.${d.snippets[0].type}`); if (activeBtn) activeBtn.classList.add('on');
+      }
+      for (let i = 1; i < d.snippets.length; i++) {
+        addSnippet();
+        const blocks = document.querySelectorAll('#sw .block');
+        const b = blocks[i];
+        if (b && d.snippets[i]) {
+          const ce = b.querySelector('.ce'); if (ce) ce.value = d.snippets[i].code || '';
+          const sd = b.querySelector('.sd'); if (sd) sd.value = d.snippets[i].desc || '';
+        }
+      }
+    }
+    renderTags();
+    document.getElementById('save-dot').className = 'autosave-dot saved';
+    document.getElementById('save-msg').textContent = 'draft restored';
+  } catch(e) {}
+});
+
+// ── clear draft ──
+function clearDraft() {
+  if (!confirm('Clear this draft? This cannot be undone.')) return;
+  localStorage.removeItem('kubecraft-draft');
+  location.reload();
+}
+
+// ── export panel ──
+function showExport() {
+  const title = document.getElementById('f-title').value;
+  const slug = title ? title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') : 'lesson-name';
+  document.getElementById('export-filename').value = slug + '.md';
+  document.getElementById('export-panel').classList.add('show');
+  document.getElementById('export-panel').scrollIntoView({behavior:'smooth', block:'start'});
+}
+function hideExport() {
+  document.getElementById('export-panel').classList.remove('show');
+}
+
+// ── download finished Markdown (kubecraft content collection) ──
+function downloadEntry() {
+  const d = collectData();
+
+  // slug for filename + frontmatter
+  const slug = (d.title ? d.title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'') : 'entry');
+
+  // quote + escape a value for a YAML double-quoted scalar
+  const yamlStr = (s) => `"${String(s||'').replace(/\\/g,'\\\\').replace(/"/g,'\\"')}"`;
+
+  // tags → YAML flow array
+  const tagList = d.tags.split(',').map(t => t.trim()).filter(Boolean);
+
+  // ── frontmatter (keys match src/content/config.ts kubecraft schema) ──
+  const fm = ['---'];
+  fm.push(`title: ${yamlStr(d.title || 'Untitled entry')}`);
+  fm.push(`date: ${d.date || new Date().toISOString().slice(0,10)}`);
+  fm.push(`section: ${yamlStr(d.section || 'general')}`);
+  fm.push(`confidence: ${d.confidence}`);
+  if (d.time.trim()) fm.push(`timeSpent: ${yamlStr(d.time)}`);
+  if (tagList.length) fm.push(`tags: [${tagList.map(yamlStr).join(', ')}]`);
+  if (d.diff.trim()) fm.push(`difficulty: ${yamlStr(d.diff)}`);
+  if (d.energy.trim()) fm.push(`energy: ${yamlStr(d.energy)}`);
+  if (d.next.trim()) fm.push(`nextGoal: ${yamlStr(d.next)}`);
+  fm.push('draft: false');
+  fm.push('---');
+
+  // ── body ──
+  const body = [];
+  const section = (heading, content) => {
+    if (!content || !content.trim()) return;
+    body.push(`## ${heading}`, '', content.trim(), '');
+  };
+
+  section('what i learned', d.summary);
+  if (d.concepts.trim()) {
+    body.push('### key concepts', '', d.concepts.trim(), '');
+  }
+  section('my thoughts', d.thoughts);
+  section('connections', d.connections);
+
+  // fence language: kubectl highlights fine as bash
+  const fenceLang = (t) => t === 'yaml' ? 'yaml' : 'bash';
+  const codeSnippets = d.snippets.filter(s => s.code.trim());
+  if (codeSnippets.length) {
+    body.push('## code snippets', '');
+    codeSnippets.forEach(s => {
+      if (s.desc.trim()) body.push(`*${s.desc.trim()}*`, '');
+      body.push('```' + fenceLang(s.type), s.code.replace(/\s+$/,''), '```', '');
+    });
+  }
+
+  if (d.broke.trim() || d.fixed.trim() || d.error.trim()) {
+    body.push('## mistakes & fixes', '');
+    if (d.broke.trim()) body.push('**what broke**', '', d.broke.trim(), '');
+    if (d.fixed.trim()) body.push('**how i fixed it**', '', d.fixed.trim(), '');
+    if (d.error.trim()) body.push('```bash', d.error.replace(/\s+$/,''), '```', '');
+  }
+
+  section('aha moment', d.aha);
+  section('questions to research', d.questions);
+  section('real world application', d.realworld);
+
+  const md = fm.join('\n') + '\n\n' + body.join('\n').replace(/\n{3,}/g,'\n\n').trim() + '\n';
+
+  const fname = slug + '.md';
+  const blob = new Blob([md], {type:'text/markdown'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = fname;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  hideExport();
+  localStorage.removeItem('kubecraft-draft');
+  document.getElementById('save-dot').className = 'autosave-dot';
+  document.getElementById('save-msg').textContent = 'exported — draft cleared';
+}
+
+function escHtml(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

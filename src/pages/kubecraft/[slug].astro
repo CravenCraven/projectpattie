@@ -1,0 +1,30 @@
+---
+import KubecraftLayout from '../../layouts/KubecraftLayout.astro';
+import { getCollection } from 'astro:content';
+
+export async function getStaticPaths() {
+  const entries = await getCollection('kubecraft', ({ data }) => !data.draft);
+  return entries.map(entry => ({
+    params: { slug: entry.slug },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await entry.render();
+const { title, date, section, confidence, timeSpent, tags, difficulty, energy, nextGoal } = entry.data;
+---
+
+<KubecraftLayout
+  title={title}
+  date={date}
+  section={section}
+  confidence={confidence}
+  timeSpent={timeSpent}
+  tags={tags}
+  difficulty={difficulty}
+  energy={energy}
+  nextGoal={nextGoal}
+>
+  <Content />
+</KubecraftLayout>
