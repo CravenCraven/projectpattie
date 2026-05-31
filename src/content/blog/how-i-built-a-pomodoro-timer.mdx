@@ -1,0 +1,318 @@
+---
+title: "How I built a cyberpunk Pomodoro timer. with vanilla everything."
+description: "A focus timer built with plain HTML, CSS, and JavaScript. No frameworks, no build tools. One file you open in a browser."
+date: 2026-05-31
+category: tutorials
+readTime: 12
+---
+
+<div class="pp-meta"><span>tutorials</span> · May 31, 2026 · 12 min read</div>
+
+<h1 class="pp-title">How I built a cyberpunk Pomodoro timer.<br /><em>with vanilla everything.</em></h1>
+
+<p class="pp-subtitle">A focus timer built with plain HTML, CSS, and JavaScript. No frameworks, no build tools. One file you open in a browser.</p>
+
+<div class="pp-toc">
+  <div class="pp-toc-label">// <span>what we're building</span></div>
+  <ol>
+    <li><a href="#what-we-re-building">What we're building</a></li>
+    <li><a href="#what-you-need">What you need</a></li>
+    <li><a href="#the-file-structure">The file structure</a></li>
+    <li><a href="#stage-1-a-timer-that-counts-down">Stage 1: A timer that counts down</a></li>
+    <li><a href="#stage-2-the-progress-ring">Stage 2: The progress ring</a></li>
+    <li><a href="#stage-3-three-modes-focus-short-break-long-break">Stage 3: Three modes (focus, short break, long break)</a></li>
+    <li><a href="#stage-3-5-custom-time-blocks">Stage 3.5: Custom time blocks</a></li>
+    <li><a href="#stage-4-sound-when-time-s-up">Stage 4: Sound when time's up</a></li>
+    <li><a href="#stage-5-saving-data-with-localstorage">Stage 5: Saving data with localStorage</a></li>
+    <li><a href="#stage-6-tracking-what-you-study">Stage 6: Tracking what you study</a></li>
+    <li><a href="#stage-7-the-analytics-dashboard">Stage 7: The analytics dashboard</a></li>
+    <li><a href="#bonus-making-it-a-real-app-pwa">Bonus: Making it a real app (PWA)</a></li>
+    <li><a href="#publishing-it-for-free">Publishing it for free</a></li>
+    <li><a href="#where-to-go-next">Where to go next</a></li>
+  </ol>
+</div>
+
+<h2 class="pp-h2" id="what-we-re-building">What we're building</h2>
+
+<p>By the end of this you'll have a working Pomodoro timer that:</p>
+
+<ul><li>Counts down focus and break sessions with a glowing progress ring</li><li>Switches between <strong>8 color themes</strong> (cyberpunk, neon, synthwave, and more)</li><li>Plays a chime when time's up, with a volume slider and optional ticking</li><li>Tracks what you study with subjects, tasks, and a "what are you working on?" note</li><li>Shows an analytics dashboard with charts and a GitHub-style activity heatmap</li><li>Saves everything in your browser so your data survives a refresh</li><li>Installs as an app on your phone or desktop (it's a PWA)</li></ul>
+
+<p>It's one HTML file. No <code>npm install</code>, no webpack, no React. If you know a little HTML and CSS, you can follow along.</p>
+
+<p>We build it in seven stages. Each stage is a complete, working version you can run, so you're never staring at 700 lines wondering what does what.</p>
+
+<div class="pp-note"><strong>Want the finished file?</strong> The whole thing lives in one file: <a href="/pomodoro.html">the complete <code>index.html</code></a>. Open it to run it, or View Source to read every line in one place. The rest of this post is how you get there from nothing.</div>
+
+<div class="pp-note"><strong>The Pomodoro Technique</strong>, if you're new to it: work in focused 25-minute blocks ("pomodoros"), take a 5-minute break after each, and a longer 15-minute break after every four. It's a simple way to make big tasks feel manageable.</div>
+
+<h2 class="pp-h2" id="what-you-need">What you need</h2>
+
+<ul><li>A text editor (VS Code, Sublime, even Notepad)</li><li>A web browser</li><li>That's it</li></ul>
+
+<p>Create a file called <code>index.html</code> and open it in your browser. Every time you save, refresh the browser to see the change.</p>
+
+<div class="pp-note"><strong>A note on what you're building.</strong> This tutorial builds a stripped-down version of the timer. Every concept, formula, and API here is exactly what the finished app uses, just with simpler variable names and none of the extra polish (all 8 themes wired into CSS variables, the settings panel, and so on). Follow all the stages and you'll have a real, working Pomodoro app you actually understand. The "Where to go next" section at the end covers how to layer on the rest. Same techniques throughout, taught in the order that makes them stick.</div>
+
+<h2 class="pp-h2" id="the-file-structure">The file structure</h2>
+
+<p>Before we write any code, the big picture. For most of this tutorial, <strong>everything lives in a single file</strong>, <code>index.html</code>. That one file holds three things:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">text</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`index.html\n├── HTML   →  the structure (buttons, the timer display, the layout)\n├── CSS    →  the styling (colors, glow, fonts)  — inside <style> tags\n└── JS     →  the behavior (the countdown, clicks) — inside <script> tags`}</pre></div></div>
+
+<p>That's the whole app for Stages 1 through 7. No folders, no setup, just one file you double-click to open. The browser already knows how to read HTML, CSS, and JavaScript, so there's nothing to install or compile.</p>
+
+<p>Here's how those three parts sit inside the file:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">html</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`<!DOCTYPE html>\n<html lang="en">\n<head>\n  <style>\n    /* ALL your CSS goes here — the look and feel */\n  </style>\n</head>\n<body>\n\n  <!-- ALL your HTML goes here — the things you see -->\n  <div id="time">25:00</div>\n  <button onclick="toggle()">Start</button>\n\n  <script>\n    /* ALL your JavaScript goes here — the logic */\n  </script>\n</body>\n</html>`}</pre></div></div>
+
+<p>The HTML is the structure, the CSS is the styling, the JavaScript is the behavior. They live in one file and talk to each other.</p>
+
+<p>Only at the very end, when we turn this into an installable app (the <strong>Bonus</strong> section), do we add two small companion files. Then the folder looks like this:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">text</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`my-pomodoro/\n├── index.html      ← everything we build in Stages 1–7\n├── manifest.json   ← tells phones/browsers it's an installable app\n├── sw.js           ← the "service worker" that makes it work offline\n├── icon-192.png    ← app icon (small)\n└── icon-512.png    ← app icon (large)`}</pre></div></div>
+
+<p>Ignore those for now. For the entire core tutorial, it's just <code>index.html</code>. When you see a block of CSS, it goes inside the <code>&lt;style&gt;</code> tags. When you see JavaScript, it goes inside the <code>&lt;script&gt;</code> tags. When you see HTML, it goes inside the <code>&lt;body&gt;</code>. I'll remind you which is which as we go.</p>
+
+<h2 class="pp-h2" id="stage-1-a-timer-that-counts-down">Stage 1: A timer that counts down</h2>
+
+<p>Start with the core: a number that ticks down from 25:00 to 00:00.</p>
+
+<p>Paste this into <code>index.html</code>:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">html</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="UTF-8"/>\n<meta name="viewport" content="width=device-width, initial-scale=1.0"/>\n<title>POMO — Focus Timer</title>\n<style>\n  body {\n    background: #0a0a0f;\n    color: #e0ffe8;\n    font-family: monospace;\n    display: flex;\n    flex-direction: column;\n    align-items: center;\n    justify-content: center;\n    min-height: 100vh;\n    margin: 0;\n  }\n  .time {\n    font-size: 72px;\n    letter-spacing: -2px;\n  }\n  button {\n    background: transparent;\n    border: 2px solid #00ffc8;\n    color: #00ffc8;\n    padding: 12px 28px;\n    font-size: 16px;\n    border-radius: 8px;\n    cursor: pointer;\n    margin-top: 20px;\n  }\n  button:hover { background: #00ffc8; color: #0a0a0f; }\n</style>\n</head>\n<body>\n  <div class="time" id="time">25:00</div>\n  <button id="startBtn" onclick="toggle()">Start</button>\n\n<script>\n  let remaining = 25 * 60;   // seconds left\n  let running = false;       // is the timer ticking?\n  let timerId = null;        // reference to setInterval so we can stop it\n\n  // Turn a number of seconds into "MM:SS"\n  function format(totalSeconds) {\n    const minutes = Math.floor(totalSeconds / 60);\n    const seconds = totalSeconds % 60;\n    return String(minutes).padStart(2, '0') + ':' + String(seconds).padStart(2, '0');\n  }\n\n  function render() {\n    document.getElementById('time').textContent = format(remaining);\n  }\n\n  function toggle() {\n    if (running) {\n      stop();\n    } else {\n      start();\n    }\n  }\n\n  function start() {\n    running = true;\n    document.getElementById('startBtn').textContent = 'Pause';\n    // setInterval runs the function inside it every 1000ms (1 second)\n    timerId = setInterval(() => {\n      remaining = remaining - 1;\n      render();\n      if (remaining <= 0) {\n        clearInterval(timerId);\n        running = false;\n        document.getElementById('startBtn').textContent = 'Start';\n      }\n    }, 1000);\n  }\n\n  function stop() {\n    clearInterval(timerId);   // stops the repeating function\n    running = false;\n    document.getElementById('startBtn').textContent = 'Start';\n  }\n\n  render();  // draw the initial 25:00\n</script>\n</body>\n</html>`}</pre></div></div>
+
+<p><strong>What's happening here:</strong></p>
+
+<ul><li><code>remaining</code> holds the seconds left. We start with <code>25 * 60</code> = 1500 seconds.</li><li><code>setInterval(fn, 1000)</code> is the heart of any timer. It runs a function once per second, and we use it to subtract 1 from <code>remaining</code> and redraw.</li><li><code>clearInterval(timerId)</code> stops that loop. We call it when we pause or when we hit zero.</li><li><code>format()</code> converts 1500 into <code>"25:00"</code>. The <code>padStart(2, '0')</code> adds a leading zero so we get <code>05</code> instead of <code>5</code>.</li></ul>
+
+<p>Save, refresh, click Start. Working timer. Everything else is built on top of this.</p>
+
+<h2 class="pp-h2" id="stage-2-the-progress-ring">Stage 2: The progress ring</h2>
+
+<p>A bare number works but it's dull. Let's wrap it in a circular progress ring that drains as time runs out. We'll use SVG, specifically a trick with <code>stroke-dasharray</code>.</p>
+
+<p>The idea: an SVG circle's outline can be turned into a dashed line. Make the "dash" exactly as long as the circle's circumference, then offset it, and the stroke appears to fill or empty.</p>
+
+<p>Replace your <code>&lt;body&gt;</code> content with this:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">html</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`<body>\n  <div class="timer-wrap">\n    <svg class="timer-svg" viewBox="0 0 240 240">\n      <circle class="ring-bg" cx="120" cy="120" r="110"/>\n      <circle class="ring-track" id="ring" cx="120" cy="120" r="110"/>\n    </svg>\n    <div class="timer-inner">\n      <div class="time" id="time">25:00</div>\n      <div class="label">FOCUS</div>\n    </div>\n  </div>\n  <button id="startBtn" onclick="toggle()">Start</button>`}</pre></div></div>
+
+<p>Add these styles inside your <code>&lt;style&gt;</code>:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">css</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`.timer-wrap {\n  position: relative;\n  width: 240px;\n  height: 240px;\n}\n.timer-svg {\n  width: 100%;\n  height: 100%;\n  /* rotate so the ring starts draining from the top, not 3 o'clock */\n  transform: rotate(-90deg);\n}\n.ring-bg {\n  fill: none;\n  stroke: #1e1e2a;       /* the dark background track */\n  stroke-width: 7;\n}\n.ring-track {\n  fill: none;\n  stroke: #00ffc8;        /* the glowing colored part */\n  stroke-width: 7;\n  stroke-linecap: round;\n  filter: drop-shadow(0 0 8px #00ffc8);  /* the glow */\n  transition: stroke-dashoffset 1s linear;\n}\n.timer-inner {\n  position: absolute;\n  inset: 0;\n  display: flex;\n  flex-direction: column;\n  align-items: center;\n  justify-content: center;\n}\n.label {\n  font-size: 11px;\n  letter-spacing: 0.2em;\n  color: #00ffc8;\n}`}</pre></div></div>
+
+<p>Now the JavaScript. We calculate the circumference and update the ring's offset each second. Add this near the top of your <code>&lt;script&gt;</code>:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`const RADIUS = 110;\nconst CIRCUMFERENCE = 2 * Math.PI * RADIUS;   // ≈ 691\nconst total = 25 * 60;   // the full duration, used to calculate the fraction`}</pre></div></div>
+
+<p>Then update <code>render()</code> to also move the ring:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`function render() {\n  document.getElementById('time').textContent = format(remaining);\n\n  const ring = document.getElementById('ring');\n  ring.style.strokeDasharray = CIRCUMFERENCE;\n  // As remaining shrinks, the offset grows, "emptying" the ring\n  const offset = CIRCUMFERENCE * (1 - remaining / total);\n  ring.style.strokeDashoffset = offset;\n}`}</pre></div></div>
+
+<p><strong>How it works.</strong> <code>stroke-dasharray</code> set to the full circumference makes one dash that wraps the whole circle. <code>stroke-dashoffset</code> then pushes that dash around. Offset 0 means the ring is full; offset equal to the circumference means it's empty. We compute the offset from how much time is left. The <code>transition</code> in the CSS animates it smoothly instead of jumping.</p>
+
+<h2 class="pp-h2" id="stage-3-three-modes-focus-short-break-long-break">Stage 3: Three modes (focus, short break, long break)</h2>
+
+<p>A real Pomodoro timer cycles through focus → short break → focus → ... → long break. Let's add mode tabs and the logic to switch between them.</p>
+
+<p>Add tabs above the timer:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">html</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`<div class="mode-tabs">\n  <button class="mode-tab active" id="tab-focus" onclick="setMode('focus')">Focus</button>\n  <button class="mode-tab" id="tab-short" onclick="setMode('short')">Short Break</button>\n  <button class="mode-tab" id="tab-long" onclick="setMode('long')">Long Break</button>\n</div>`}</pre></div></div>
+
+<p>Some styling:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">css</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`.mode-tabs { display: flex; gap: 6px; margin-bottom: 24px; }\n.mode-tab {\n  padding: 9px 16px;\n  border: 1px solid rgba(0,255,200,0.3);\n  background: transparent;\n  color: #3a6a5a;\n  border-radius: 6px;\n  cursor: pointer;\n  font-family: monospace;\n  text-transform: uppercase;\n  font-size: 11px;\n}\n.mode-tab.active {\n  background: #00ffc8;\n  color: #0a0a0f;\n}`}</pre></div></div>
+
+<p>Now restructure the JavaScript around a config object and a <code>mode</code> variable:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`// How many minutes each mode lasts\nconst cfg = { focus: 25, short: 5, long: 15 };\n\nlet mode = 'focus';\nlet total = cfg.focus * 60;\nlet remaining = total;\nlet running = false;\nlet timerId = null;\nlet completedSessions = 0;   // counts focus sessions for the long-break cycle\n\nfunction setMode(newMode, autoStart = false) {\n  if (running) stop();\n  mode = newMode;\n  total = cfg[newMode] * 60;\n  remaining = total;\n\n  // Update which tab looks active\n  document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));\n  document.getElementById('tab-' + newMode).classList.add('active');\n\n  render();\n  if (autoStart) setTimeout(start, 700);  // brief pause, then auto-begin\n}`}</pre></div></div>
+
+<p>The interesting part is what happens when a timer hits zero. Right now the countdown inside <code>start()</code> just stops there. We want it to call a new <code>onComplete()</code> function that decides which mode comes next.</p>
+
+<p>First, the decision-maker:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`function onComplete() {\n  if (mode === 'focus') {\n    completedSessions++;\n    if (completedSessions >= 4) {\n      completedSessions = 0;\n      setMode('long', true);    // every 4th focus → long break\n    } else {\n      setMode('short', true);   // otherwise → short break\n    }\n  } else {\n    setMode('focus', true);     // after any break → back to focus\n  }\n}`}</pre></div></div>
+
+<p>Now wire it in. Replace your <strong>entire</strong> <code>start()</code> function with this version. The only change from Stage 1 is the last line inside the <code>if (remaining &lt;= 0)</code> block, which now calls <code>onComplete()</code>:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`function start() {\n  running = true;\n  document.getElementById('startBtn').textContent = 'Pause';\n  timerId = setInterval(() => {\n    remaining = remaining - 1;\n    render();\n    if (remaining <= 0) {\n      clearInterval(timerId);\n      running = false;\n      document.getElementById('startBtn').textContent = 'Start';\n      onComplete();   // ← the new line: hand off to the next session\n    }\n  }, 1000);\n}`}</pre></div></div>
+
+<p>That single <code>onComplete()</code> call is the hinge the whole cycle turns on. Everything above it is identical to the <code>start()</code> you already wrote, so if you're copying along, just swap the whole function to be safe.</p>
+
+<p>Now the timer runs a real Pomodoro cycle. It counts four focus sessions, drops short breaks between them, and gives you a long break on the fourth. The <code>autoStart</code> flag carries it from one session to the next without a click.</p>
+
+<h2 class="pp-h2" id="stage-3-5-custom-time-blocks">Stage 3.5: Custom time blocks</h2>
+
+<p>The classic Pomodoro is 25/5/15, but plenty of people prefer other rhythms: a 50/10 deep-work cycle, a quick 15/3 sprint, a 90-minute block. Let's add +/− controls so you can dial in any duration, and make the long-break interval adjustable too.</p>
+
+<p>The durations already live in one place, the <code>cfg</code> object:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`const cfg = { focus: 25, short: 5, long: 15 };`}</pre></div></div>
+
+<p>Because everything reads from <code>cfg</code>, we only need a function that changes those numbers and refreshes the display. Add the settings controls to your HTML (one card per mode, plus an interval card):</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">html</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`<div class="settings">\n  <div class="setting">\n    <span class="setting-name">Focus</span>\n    <button onclick="adjustDuration('focus', -1)">−</button>\n    <span id="val-focus">25</span>\n    <button onclick="adjustDuration('focus', 1)">+</button>\n  </div>\n  <div class="setting">\n    <span class="setting-name">Short</span>\n    <button onclick="adjustDuration('short', -1)">−</button>\n    <span id="val-short">5</span>\n    <button onclick="adjustDuration('short', 1)">+</button>\n  </div>\n  <div class="setting">\n    <span class="setting-name">Long</span>\n    <button onclick="adjustDuration('long', -1)">−</button>\n    <span id="val-long">15</span>\n    <button onclick="adjustDuration('long', 1)">+</button>\n  </div>\n  <div class="setting">\n    <span class="setting-name">Interval</span>\n    <button onclick="adjustInterval(-1)">−</button>\n    <span id="val-interval">4</span>\n    <button onclick="adjustInterval(1)">+</button>\n  </div>\n</div>`}</pre></div></div>
+
+<p>A little styling:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">css</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`.settings {\n  display: grid;\n  grid-template-columns: repeat(4, 1fr);\n  gap: 8px;\n  margin-top: 24px;\n}\n.setting {\n  background: #16161f;\n  border: 1px solid rgba(0,255,200,0.13);\n  border-radius: 8px;\n  padding: 12px 8px;\n  text-align: center;\n}\n.setting-name {\n  display: block;\n  font-size: 10px;\n  text-transform: uppercase;\n  letter-spacing: 0.1em;\n  color: #5a7a70;\n  margin-bottom: 8px;\n}\n.setting button {\n  background: #1e1e2a;\n  border: 1px solid rgba(0,255,200,0.3);\n  color: #00ffc8;\n  width: 22px;\n  height: 22px;\n  border-radius: 4px;\n  cursor: pointer;\n  font-size: 14px;\n}\n.setting span:not(.setting-name) {\n  display: inline-block;\n  min-width: 26px;\n  font-size: 16px;\n}`}</pre></div></div>
+
+<p>Now the JavaScript. We need a variable for the interval (replacing the hardcoded <code>4</code> from Stage 3) and two small functions:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`let longBreakInterval = 4;   // focus sessions before a long break\n\nfunction adjustDuration(which, delta) {\n  // Clamp between 1 and 90 minutes so nobody sets a 0-minute timer\n  cfg[which] = Math.max(1, Math.min(90, cfg[which] + delta));\n  document.getElementById('val-' + which).textContent = cfg[which];\n\n  // If we changed the mode we're CURRENTLY in, reset the clock to match.\n  // (Changing 'short' while you're mid-focus won't disturb your running timer.)\n  if (mode === which) {\n    total = cfg[which] * 60;\n    remaining = total;\n    if (running) stop();\n    render();\n  }\n}\n\nfunction adjustInterval(delta) {\n  longBreakInterval = Math.max(2, Math.min(8, longBreakInterval + delta));\n  document.getElementById('val-interval').textContent = longBreakInterval;\n}`}</pre></div></div>
+
+<p>Finally, update <code>onComplete()</code> from Stage 3 to use the variable instead of the hardcoded <code>4</code>:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`function onComplete() {\n  if (mode === 'focus') {\n    completedSessions++;\n    if (completedSessions >= longBreakInterval) {   // ← was: >= 4\n      completedSessions = 0;\n      setMode('long', true);\n    } else {\n      setMode('short', true);\n    }\n  } else {\n    setMode('focus', true);\n  }\n}`}</pre></div></div>
+
+<p><strong>The design idea here.</strong> Every duration lives in <code>cfg</code>, and every screen reads from it. So supporting custom blocks costs almost nothing. Change the numbers in one spot and everything downstream follows: the timer, the ring, the cycle logic. One source of truth. Worth doing in every project.</p>
+
+<div class="pp-note"><strong>Why the <code>if (mode === which)</code> check matters.</strong> Say you're 10 minutes into a focus session and you bump the <em>short break</em> up to 10 minutes. You don't want that resetting the focus timer you're in the middle of. The check makes sure we only reset the clock for the mode you're actually running.</div>
+
+<h2 class="pp-h2" id="stage-4-sound-when-time-s-up">Stage 4: Sound when time's up</h2>
+
+<p>We want a chime, but shipping an audio file is overkill. The <strong>Web Audio API</strong> generates tones in code. Here's a function that plays a three-note chime:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`let audioCtx = null;\n\nfunction getAudio() {\n  // Browsers require a user click before audio can start,\n  // so we create the context lazily on first use.\n  if (!audioCtx) {\n    audioCtx = new (window.AudioContext || window.webkitAudioContext)();\n  }\n  if (audioCtx.state === 'suspended') audioCtx.resume();\n  return audioCtx;\n}\n\nfunction beep() {\n  const ctx = getAudio();\n  const notes = [880, 1108, 1318];   // an ascending chord (A5, C#6, E6)\n\n  notes.forEach((frequency, i) => {\n    const oscillator = ctx.createOscillator();\n    const gain = ctx.createGain();\n    oscillator.connect(gain);\n    gain.connect(ctx.destination);\n\n    oscillator.type = 'sine';\n    oscillator.frequency.value = frequency;\n\n    const startTime = ctx.currentTime + i * 0.18;   // stagger each note\n    // Fade in quickly, then fade out — avoids an ugly click\n    gain.gain.setValueAtTime(0, startTime);\n    gain.gain.linearRampToValueAtTime(0.3, startTime + 0.02);\n    gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.35);\n\n    oscillator.start(startTime);\n    oscillator.stop(startTime + 0.35);\n  });\n}`}</pre></div></div>
+
+<p>Then call <code>beep()</code> at the top of <code>onComplete()</code>. Now every session ends with a chime.</p>
+
+<p><strong>How it works.</strong> An <em>oscillator</em> generates a raw tone at a given frequency. A <em>gain node</em> controls its volume. Ramp the gain up fast and down slow and each note sounds like a soft bell instead of a harsh blip. Three notes slightly apart make a chord.</p>
+
+<div class="pp-note"><strong>Tip.</strong> Browsers block audio until the user interacts with the page. That's why <code>getAudio()</code> builds the context on demand and calls <code>resume()</code>. By the time a session ends the user has already clicked Start, so audio is unlocked.</div>
+
+<h2 class="pp-h2" id="stage-5-saving-data-with-localstorage">Stage 5: Saving data with localStorage</h2>
+
+<p>Right now, refreshing the page wipes everything. <code>localStorage</code> fixes that. It's a tiny key-value store in the browser that survives between visits. It only holds strings, so we use <code>JSON.stringify</code> to save and <code>JSON.parse</code> to load.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`function save() {\n  const data = {\n    completedSessions,\n    totalSessions,     // a running lifetime count you'd track in onComplete\n    focusMinutes,      // total minutes focused\n    log,               // an array of session records (see below)\n  };\n  try {\n    localStorage.setItem('pomo-data', JSON.stringify(data));\n  } catch (e) {\n    // localStorage can fail in private-browsing mode; fail quietly\n  }\n}\n\nfunction load() {\n  try {\n    const saved = JSON.parse(localStorage.getItem('pomo-data') || 'null');\n    if (saved) {\n      totalSessions = saved.totalSessions || 0;\n      focusMinutes  = saved.focusMinutes || 0;\n      log           = saved.log || [];\n    }\n  } catch (e) {}\n}`}</pre></div></div>
+
+<p>To build study history, push a record onto <code>log</code> every time a focus session finishes. Inside <code>onComplete()</code>, before the mode switch:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`if (mode === 'focus') {\n  const now = new Date();\n  const pad = v => String(v).padStart(2, '0');\n  const dateKey = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());\n\n  log.unshift({\n    timestamp: now.getTime(),\n    date: dateKey,                                  // "2026-05-30"\n    time: pad(now.getHours()) + ':' + pad(now.getMinutes()),\n    duration: cfg.focus,\n    subject: activeSubject || '—',                  // from Stage 6\n    note: currentNote || '',                        // from Stage 6\n  });\n\n  totalSessions++;\n  focusMinutes += cfg.focus;\n  save();   // persist immediately\n}`}</pre></div></div>
+
+<p><code>log.unshift()</code> adds to the front of the array so the newest session is first. Each record stores the date (for grouping), the subject, and a note. This array is the raw material for everything in the analytics dashboard.</p>
+
+<h2 class="pp-h2" id="stage-6-tracking-what-you-study">Stage 6: Tracking what you study</h2>
+
+<p>Three small features turn this into a study tool rather than just a timer: <strong>subjects</strong>, a <strong>session note</strong>, and a <strong>task list</strong>.</p>
+
+<h3 class="pp-h3">The "what are you working on?" note</h3>
+
+<p>The simplest one. A text input whose value we read when a session completes:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">html</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`<input id="note" placeholder="What are you working on?" oninput="currentNote = this.value"/>`}</pre></div></div>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`let currentNote = '';`}</pre></div></div>
+
+<p>When the focus session ends, <code>currentNote</code> gets baked into the log record. We wired that in Stage 5.</p>
+
+<h3 class="pp-h3">Subjects</h3>
+
+<p>A subject is a category you attach time to: "Math", "Spanish", whatever. We store them in an object mapping name to minutes studied:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`let subjects = {};        // e.g. { "Math": 75, "History": 50 }\nlet activeSubject = null; // which one is currently selected\n\nfunction addSubject() {\n  const input = document.getElementById('subjectInput');\n  const name = input.value.trim();\n  if (!name || subjects[name] !== undefined) return;  // skip blanks/dupes\n  subjects[name] = 0;\n  input.value = '';\n  renderSubjects();\n  save();\n}\n\nfunction selectSubject(name) {\n  // Click to activate; click again to deactivate\n  activeSubject = (activeSubject === name) ? null : name;\n  renderSubjects();\n}`}</pre></div></div>
+
+<p>To accrue time live while you focus, tick the active subject up inside the per-second interval:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`// inside setInterval, each second of a focus session:\nif (mode === 'focus' && activeSubject && subjects[activeSubject] !== undefined) {\n  subjects[activeSubject] += 1 / 60;   // add one second, expressed in minutes\n  renderSubjects();\n}`}</pre></div></div>
+
+<h3 class="pp-h3">Tasks</h3>
+
+<p>A simple checklist. Each task is an object with text and a done flag:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`let tasks = [];\n\nfunction addTask() {\n  const input = document.getElementById('taskInput');\n  const text = input.value.trim();\n  if (!text) return;\n  tasks.push({ text, done: false });\n  input.value = '';\n  renderTasks();\n  save();\n}\n\nfunction toggleTask(index) {\n  tasks[index].done = !tasks[index].done;\n  renderTasks();\n  save();\n}`}</pre></div></div>
+
+<p>The <code>render</code> functions loop over the arrays and build HTML. Here's the tasks one as an example:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`function renderTasks() {\n  const container = document.getElementById('taskList');\n  if (tasks.length === 0) {\n    container.innerHTML = '<div class="empty">No tasks yet</div>';\n    return;\n  }\n  container.innerHTML = tasks.map((task, i) => \`\n    <div class="task \${task.done ? 'done' : ''}">\n      <div class="checkbox \${task.done ? 'done' : ''}" onclick="toggleTask(\${i})"></div>\n      <span>\${task.text}</span>\n      <button onclick="deleteTask(\${i})">✕</button>\n    </div>\n  \`).join('');\n}`}</pre></div></div>
+
+<div class="pp-note"><strong>Security note.</strong> When you inject user text into HTML with template strings, escape it first (replace <code>&lt;</code> with <code>&amp;lt;</code>) so nobody can break your layout by typing a tag. The full app does this on every user-supplied string.</div>
+
+<h2 class="pp-h2" id="stage-7-the-analytics-dashboard">Stage 7: The analytics dashboard</h2>
+
+<p>This is where the saved <code>log</code> pays off. We'll add three views: summary stats, a bar chart, and a GitHub-style heatmap.</p>
+
+<h3 class="pp-h3">Summary stats</h3>
+
+<p>Just reductions over the filtered log:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`function getStats(log) {\n  const focusOnly = log.filter(e => !e.skipped);\n  const totalMinutes = focusOnly.reduce((sum, e) => sum + e.duration, 0);\n  const uniqueDays = new Set(focusOnly.map(e => e.date)).size || 1;\n  const avgPerDay = focusOnly.length / uniqueDays;\n\n  return {\n    sessions: focusOnly.length,\n    hours: Math.floor(totalMinutes / 60),\n    avgPerDay: Math.round(avgPerDay * 10) / 10,\n  };\n}`}</pre></div></div>
+
+<h3 class="pp-h3">The bar chart</h3>
+
+<p>For charts we pull in <strong>Chart.js</strong> from a CDN. One line, no install:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">html</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>`}</pre></div></div>
+
+<p>Then build a "sessions per day" dataset for the last 7 days and hand it to Chart.js:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`function buildChart(log) {\n  const now = new Date();\n  const labels = [];\n  const data = [];\n\n  for (let i = 6; i >= 0; i--) {\n    const day = new Date(now);\n    day.setDate(day.getDate() - i);\n    const pad = v => String(v).padStart(2, '0');\n    const key = day.getFullYear() + '-' + pad(day.getMonth() + 1) + '-' + pad(day.getDate());\n\n    labels.push(['Su','Mo','Tu','We','Th','Fr','Sa'][day.getDay()]);\n    data.push(log.filter(e => e.date === key && !e.skipped).length);\n  }\n\n  new Chart(document.getElementById('dayChart'), {\n    type: 'bar',\n    data: { labels, datasets: [{ data, backgroundColor: '#00ffc855', borderColor: '#00ffc8', borderWidth: 1.5 }] },\n    options: {\n      responsive: true,\n      maintainAspectRatio: false,\n      plugins: { legend: { display: false } },\n    }\n  });\n}`}</pre></div></div>
+
+<p>We count how many sessions happened on each of the last seven days, then let Chart.js draw the bars. Wrap the <code>&lt;canvas&gt;</code> in a div with a fixed height, or the chart grows uncontrollably:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">html</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`<div style="position: relative; height: 150px;">\n  <canvas id="dayChart"></canvas>\n</div>`}</pre></div></div>
+
+<h3 class="pp-h3">The heatmap</h3>
+
+<p>The GitHub-style activity grid is my favorite part. A grid of small squares, one per day for the last six months, shaded by how many sessions you did that day. We build it by hand with a loop:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`function buildHeatmap(log) {\n  // Count sessions per day\n  const counts = {};\n  log.filter(e => !e.skipped).forEach(e => {\n    counts[e.date] = (counts[e.date] || 0) + 1;\n  });\n\n  const maxCount = Math.max(1, ...Object.values(counts));\n\n  // Pick a shade of the accent color based on intensity\n  function shade(n) {\n    if (!n) return '#1e1e2a';                       // empty day = dark gray\n    // Clamp to 1–4 so we always land on a valid opacity, even if\n    // counts and maxCount ever drift (defensive — keeps it bulletproof).\n    const level = Math.min(4, Math.max(1, Math.ceil((n / maxCount) * 4)));\n    const opacity = [0, 0.3, 0.5, 0.75, 1][level];\n    const hex = Math.round(opacity * 255).toString(16).padStart(2, '0');\n    return '#00ffc8' + hex;                          // accent + opacity\n  }\n\n  // Walk backwards ~6 months, snapping to week boundaries (Sunday start)\n  const now = new Date();\n  const start = new Date(now);\n  start.setDate(start.getDate() - 181);\n  start.setDate(start.getDate() - start.getDay());\n\n  let html = '';\n  let cursor = new Date(start);\n\n  while (cursor <= now) {\n    html += '<div class="week">';\n    for (let d = 0; d < 7; d++) {\n      const pad = v => String(v).padStart(2, '0');\n      const key = cursor.getFullYear() + '-' + pad(cursor.getMonth() + 1) + '-' + pad(cursor.getDate());\n      const count = counts[key] || 0;\n      html += \`<div class="cell" style="background:\${shade(count)}" title="\${key}: \${count} sessions"></div>\`;\n      cursor.setDate(cursor.getDate() + 1);\n    }\n    html += '</div>';\n  }\n\n  document.getElementById('heatmap').innerHTML = html;\n}`}</pre></div></div>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">css</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`#heatmap { display: flex; gap: 3px; }\n.week { display: flex; flex-direction: column; gap: 3px; }\n.cell { width: 11px; height: 11px; border-radius: 2px; }`}</pre></div></div>
+
+<p><strong>The logic.</strong> Each column is a week, seven stacked squares, and we lay the weeks side by side. We snap the start date back to a Sunday so the rows line up. <code>shade()</code> maps a day's session count to an opacity of the accent color: busier day, brighter square. Hovering a square shows the date and count through the <code>title</code> attribute.</p>
+
+<h2 class="pp-h2" id="bonus-making-it-a-real-app-pwa">Bonus: Making it a real app (PWA)</h2>
+
+<p>To make the timer installable on a phone or desktop and work offline, you need two extra files next to <code>index.html</code>.</p>
+
+<p><strong><code>manifest.json</code></strong> tells the browser what the app is called and what icon to use:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">json</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`{\n  "name": "Pomodoro Focus Timer",\n  "short_name": "POMO",\n  "start_url": "./index.html",\n  "display": "standalone",\n  "background_color": "#0a0a0f",\n  "theme_color": "#00ffc8",\n  "icons": [\n    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },\n    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }\n  ]\n}`}</pre></div></div>
+
+<p><strong><code>sw.js</code></strong> is a service worker. It caches your files so the app loads with no internet:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`const CACHE = 'pomo-v1';\nconst ASSETS = ['./index.html', './manifest.json'];\n\nself.addEventListener('install', e => {\n  e.waitUntil(caches.open(CACHE).then(c => c.addAll(ASSETS)));\n});\n\nself.addEventListener('fetch', e => {\n  e.respondWith(\n    caches.match(e.request).then(cached => cached || fetch(e.request))\n  );\n});`}</pre></div></div>
+
+<p>Then link them in your <code>&lt;head&gt;</code> and register the service worker:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">html</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`<link rel="manifest" href="manifest.json"/>\n<script>\n  if ('serviceWorker' in navigator) {\n    navigator.serviceWorker.register('./sw.js');\n  }\n</script>`}</pre></div></div>
+
+<p>Now when someone visits over HTTPS, Chrome shows an "Install" button in the address bar, and the app runs offline.</p>
+
+<h2 class="pp-h2" id="publishing-it-for-free">Publishing it for free</h2>
+
+<p>You don't need a server. Three options, all free, all give you the HTTPS URL the PWA install needs.</p>
+
+<h3 class="pp-h3">Netlify Drop (fastest)</h3>
+
+<ol><li>Go to <strong>app.netlify.com/drop</strong>.</li><li>Drag your project folder, or a zip of it, onto the drop zone.</li><li>A few seconds later you have a live URL like <code>your-site.netlify.app</code>.</li></ol>
+
+<p>No account needed for that first URL, but the anonymous version is temporary. Make a free account when prompted to claim it and keep it. After that you can rename it under Site settings, and you redeploy by dragging a new folder onto the Deploys page.</p>
+
+<h3 class="pp-h3">Cloudflare Pages</h3>
+
+<ol><li>Go to <strong>dash.cloudflare.com</strong>, open <strong>Workers &amp; Pages</strong>, and click <strong>Create application</strong>.</li><li>Choose <strong>Upload your static files</strong> (or the Pages "Get started" link for direct upload).</li><li>Name the project <em>first</em>. Leave it blank and Cloudflare hands you something like <code>plain-bar-8396</code>, and there's no clean rename afterward, you just redeploy.</li><li>Drag your unzipped folder in and hit Deploy.</li></ol>
+
+<p>You land on <code>your-project.pages.dev</code>. The free tier has no bandwidth cap, which is the main reason to reach for it.</p>
+
+<h3 class="pp-h3">GitHub Pages</h3>
+
+<ol><li>Create a new <strong>public</strong> repo and put all your files in the root.</li><li>In the repo, go to <strong>Settings</strong>, then <strong>Pages</strong>.</li><li>Under Source, pick <strong>Deploy from a branch</strong>, choose <code>main</code> and <code>/ (root)</code>, and Save.</li><li>A minute later it's live at <code>https://username.github.io/reponame</code>.</li></ol>
+
+<p>Free GitHub Pages only serves public repos, so skip it for anything you want kept private.</p>
+
+<h2 class="pp-h2" id="where-to-go-next">Where to go next</h2>
+
+<p>That's a working app, built from scratch, that you understand top to bottom. A few ways to take it further:</p>
+
+<ul><li><strong>Multiple themes.</strong> Store color values in CSS variables (<code>--accent: #00ffc8</code>) and swap them with a class on <code>&lt;body&gt;</code>. That's how the full version does its 8 themes.</li><li><strong>Saved presets.</strong> You can already set any duration (Stage 3.5). Go further and let users <em>save</em> named combos, a "Deep Work" 50/10, a "Sprint" 15/3, switched with one click.</li><li><strong>Ambient sounds.</strong> Loop rain or café noise during focus sessions with the same Web Audio API.</li><li><strong>Data export.</strong> Turn the <code>log</code> array into a CSV string and trigger a download, so users can crunch their habits in a spreadsheet.</li><li><strong>A real streak counter.</strong> Compare today's date to the last active date and count consecutive study days.</li></ul>
+
+<p>The point of building with plain HTML, CSS, and JavaScript is that nothing is hidden. Every line is yours to read and change. Open the file, change a color, break something, fix it. That's how it sticks.</p>
+
+<div class="pp-next">
+  <div class="pp-next-label">// run it</div>
+  <div class="pp-next-title"><a href="/pomodoro.html">the complete code, in one file</a></div>
+</div>
