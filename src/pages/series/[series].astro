@@ -3,10 +3,9 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import PostCard from '../../components/PostCard.astro';
 import { getCollection } from 'astro:content';
 
-const slugify = (s: string) =>
-  s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-
 export async function getStaticPaths() {
+  const slugify = (s: string) =>
+    s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   const posts = await getCollection('blog', ({ data }) => !data.draft);
   const seriesNames = [
     ...new Set(posts.map(p => p.data.series).filter((s): s is string => !!s)),

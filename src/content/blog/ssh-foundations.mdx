@@ -64,23 +64,23 @@ seriesOrder: 1
 <p>The very first time you connect to a machine, SSH stops and asks you something that looks alarming and isn't:</p>
 <div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">output</div><button class="pp-code-copy">copy</button></div><div class="pp-code-body"><pre>{`The authenticity of host '192.168.1.50' can't be established.\nED25519 key fingerprint is SHA256:Xy3...9aQ.\nAre you sure you want to continue connecting (yes/no)?`}</pre></div></div>
 
-<p>That's SSH showing you the server's fingerprint and asking if you recognize it. Type <code>yes</code>. It writes the fingerprint to a file called <code>~/.ssh/known&#95;hosts</code> and never asks again for that machine. From now on, if that fingerprint ever changes, SSH will refuse to connect and warn you loudly, which is the point. More on that in a minute.</p>
+<p>That's SSH showing you the server's fingerprint and asking if you recognize it. Type <code>yes</code>. It writes the fingerprint to a file called <code>&#126;/.ssh/known&#95;hosts</code> and never asks again for that machine. From now on, if that fingerprint ever changes, SSH will refuse to connect and warn you loudly, which is the point. More on that in a minute.</p>
 
 <h2 class="pp-h2" id="which-box">Wait, which box am I on?</h2>
 <p>Once you can hop between machines, you will eventually lose track of which one you're standing on. This sounds harmless. It is not. The classic outage is someone running a cleanup command they meant for a test box while logged into production. Two commands keep you honest.</p>
 <div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy">copy</button></div><div class="pp-code-body"><pre>{`whoami\n# op        -> the account you're logged in as\n\nhostname\n# db01      -> the machine you're currently on`}</pre></div></div>
-<p>Your prompt is usually already telling you both. A prompt like <code>op@db01:~$</code> reads as: user <code>op</code>, on host <code>db01</code>, sitting in the home directory. Glance at it before you run anything destructive. On the day it matters, that half-second look is the difference between a closed ticket and a brand new, much worse one.</p>
+<p>Your prompt is usually already telling you both. A prompt like <code>op@db01:&#126;$</code> reads as: user <code>op</code>, on host <code>db01</code>, sitting in the home directory. Glance at it before you run anything destructive. On the day it matters, that half-second look is the difference between a closed ticket and a brand new, much worse one.</p>
 
 <h2 class="pp-h2" id="keys">Stop typing your password: keys</h2>
 <p>You can log in with a password, but you shouldn't, and the tickets in this queue assume you don't. Instead you make a key pair once, hand the public half to the server, and never type a password into that box again.</p>
 
 <div class="pp-step">// 1. make the key pair</div>
 <div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy">copy</button></div><div class="pp-code-body"><pre>{`ssh-keygen -t ed25519 -C "op@projectpattie"`}</pre></div></div>
-<p>This makes two files in <code>~/.ssh/</code>. <code>id&#95;ed25519</code> is your private key. It never leaves your machine, you never share it, you never paste it anywhere. <code>id&#95;ed25519.pub</code> is the public half, which is safe to hand out. It'll ask where to save and whether you want a passphrase. Defaults are fine; a passphrase adds one more layer if your laptop ever walks off.</p>
+<p>This makes two files in <code>&#126;/.ssh/</code>. <code>id&#95;ed25519</code> is your private key. It never leaves your machine, you never share it, you never paste it anywhere. <code>id&#95;ed25519.pub</code> is the public half, which is safe to hand out. It'll ask where to save and whether you want a passphrase. Defaults are fine; a passphrase adds one more layer if your laptop ever walks off.</p>
 
 <div class="pp-step">// 2. put the public key on the server</div>
 <div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy">copy</button></div><div class="pp-code-body"><pre>{`ssh-copy-id op@192.168.1.50`}</pre></div></div>
-<p>This logs in once with your password and appends your public key to the server's <code>~/.ssh/authorized&#95;keys</code>. That's the list of keys the server trusts. Do it once per machine.</p>
+<p>This logs in once with your password and appends your public key to the server's <code>&#126;/.ssh/authorized&#95;keys</code>. That's the list of keys the server trusts. Do it once per machine.</p>
 
 <div class="pp-step">// 3. log in with no password</div>
 <div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy">copy</button></div><div class="pp-code-body"><pre>{`ssh op@192.168.1.50\n# straight in. no password prompt.`}</pre></div></div>
@@ -91,7 +91,7 @@ seriesOrder: 1
 </div>
 
 <h2 class="pp-h2" id="config-file">Make it one word: the config file</h2>
-<p>Typing <code>ssh op@192.168.1.50</code> forty times a day gets old, and you'll have more than one machine. So you save the details once. Open (or create) <code>~/.ssh/config</code> and add a block:</p>
+<p>Typing <code>ssh op@192.168.1.50</code> forty times a day gets old, and you'll have more than one machine. So you save the details once. Open (or create) <code>&#126;/.ssh/config</code> and add a block:</p>
 <div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">~/.ssh/config</div><button class="pp-code-copy">copy</button></div><div class="pp-code-body"><pre>{`Host db01\n    HostName 192.168.1.50\n    User op\n    IdentityFile ~/.ssh/id_ed25519`}</pre></div></div>
 <p>Now the whole command is just the nickname:</p>
 <div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy">copy</button></div><div class="pp-code-body"><pre>{`ssh db01`}</pre></div></div>
@@ -125,7 +125,7 @@ seriesOrder: 1
     <tr><td><code>ss -tlnp | grep :22</code></td><td>Confirm something is listening on the SSH port.</td></tr>
     <tr><td><code>ssh-keygen -t ed25519</code></td><td>Make a key pair: a private half you keep, a public half you share.</td></tr>
     <tr><td><code>ssh-copy-id user@host</code></td><td>Install your public key on the server so it stops asking for a password.</td></tr>
-    <tr><td><code>ssh db01</code></td><td>Connect using a saved <code>~/.ssh/config</code> alias, no long command.</td></tr>
+    <tr><td><code>ssh db01</code></td><td>Connect using a saved <code>&#126;/.ssh/config</code> alias, no long command.</td></tr>
     <tr><td><code>ssh-keygen -R host</code></td><td>Forget a server's old fingerprint after it legitimately changes.</td></tr>
     <tr><td><code>ssh -v user@host</code></td><td>Connect with verbose output, for when you need to see why it fails.</td></tr>
     <tr><td><code>exit</code></td><td>Close the remote shell and land back on your own machine.</td></tr>
