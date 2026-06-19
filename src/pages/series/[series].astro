@@ -1,0 +1,89 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import PostCard from '../../components/PostCard.astro';
+import { getCollection } from 'astro:content';
+
+const slugify = (s: string) =>
+  s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
+export async function getStaticPaths() {
+  const posts = await getCollection('blog', ({ data }) => !data.draft);
+  const seriesNames = [
+    ...new Set(posts.map(p => p.data.series).filter((s): s is string => !!s)),
+  ];
+  return seriesNames.map(name => ({
+    params: { series: slugify(name) },
+    props: { seriesName: name },
+  }));
+}
+
+const { seriesName } = Astro.props as { seriesName: string };
+
+const posts = (await getCollection('blog', ({ data }) => !data.draft))
+  .filter(p => p.data.series === seriesName)
+  .sort((a, b) => (a.data.seriesOrder ?? 0) - (b.data.seriesOrder ?? 0));
+
+// Every post in a series shares one category; use the first as the back-link.
+const category = posts[0]?.data.category ?? 'sysadmin';
+---
+
+<BaseLayout title={`${seriesName} — projectpattie;`}>
+  <div style="max-width:900px; margin:0 auto; padding:60px 24px 100px;">
+    <div style="font-size:12px; color:var(--text-dim); margin-bottom:12px;">
+      // <a href={`/category/${category}`} style="color:#00d4ff; text-decoration:none;">{category}</a> / series
+    </div>
+    <h1 style="font-size:28px; margin-bottom:8px;">{seriesName}</h1>
+    <div class="series-count">{posts.length} part{posts.length > 1 ? 's' : ''} &middot; read top to bottom</div>
+
+    <div class="series-cards">
+      {posts.map((post, i) => (
+        <div class="series-row">
+          <div class="series-num">{String((post.data.seriesOrder ?? i + 1)).padStart(2, '0')}</div>
+          <div class="series-card-wrap">
+            <PostCard
+              title={post.data.title}
+              description={post.data.description}
+              slug={post.slug}
+              date={post.data.date}
+              category={post.data.category}
+              readTime={post.data.readTime}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+</BaseLayout>
+
+<style>
+  .series-count {
+    color: #4a4a6a;
+    font-size: 11px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    margin-bottom: 36px;
+    font-family: 'Source Code Pro', monospace;
+  }
+  .series-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .series-row {
+    display: flex;
+    align-items: stretch;
+    gap: 14px;
+  }
+  .series-num {
+    flex-shrink: 0;
+    color: #ff00ff;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    padding-top: 18px;
+    min-width: 24px;
+  }
+  .series-card-wrap {
+    flex: 1;
+    min-width: 0;
+  }
+</style>

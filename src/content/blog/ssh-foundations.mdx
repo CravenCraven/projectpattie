@@ -1,0 +1,140 @@
+---
+title: "The door to every ticket is ssh"
+description: "You can't fix a box you can't log into, and every ticket in the queue begins by logging into one. SSH from the first connection through key-based login to a one-word config alias."
+date: 2026-06-19
+category: "sysadmin"
+readTime: 7
+series: "The Ticket Queue"
+seriesOrder: 1
+---
+
+<div class="pp-meta">Jun 2026 · <span>Sysadmin</span> · 7 min read</div>
+<h1 class="pp-title">The door to every ticket is <em>ssh</em></h1>
+<p class="pp-subtitle">You can't fix a box you can't log into, and every ticket in the queue begins by logging into one. This is the foundation. Start here.</p>
+
+<div class="pp-series-badge">the ticket queue · foundations · 01</div>
+<div class="pp-tags">
+  <span class="pp-tag">ssh</span>
+  <span class="pp-tag">keys</span>
+  <span class="pp-tag">linux</span>
+  <span class="pp-tag">foundations</span>
+</div>
+
+<div class="pp-note"><strong>before you start:</strong> you need two things. A terminal (macOS and Linux already have one; on Windows, use Windows Terminal or WSL) and a machine to connect to. No server yet? The next foundation post spins up a throwaway VM for exactly this. For now, anything you can reach works.</div>
+
+<p>Here's the thing nobody mentions on day one: the servers you'll spend a career fixing are almost never in the room with you. They're in a rack in another building, a data center in another state, a cloud region you will never physically see. You don't walk up to them. You SSH in.</p>
+
+<p>SSH is an encrypted tunnel to a shell on another machine. You type on your laptop, the commands run over there, the output comes back. Every ticket in this queue opens the same way: get into the box, then fix the box. So before any of that, this.</p>
+
+<h2 class="pp-h2" id="where-is-the-machine">First, where is the machine?</h2>
+<p>You can't SSH somewhere without knowing where it is. When you spin up a VM or get handed a server, the first thing you need is its IP address. Run this on the machine itself, at its console:</p>
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy">copy</button></div><div class="pp-code-body"><pre>{`hostname -I\n# 192.168.1.50`}</pre></div></div>
+<p><code>hostname -I</code> prints just the address, nothing else. If you want the fuller picture, including which interface it's on:</p>
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy">copy</button></div><div class="pp-code-body"><pre>{`ip a\n# find the 'inet' line under your main interface.\n# ignore 'lo' / 127.0.0.1 -- that's loopback, it only ever\n# means "this machine talking to itself."`}</pre></div></div>
+<p>The address that isn't <code>127.0.0.1</code> is the one you connect to. Write it down. That's your destination for the next step.</p>
+
+<h2 class="pp-h2" id="ssh-not-running">If SSH isn't even running yet</h2>
+<p>A fresh server doesn't always have SSH turned on, especially a minimal install. If your connection gets <code>Connection refused</code>, the service probably isn't running. You fix that from the machine's own console, because you can't SSH into a box whose SSH is off. That's the chicken and egg of it.</p>
+<p>First, check what state it's in:</p>
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy">copy</button></div><div class="pp-code-body"><pre>{`systemctl status sshd`}</pre></div></div>
+<p>Three things can be true. It's running, in which case your problem is elsewhere. It's installed but stopped. Or it isn't installed at all.</p>
+
+<div class="pp-step">// installed but stopped: turn it on</div>
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy">copy</button></div><div class="pp-code-body"><pre>{`systemctl enable --now sshd`}</pre></div></div>
+<p><code>enable</code> means start at every boot. <code>--now</code> means also start it this second. You want both, so it survives a reboot and you never think about it again.</p>
+
+<div class="pp-step">// not installed: get it, then turn it on</div>
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy">copy</button></div><div class="pp-code-body"><pre>{`dnf install -y openssh-server\nsystemctl enable --now sshd`}</pre></div></div>
+
+<div class="pp-step">// let it through the firewall</div>
+<p>RHEL usually allows SSH by default, but on a locked-down box you may have to add it:</p>
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy">copy</button></div><div class="pp-code-body"><pre>{`firewall-cmd --permanent --add-service=ssh\nfirewall-cmd --reload`}</pre></div></div>
+<p><code>--permanent</code> writes the rule so it survives a reboot. <code>--reload</code> applies it right now. Skip the reload and the rule exists but isn't live yet.</p>
+
+<div class="pp-step">// confirm it's listening</div>
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy">copy</button></div><div class="pp-code-body"><pre>{`ss -tlnp | grep :22\n# LISTEN  0  128  0.0.0.0:22  ...   -> sshd is up and accepting connections`}</pre></div></div>
+<p>Once you see something listening on port 22, go back to your laptop and connect.</p>
+
+<div class="pp-note"><strong>not on RHEL?</strong> On Debian or Ubuntu the package is also <code>openssh-server</code>, but the service is usually named <code>ssh</code>, and the firewall is <code>ufw</code> (<code>ufw allow ssh</code>). The idea is identical: install it, enable it, let it through the firewall.</div>
+
+<h2 class="pp-h2" id="first-connection">The first connection</h2>
+<p>The whole thing is one command. A user, an @ sign, and where the machine lives.</p>
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy">copy</button></div><div class="pp-code-body"><pre>{`ssh op@192.168.1.50\n# ssh <user>@<machine>\n# user    = the account you're logging in as\n# machine = an IP address (here) or a hostname`}</pre></div></div>
+
+<p>The very first time you connect to a machine, SSH stops and asks you something that looks alarming and isn't:</p>
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">output</div><button class="pp-code-copy">copy</button></div><div class="pp-code-body"><pre>{`The authenticity of host '192.168.1.50' can't be established.\nED25519 key fingerprint is SHA256:Xy3...9aQ.\nAre you sure you want to continue connecting (yes/no)?`}</pre></div></div>
+
+<p>That's SSH showing you the server's fingerprint and asking if you recognize it. Type <code>yes</code>. It writes the fingerprint to a file called <code>~/.ssh/known&#95;hosts</code> and never asks again for that machine. From now on, if that fingerprint ever changes, SSH will refuse to connect and warn you loudly, which is the point. More on that in a minute.</p>
+
+<h2 class="pp-h2" id="which-box">Wait, which box am I on?</h2>
+<p>Once you can hop between machines, you will eventually lose track of which one you're standing on. This sounds harmless. It is not. The classic outage is someone running a cleanup command they meant for a test box while logged into production. Two commands keep you honest.</p>
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy">copy</button></div><div class="pp-code-body"><pre>{`whoami\n# op        -> the account you're logged in as\n\nhostname\n# db01      -> the machine you're currently on`}</pre></div></div>
+<p>Your prompt is usually already telling you both. A prompt like <code>op@db01:~$</code> reads as: user <code>op</code>, on host <code>db01</code>, sitting in the home directory. Glance at it before you run anything destructive. On the day it matters, that half-second look is the difference between a closed ticket and a brand new, much worse one.</p>
+
+<h2 class="pp-h2" id="keys">Stop typing your password: keys</h2>
+<p>You can log in with a password, but you shouldn't, and the tickets in this queue assume you don't. Instead you make a key pair once, hand the public half to the server, and never type a password into that box again.</p>
+
+<div class="pp-step">// 1. make the key pair</div>
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy">copy</button></div><div class="pp-code-body"><pre>{`ssh-keygen -t ed25519 -C "op@projectpattie"`}</pre></div></div>
+<p>This makes two files in <code>~/.ssh/</code>. <code>id&#95;ed25519</code> is your private key. It never leaves your machine, you never share it, you never paste it anywhere. <code>id&#95;ed25519.pub</code> is the public half, which is safe to hand out. It'll ask where to save and whether you want a passphrase. Defaults are fine; a passphrase adds one more layer if your laptop ever walks off.</p>
+
+<div class="pp-step">// 2. put the public key on the server</div>
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy">copy</button></div><div class="pp-code-body"><pre>{`ssh-copy-id op@192.168.1.50`}</pre></div></div>
+<p>This logs in once with your password and appends your public key to the server's <code>~/.ssh/authorized&#95;keys</code>. That's the list of keys the server trusts. Do it once per machine.</p>
+
+<div class="pp-step">// 3. log in with no password</div>
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy">copy</button></div><div class="pp-code-body"><pre>{`ssh op@192.168.1.50\n# straight in. no password prompt.`}</pre></div></div>
+
+<div class="pp-deepdive">
+  <div class="pp-deepdive-label">// deep dive: why a key beats a password</div>
+  <p>A password is a secret you send to the server every single time you log in. Anything sitting between you and the server that can read that exchange now has your password, and people pick guessable ones anyway. A key pair works differently. The private key never leaves your laptop. The server only ever sees the public half, which is useless on its own. Logging in becomes a math problem the server poses and only your private key can answer, so there is nothing worth stealing in transit. That's the real reason this queue assumes keys: once it's set up, you stop thinking about logging in and start thinking about the actual problem.</p>
+</div>
+
+<h2 class="pp-h2" id="config-file">Make it one word: the config file</h2>
+<p>Typing <code>ssh op@192.168.1.50</code> forty times a day gets old, and you'll have more than one machine. So you save the details once. Open (or create) <code>~/.ssh/config</code> and add a block:</p>
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">~/.ssh/config</div><button class="pp-code-copy">copy</button></div><div class="pp-code-body"><pre>{`Host db01\n    HostName 192.168.1.50\n    User op\n    IdentityFile ~/.ssh/id_ed25519`}</pre></div></div>
+<p>Now the whole command is just the nickname:</p>
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy">copy</button></div><div class="pp-code-body"><pre>{`ssh db01`}</pre></div></div>
+<p>This is why, when a ticket says "I SSH into <code>db01</code>," it's one short word. The machine, the user, and the key are all saved here. Set it up once per box and the rest of the queue reads the way it's written.</p>
+
+<h2 class="pp-h2" id="wont-connect">When it won't connect</h2>
+<p>It will not always work on the first try. Here are the four you'll actually hit, and what each one is really telling you.</p>
+<table class="pp-table">
+  <thead><tr><th>What you see</th><th>What it means</th><th>What to do</th></tr></thead>
+  <tbody>
+    <tr><td><code>Connection refused</code></td><td>Nothing is listening on port 22. The SSH service is down, or a firewall is blocking it.</td><td>Turn the service on from the console. See "If SSH isn't even running yet" above.</td></tr>
+    <tr><td><code>Permission denied (publickey,password)</code></td><td>Wrong username, wrong password, or your key isn't on the server.</td><td>Recheck the user, or run <code>ssh-copy-id</code> again.</td></tr>
+    <tr><td><code>REMOTE HOST IDENTIFICATION HAS CHANGED</code></td><td>The server's fingerprint changed. Usually a rebuilt machine. Occasionally something hostile.</td><td>If you trust the change: <code>ssh-keygen -R 192.168.1.50</code>, then reconnect.</td></tr>
+    <tr><td><code>Could not resolve hostname</code></td><td>A typo, or DNS doesn't know that name.</td><td>Check the spelling, or try the raw IP address.</td></tr>
+  </tbody>
+</table>
+
+<h2 class="pp-h2" id="command-reference">Command reference</h2>
+<p>The whole post in one table. Copy from here.</p>
+<table class="pp-table">
+  <thead><tr><th>Command</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><code>ssh user@host</code></td><td>Open an encrypted shell on a remote machine.</td></tr>
+    <tr><td><code>hostname -I</code></td><td>Print the machine's IP address, so you know where to connect.</td></tr>
+    <tr><td><code>ip a</code></td><td>Show every network interface and its address (ignore <code>lo</code>, that's loopback).</td></tr>
+    <tr><td><code>whoami</code></td><td>Print which user you're logged in as.</td></tr>
+    <tr><td><code>hostname</code></td><td>Print which machine you're currently on.</td></tr>
+    <tr><td><code>systemctl status sshd</code></td><td>Check whether the SSH service is running on the server.</td></tr>
+    <tr><td><code>systemctl enable --now sshd</code></td><td>Turn SSH on right now and at every boot.</td></tr>
+    <tr><td><code>firewall-cmd --permanent --add-service=ssh</code></td><td>Let SSH through the firewall (follow with <code>--reload</code>).</td></tr>
+    <tr><td><code>ss -tlnp | grep :22</code></td><td>Confirm something is listening on the SSH port.</td></tr>
+    <tr><td><code>ssh-keygen -t ed25519</code></td><td>Make a key pair: a private half you keep, a public half you share.</td></tr>
+    <tr><td><code>ssh-copy-id user@host</code></td><td>Install your public key on the server so it stops asking for a password.</td></tr>
+    <tr><td><code>ssh db01</code></td><td>Connect using a saved <code>~/.ssh/config</code> alias, no long command.</td></tr>
+    <tr><td><code>ssh-keygen -R host</code></td><td>Forget a server's old fingerprint after it legitimately changes.</td></tr>
+    <tr><td><code>ssh -v user@host</code></td><td>Connect with verbose output, for when you need to see why it fails.</td></tr>
+    <tr><td><code>exit</code></td><td>Close the remote shell and land back on your own machine.</td></tr>
+  </tbody>
+</table>
+
+<div class="pp-note"><strong>you're ready when:</strong> you can run <code>ssh db01</code>, land on the server with no password prompt, and get back out with <code>exit</code>. That's the door. Everything in the queue happens on the other side of it.</div>
+
+<div class="pp-next">
+  <div class="pp-next-label">// next: foundations 02</div>
+  <div class="pp-next-title">Set up the ticket queue lab: clone the-queue, build your own repo, and break your first machine on purpose.</div>
+</div>

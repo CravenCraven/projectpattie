@@ -8,6 +8,9 @@ export async function getStaticPaths() {
   return categories.map(category => ({ params: { category } }));
 }
 
+const slugify = (s: string) =>
+  s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+
 const { category } = Astro.params;
 const allPosts = await getCollection('blog', ({ data }) => !data.draft);
 const posts = allPosts.filter(p => p.data.category === category);
@@ -60,21 +63,19 @@ const totalPostCount = posts.length;
       <div style="display:flex; flex-direction:column; gap:36px;">
 
         {seriesEntries.map(({ name, list }) => (
-          <section>
+          <a href={`/series/${slugify(name)}`} class="cat-series-card">
             <div class="cat-section-label">// <span>series</span> {name} <span class="cat-section-count">{list.length} parts</span></div>
-            <div class="cat-cards">
-              {list.map(post => (
-                <PostCard
-                  title={post.data.title}
-                  description={post.data.description}
-                  slug={post.slug}
-                  date={post.data.date}
-                  category={post.data.category}
-                  readTime={post.data.readTime}
-                />
+            <div class="cat-series-titles">
+              {list.slice(0, 3).map(post => (
+                <div class="cat-series-line">
+                  <span class="cat-series-order">{String(post.data.seriesOrder ?? 0).padStart(2, '0')}</span>
+                  {post.data.title}
+                </div>
               ))}
+              {list.length > 3 && <div class="cat-series-line cat-series-more">+ {list.length - 3} more</div>}
             </div>
-          </section>
+            <div class="cat-series-cta">open the series →</div>
+          </a>
         ))}
 
         {standalone.length > 0 && (
@@ -121,5 +122,44 @@ const totalPostCount = posts.length;
     display: flex;
     flex-direction: column;
     gap: 16px;
+  }
+  .cat-series-card {
+    display: block;
+    text-decoration: none;
+    border: 1px solid #1a1a2e;
+    border-left: 3px solid #ff00ff;
+    border-radius: 6px;
+    background: #12121f;
+    padding: 18px 20px;
+    transition: border-color .2s, background .2s;
+  }
+  .cat-series-card:hover {
+    border-color: #ff00ff;
+    background: #15101f;
+    text-decoration: none;
+  }
+  .cat-series-card .cat-section-label { margin-bottom: 14px; }
+  .cat-series-titles {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    margin-bottom: 14px;
+  }
+  .cat-series-line {
+    color: #c0c0d0;
+    font-size: 13px;
+    font-family: 'Source Code Pro', monospace;
+  }
+  .cat-series-order {
+    color: #ff00ff;
+    margin-right: 10px;
+    font-size: 12px;
+  }
+  .cat-series-more { color: #4a4a6a; }
+  .cat-series-cta {
+    color: #00ff9d;
+    font-size: 12px;
+    letter-spacing: .08em;
+    font-family: 'Source Code Pro', monospace;
   }
 </style>
