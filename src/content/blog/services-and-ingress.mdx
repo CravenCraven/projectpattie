@@ -1,0 +1,135 @@
+---
+title: "Services and Ingress: how traffic reaches your app"
+description: "How a request finds your app in Kubernetes. Ingress routes by host and path, a Service load-balances across pods with a stable address, and the pod answers. With a hands-on k3s demo you can run yourself."
+date: "2026-06-09"
+category: "DevOps"
+readTime: "7 min"
+---
+
+<p class="pp-meta">DevOps · 2026-06-09 · 7 min read</p>
+
+<h1 class="pp-title">Services and Ingress: how traffic reaches your app</h1>
+
+<p class="pp-subtitle">Three hops from the internet to a running pod, and why the middle layer has to be there.</p>
+
+<nav class="pp-toc">
+<a href="#problem">The problem: pods don't sit still</a>
+<a href="#service">The Service: a stable front door</a>
+<a href="#ingress">The Ingress: routing by host and path</a>
+<a href="#demo">Run it yourself</a>
+<a href="#recap">The recap</a>
+</nav>
+
+<img class="pp-figure" src="/images/services-and-ingress/request-flow.png" alt="A request flows from the internet through Ingress, which routes by host and path to a Service, which load-balances across three pods." />
+
+<h2 class="pp-h2" id="problem">The problem: pods don't sit still</h2>
+
+A pod is not a stable target. It restarts, it scales up and down, and it gets a new IP every time. Point a client at a pod IP and the address goes stale the first time that pod dies.
+
+So Kubernetes puts two layers in front of the pods. A <span class="c-green">Service</span> and an <span class="c-cyan">Ingress</span>. Each one has a single job, and the request passes through both before it reaches a <span class="c-pink">pod</span>.
+
+<h2 class="pp-h2" id="service">The Service: a stable front door</h2>
+
+A Service is one fixed address for a group of pods. It finds those pods by label, not by IP. You tell it to target everything labeled <code>app=shop</code>, and it keeps a live list of the matching pod IPs. A pod dies, it drops off the list. A new one starts, it joins. The caller never notices.
+
+The address itself is the ClusterIP, and it does not change for the life of the Service. When traffic hits it, the Service load-balances across the healthy pods behind it. That is the whole point: pods are disposable, the Service IP is fixed.
+
+A ClusterIP is only reachable from inside the cluster, which is how pods talk to each other. To take traffic from outside, you need something in front of it that speaks HTTP. That is the Ingress.
+
+<h2 class="pp-h2" id="ingress">The Ingress: routing by host and path</h2>
+
+A Service moves TCP. It does not read HTTP, so it cannot look at a hostname or a URL path and decide where a request should go. An Ingress can. It works at the HTTP layer, so one entry point can serve many apps by routing on host and path.
+
+The catch is that an Ingress object does nothing on its own. It is just a set of rules written down. Something has to read those rules and enforce them, and that something is the Ingress controller: a real reverse proxy running in the cluster. On k3s that is Traefik, and it ships built in, so there is nothing to install.
+
+<div class="pp-note">On k3s, Traefik is already running and set as the default IngressClass. Your Ingress gets picked up automatically. On other clusters you install a controller like ingress-nginx first.</div>
+
+<h2 class="pp-h2" id="demo">Run it yourself</h2>
+
+Two apps, two Services, one Ingress with two rules. One route is host only, the other adds a path, so you can watch both kinds of routing work.
+
+Deploy the apps and put a Service in front of each. The <code>shop</code> app is plain nginx. The <code>api</code> app is whoami, which answers on any path and echoes the pod name, so routing is visible instead of silent.
+
+<div class="pp-code">
+<div class="pp-code-lang">bash</div>
+<div class="pp-code-body"><pre>{`kubectl create deployment shop --image=nginx --replicas=3
+kubectl expose deployment shop --port=80
+
+kubectl create deployment api --image=traefik/whoami --replicas=2
+kubectl expose deployment api --port=80`}</pre></div>
+</div>
+
+Confirm each Service answers from inside the cluster. Reach it by name, and include the scheme, because busybox wget wants it.
+
+<div class="pp-code">
+<div class="pp-code-lang">bash</div>
+<div class="pp-code-body"><pre>{`kubectl run tmp --rm -it --image=busybox --restart=Never -- wget -qO- http://shop`}</pre></div>
+</div>
+
+Now the Ingress. It routes <code>shop.local/</code> to the shop Service by host, and <code>api.local/v1</code> to the api Service by host and path.
+
+<div class="pp-code">
+<div class="pp-code-lang">ingress.yaml</div>
+<div class="pp-code-body"><pre>{`apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: routing-demo
+spec:
+  rules:
+  - host: shop.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: shop
+            port:
+              number: 80
+  - host: api.local
+    http:
+      paths:
+      - path: /v1
+        pathType: Prefix
+        backend:
+          service:
+            name: api
+            port:
+              number: 80`}</pre></div>
+</div>
+
+Create the file first, then apply it and check that it registered.
+
+<div class="pp-code">
+<div class="pp-code-lang">bash</div>
+<div class="pp-code-body"><pre>{`kubectl apply -f ingress.yaml
+kubectl get ingress`}</pre></div>
+</div>
+
+<div class="pp-warn">The ADDRESS column can be blank for a few seconds after you apply. Re-run <code>kubectl get ingress</code> until it fills in. That value is the node IP where Traefik listens, and it is what you curl, not a Service ClusterIP.</div>
+
+Test the full path from outside. Replace the whole placeholder including the brackets, or bash reads the <code>&lt;</code> as a redirection.
+
+<div class="pp-code">
+<div class="pp-code-lang">bash</div>
+<div class="pp-code-body"><pre>{`curl -H "Host: shop.local" http://<node-ip>/       # nginx page, host routing
+curl -H "Host: api.local"  http://<node-ip>/v1     # whoami, host + path routing
+curl -H "Host: api.local"  http://<node-ip>/        # 404, proves the path rule`}</pre></div>
+</div>
+
+That last line is the interesting one. The api host has only a <code>/v1</code> rule, so the root matches nothing and Traefik returns a 404. Same host, different path, different outcome. That is path routing doing its job.
+
+Tear it down when you are done.
+
+<div class="pp-code">
+<div class="pp-code-lang">bash</div>
+<div class="pp-code-body"><pre>{`kubectl delete -f ingress.yaml
+kubectl delete deployment shop api
+kubectl delete svc shop api`}</pre></div>
+</div>
+
+<h2 class="pp-h2" id="recap">The recap</h2>
+
+The Ingress picks the Service by host and path. The Service picks a healthy pod. Pods come and go, but the Service IP stays put, so nothing upstream has to track which pods are alive. That layering is the whole reason a request can survive a cluster that never stops shifting underneath it.
+
+<a class="pp-next" href="/blog/namespaces-and-rbac">Next: namespaces and RBAC, keeping workloads and access fenced off</a>
