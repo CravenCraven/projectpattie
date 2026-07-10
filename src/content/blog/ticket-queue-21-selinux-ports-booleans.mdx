@@ -1,0 +1,98 @@
+---
+title: "SELinux part two: ports, booleans, and audit2allow"
+description: "httpd will not bind to port 8080, the app needs outbound DB connections, and a backup denial needs a custom policy module. Three SELinux fixes beyond file contexts."
+date: 2026-07-01
+category: sysadmin
+readTime: 15
+series: "The Ticket Queue"
+seriesOrder: 21
+---
+
+<div class="pp-meta"><span>sysadmin</span> · July 1, 2026 · 15 min read</div>
+
+<h1 class="pp-title">SELinux, part two.<br/><em>ports, booleans, and audit2allow.</em></h1>
+
+<p class="pp-subtitle">httpd will not bind to port 8080, the app needs outbound DB connections, and a backup denial needs a custom policy module. Three SELinux fixes beyond file contexts.</p>
+
+<div class="pp-toc">
+  <div class="pp-toc-label">// <span>what we're getting into</span></div>
+  <ol>
+    <li><a href="#the-ticket">The ticket</a></li>
+    <li><a href="#concept-review">Concept review. The tool for each job.</a></li>
+    <li><a href="#port">Permit httpd on port 8080</a></li>
+    <li><a href="#boolean">Allow outbound connections with a boolean</a></li>
+    <li><a href="#audit2allow">Build a module from denials with audit2allow</a></li>
+    <li><a href="#boolean-ref">Booleans worth knowing</a></li>
+    <li><a href="#exam">Exam questions</a></li>
+    <li><a href="#checklist">Final checklist: confirm everything works</a></li>
+  </ol>
+</div>
+
+<p>Yesterday's 403 turned out to be a file label. Today webadmin is back with three more denials, and none of them are about labels. Compliance wants httpd on port 8080, but the service will not even start, it dies with a bind error. The new app has to reach the database over the network, and httpd is blocked from making outbound connections at all. And the backup account is being refused read access to user homes, with the denial sitting right there in the audit log. Three problems, three different SELinux tools.</p>
+
+<p>That is the whole lesson of part two: SELinux is more than file contexts. A non-standard port needs the port taught to the policy, an outbound connection needs a boolean flipped on, and a denial that fits none of the prebuilt fixes can be compiled into its own small policy module. Reach for the wrong one and you burn twenty minutes. Match the tool to the denial and each fix is two commands.</p>
+
+<h2 id="the-ticket" class="pp-h2">The ticket</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`getenforce\nsudo dnf install -y policycoreutils-python-utils setroubleshoot-server\nwhich semanage audit2allow`}</pre></div></div>
+
+<h2 id="concept-review" class="pp-h2">Concept review. The tool for each job.</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`man semanage-port\nman semanage-boolean\nman audit2allow`}</pre></div></div>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">five SELinux fix tools</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`chcon                       temporary file relabel\nsemanage fcontext + restorecon   permanent file relabel\nsemanage port               permit a service on a non-standard port\nsetsebool -P                toggle a prebuilt policy boolean\naudit2allow                 build a custom module from denial logs`}</pre></div></div>
+
+<p>Denials land in <code>/var/log/audit/audit.log</code>, and you query them with <code>ausearch -m AVC -ts recent</code>.</p>
+
+<h2 id="port" class="pp-h2">Permit httpd on port 8080</h2>
+
+<p>Reconfigure httpd to listen on 8080 and it fails to start, because SELinux only lets httpd bind to a known set of ports. Add 8080 to that set with <code>semanage port</code>, open the firewall too, and it starts.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo sed -i 's/^Listen 80$/Listen 8080/' /etc/httpd/conf/httpd.conf\nsudo systemctl restart httpd\n# Job for httpd.service failed. (98)Address already in use: could not bind\nsudo ausearch -m AVC -ts recent | tail -3\n# avc:  denied  { name_bind } for  comm="httpd" src=8080\n#   scontext=...:httpd_t:s0 tcontext=...:unreserved_port_t:s0\n\nsudo semanage port -l | grep http_port_t\n# http_port_t   tcp   80, 81, 443, 488, 8008, 8009, 8443, 9000\n# no 8080 in that list. that is the whole problem.\nsudo semanage port -a -t http_port_t -p tcp 8080\nsudo semanage port -l | grep http_port_t\n# http_port_t   tcp   8080, 80, 81, 443, 488, 8008, 8009, 8443, 9000\n\nsudo firewall-cmd --permanent --add-port=8080/tcp && sudo firewall-cmd --reload\nsudo systemctl restart httpd\nsystemctl is-active httpd    # active\ncurl -I http://localhost:8080`}</pre></div></div>
+
+<div class="pp-note"><strong>note:</strong> SELinux blocking and firewall blocking are separate problems. The SELinux port rule lets httpd bind, the firewall rule lets traffic reach it. A non-standard port usually needs both.</div>
+
+<h2 id="boolean" class="pp-h2">Allow outbound connections with a boolean</h2>
+
+<p>Many common exceptions already exist as on/off switches called booleans. httpd making outbound network connections is one. The <code>-P</code> flag makes the change persist across reboots, and forgetting it is the classic mistake.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`getsebool -a | grep httpd | head -20\ngetsebool httpd_can_network_connect    # off by default\n\nsudo setsebool -P httpd_can_network_connect on\ngetsebool httpd_can_network_connect    # on, and persistent because of -P`}</pre></div></div>
+
+<h2 id="audit2allow" class="pp-h2">Build a module from denials with audit2allow</h2>
+
+<p>When no file label, port, or boolean fits, you can turn the denials themselves into a policy module. Reproduce the denial, review what <code>audit2allow</code> proposes, then build and load the module. Always read the generated rules before loading, because a blind allow can grant something dangerous.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# reproduce a denial\nsudo touch /home/dev1/.test_file\nsudo -u svc_auto cat /home/dev1/.test_file 2>&1\n\n# see what would be allowed\nsudo ausearch -m AVC -ts recent | audit2allow -a\n\n# build a loadable module (creates backup_homes.te and .pp)\nsudo ausearch -m AVC -ts recent | audit2allow -M backup_homes\ncat backup_homes.te            # review before loading\n\nsudo semodule -i backup_homes.pp\nsudo semodule -l | grep backup_homes\n# remove later with: sudo semodule -r backup_homes`}</pre></div></div>
+
+<h2 id="boolean-ref" class="pp-h2">Booleans worth knowing</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">common booleans</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`httpd_can_network_connect_db   httpd connects to DB ports\nhttpd_enable_homedirs          httpd serves user home directories\nhttpd_use_nfs                  httpd serves content from NFS\n\nsudo setsebool -P httpd_can_network_connect_db on\nsudo setsebool -P httpd_enable_homedirs on`}</pre></div></div>
+
+<h2 id="exam" class="pp-h2">Exam questions</h2>
+
+<p>Write the command first.</p>
+
+<p><span class="c-pink">Q1.</span> Display all httpd-related SELinux booleans and their state.</p>
+
+<p><span class="c-pink">Q2.</span> Allow httpd to listen on TCP port 8888, persistent across reboot.</p>
+
+<p><span class="c-pink">Q3.</span> A custom service is blocked by SELinux. Use the audit denials to build and load a module named <code>mycustom</code>.</p>
+
+<p><span class="c-green">Answers.</span></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# A1\ngetsebool -a | grep httpd\n# A2\nsudo semanage port -a -t http_port_t -p tcp 8888\nsudo semanage port -l | grep http_port_t\n# A3\nsudo ausearch -m AVC -ts recent | audit2allow -M mycustom\ncat mycustom.te    # review first\nsudo semodule -i mycustom.pp`}</pre></div></div>
+
+<h2 id="checklist" class="pp-h2">Final checklist: confirm everything works</h2>
+
+<p>If every check passes, the ticket is done.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# 1. httpd binds to 8080 via the semanage port mapping\nsudo semanage port -l | grep http_port_t; systemctl is-active httpd\n\n# 2. httpd_can_network_connect is on and persistent\ngetsebool httpd_can_network_connect\n\n# 3. custom module built, reviewed, and loaded\nsudo semodule -l | grep backup_homes\n\n# 4. all three exam commands written from scratch\n# 5. tracker entry checked off`}</pre></div></div>
+
+<p>Reply to webadmin: port 8080 added to <code>http_port_t</code> via <code>semanage port</code>, <code>httpd_can_network_connect</code> set on persistently, and a reviewed <code>audit2allow</code> module loaded for the backup home access.</p>
+
+<div class="pp-next">
+  <a href="/blog/ticket-queue-22-nfs-server-client" style="text-decoration:none;color:inherit;display:block">
+    <div class="pp-next-label">next post</div>
+    <div class="pp-next-title">An NFS server and client, exported and mounted</div>
+  </a>
+</div>

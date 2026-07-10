@@ -1,0 +1,102 @@
+---
+title: "SSH hardening: key-only auth and scoped access"
+description: "A pen test flagged SSH password auth as critical. Move to key-based auth, disable passwords and root login, scope access to named users and a group, without locking yourself out."
+date: 2026-06-24
+category: sysadmin
+readTime: 14
+series: "The Ticket Queue"
+seriesOrder: 18
+---
+
+<div class="pp-meta"><span>sysadmin</span> · June 24, 2026 · 14 min read</div>
+
+<h1 class="pp-title">SSH hardening.<br/><em>keys only, no root, scoped access.</em></h1>
+
+<p class="pp-subtitle">A pen test flagged SSH password auth as critical. Move to key-based auth, disable passwords and root login, scope access to named users and a group, without locking yourself out.</p>
+
+<div class="pp-toc">
+  <div class="pp-toc-label">// <span>what we're getting into</span></div>
+  <ol>
+    <li><a href="#the-ticket">The ticket</a></li>
+    <li><a href="#concept-review">Concept review. Keys and the permissions that break them.</a></li>
+    <li><a href="#keygen">Generate a key pair</a></li>
+    <li><a href="#distribute">Distribute the public key</a></li>
+    <li><a href="#harden">Harden sshd with a drop-in</a></li>
+    <li><a href="#verify">Verify the restrictions</a></li>
+    <li><a href="#exam">Exam questions</a></li>
+    <li><a href="#checklist">Final checklist: confirm everything works</a></li>
+  </ol>
+</div>
+
+<p>The pen test report landed with one finding flagged critical and in red: SSH still accepts passwords. secadmin wants it closed before Friday. Key-based auth for the admin account, passwords off globally, root login over SSH off, and access narrowed to two named users plus the <code>sysadmins</code> group. The line in the ticket that matters most is the last one: test it twice before you drop the session you are working in.</p>
+
+<p>Every step on this ticket can lock you out of the box, and root SSH is already off, so there is no side door if you do. The discipline is not optional: validate the config with <code>sshd -t</code> before you reload, and prove a brand new session works before you close the one you have.</p>
+
+<div class="pp-warn"><strong>warning:</strong> Keep a second SSH session open the entire time. Edit the config, validate with <code>sshd -t</code>, reload, then log in from a brand new session before you close the one you have. If the new one fails, you still have the old one to fix it.</div>
+
+<h2 id="the-ticket" class="pp-h2">The ticket</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`systemctl is-active sshd\nss -tlnp | grep :22\nid admin student\ngetent group sysadmins`}</pre></div></div>
+
+<h2 id="concept-review" class="pp-h2">Concept review. Keys and the permissions that break them.</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`man ssh\nman sshd_config\nman ssh-keygen`}</pre></div></div>
+
+<p>Key auth uses a pair: a private key that never leaves your machine and a public key you place on the server. SSH is strict about permissions and will silently refuse keys if they are too loose. The directory must be 700, the private key and <code>authorized_keys</code> must be 600, and the public key can be 644.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">required permissions</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`~/.ssh                    700   only the owner can enter\n~/.ssh/authorized_keys    600   only the owner can read\n~/.ssh/id_ed25519         600   the private key, critical\n~/.ssh/id_ed25519.pub     644   public, fine to be readable`}</pre></div></div>
+
+<h2 id="keygen" class="pp-h2">Generate a key pair</h2>
+
+<p>ed25519 is the modern default on RHEL 9: smaller and faster than RSA at equivalent strength.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`ssh-keygen -t ed25519 -C "admin@workstation" -f ~/.ssh/id_ed25519\n# press enter for no passphrase, or set one (recommended)\nls -la ~/.ssh    # id_ed25519 (600) and id_ed25519.pub (644)`}</pre></div></div>
+
+<h2 id="distribute" class="pp-h2">Distribute the public key</h2>
+
+<p><code>ssh-copy-id</code> is the easy path and prompts for the password one final time. After that, login is passwordless.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`ssh-copy-id -i ~/.ssh/id_ed25519.pub admin@server1\n\n# manual alternative:\ncat ~/.ssh/id_ed25519.pub | ssh admin@server1 \\\n    'mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys'\n\nssh admin@server1 hostname    # should connect with no password prompt`}</pre></div></div>
+
+<h2 id="harden" class="pp-h2">Harden sshd with a drop-in</h2>
+
+<p>Write a drop-in in <code>/etc/ssh/sshd_config.d/</code> rather than editing the main file. Validate with <code>sshd -t</code> before you reload, and use <code>reload</code> not <code>restart</code> so existing sessions are not dropped.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak.$(date +%Y%m%d)\n\nsudo tee /etc/ssh/sshd_config.d/99-hardening.conf << 'EOF'\nPasswordAuthentication no\nKbdInteractiveAuthentication no\nPermitRootLogin no\nAllowUsers admin student\nAllowGroups sysadmins\nEOF\n\nsudo sshd -t              # no output means the config is valid\nsudo systemctl reload sshd\nsystemctl is-active sshd`}</pre></div></div>
+
+<div class="pp-note"><strong>note:</strong> <code>KbdInteractiveAuthentication no</code> matters. Without it, password-style login can still sneak back in through PAM even after you disable <code>PasswordAuthentication</code>.</div>
+
+<h2 id="verify" class="pp-h2">Verify the restrictions</h2>
+
+<p>From a new session, confirm who can and cannot get in.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`ssh admin@server1 hostname      # succeeds, key auth\nssh student@server1 hostname    # succeeds, key auth\nssh dev1@server1 hostname       # fails, not allowed\nssh root@server1 hostname       # fails, PermitRootLogin no\n\n# force a password attempt to prove passwords are dead\nssh -o PreferredAuthentications=password dev1@server1\n# dev1@server1: Permission denied (publickey,gssapi-with-mic).\n\nsudo journalctl -u sshd -n 30 --no-pager\n# sshd[2011]: User dev1 not allowed because not listed in AllowUsers`}</pre></div></div>
+
+<h2 id="exam" class="pp-h2">Exam questions</h2>
+
+<p>Write the command first.</p>
+
+<p><span class="c-pink">Q1.</span> Generate a new ed25519 key pair for the current user with no passphrase at <code>~/.ssh/id_ed25519</code>.</p>
+
+<p><span class="c-pink">Q2.</span> Configure SSH so only <code>dev1</code> and <code>dev2</code> can log in, using a drop-in file.</p>
+
+<p><span class="c-pink">Q3.</span> Disable password auth and root login, validate before restarting, and show how to test that passwords are refused.</p>
+
+<p><span class="c-green">Answers.</span></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# A1\nssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N ""\n# A2\nsudo tee /etc/ssh/sshd_config.d/10-allow-devs.conf << 'EOF'\nAllowUsers dev1 dev2\nEOF\nsudo sshd -t && sudo systemctl reload sshd\n# A3\nsudo tee /etc/ssh/sshd_config.d/99-hardening.conf << 'EOF'\nPasswordAuthentication no\nPermitRootLogin no\nKbdInteractiveAuthentication no\nEOF\nsudo sshd -t && sudo systemctl reload sshd\nssh -o PreferredAuthentications=password dev1@server1    # Permission denied (publickey)`}</pre></div></div>
+
+<h2 id="checklist" class="pp-h2">Final checklist: confirm everything works</h2>
+
+<p>If every check passes, the ticket is done.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# 1. key pair generated, public key in the server's authorized_keys\nls -la ~/.ssh\n\n# 2. drop-in created and validated\nsudo sshd -t\n\n# 3. passwords and root login refused, access scoped\n# 4. tested in a NEW session before closing the old one\n# 5. all three exam commands written from scratch\n# 6. tracker entry checked off`}</pre></div></div>
+
+<p>Reply to secadmin: SSH is locked down. Key auth only, root login disabled, access scoped to admin, student, and the sysadmins group. Validated with <code>sshd -t</code> before reload. Pen-test ready.</p>
+
+<div class="pp-next">
+  <a href="/blog/ticket-queue-19-firewalld" style="text-decoration:none;color:inherit;display:block">
+    <div class="pp-next-label">next post</div>
+    <div class="pp-next-title">firewalld zones, services, and rich rules</div>
+  </a>
+</div>

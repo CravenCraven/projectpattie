@@ -1,0 +1,98 @@
+---
+title: "autofs: mounting NFS on demand with indirect and direct maps"
+description: "Instead of mounting the NFS share permanently on every box, nfsadmin wants it mounted on first access and unmounted when idle. That is autofs, with both an indirect and a direct map."
+date: 2026-07-06
+category: sysadmin
+readTime: 14
+series: "The Ticket Queue"
+seriesOrder: 23
+---
+
+<div class="pp-meta"><span>sysadmin</span> · July 6, 2026 · 14 min read</div>
+
+<h1 class="pp-title">autofs on demand.<br/><em>indirect and direct maps, and idle timeout.</em></h1>
+
+<p class="pp-subtitle">Instead of mounting the NFS share permanently on every box, nfsadmin wants it mounted on first access and unmounted when idle. That is autofs, with both an indirect and a direct map.</p>
+
+<div class="pp-toc">
+  <div class="pp-toc-label">// <span>what we're getting into</span></div>
+  <ol>
+    <li><a href="#the-ticket">The ticket</a></li>
+    <li><a href="#concept-review">Concept review. The map files, indirect versus direct.</a></li>
+    <li><a href="#indirect">The indirect map</a></li>
+    <li><a href="#direct">The direct map</a></li>
+    <li><a href="#activate">Activate autofs and test</a></li>
+    <li><a href="#timeout">Idle timeout</a></li>
+    <li><a href="#exam">Exam questions</a></li>
+    <li><a href="#checklist">Final checklist: confirm everything works</a></li>
+  </ol>
+</div>
+
+<p>nfsadmin liked the NFS share from yesterday but not the idea of every box in the fleet holding it mounted around the clock. What they want is on-demand: the share appears the instant someone touches the path, and quietly unmounts once it goes idle. That is autofs, and the ticket asks for it two ways, an indirect map that manages <code>/shares/team</code>, and a direct map that mounts <code>/data/projects</code> with no parent directory to manage.</p>
+
+<p>Indirect and direct maps do nearly the same job and read nearly the same on paper, which is exactly why people mix them up. The difference lives in two precise spots, the <code>auto.master</code> line and the paths inside the map file, and getting either one wrong is the usual reason a mount silently never happens.</p>
+
+<h2 id="the-ticket" class="pp-h2">The ticket</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo dnf install -y autofs nfs-utils\nshowmount -e localhost      # confirm the NFS share is exported\nls -ld /srv/nfsshare`}</pre></div></div>
+
+<h2 id="concept-review" class="pp-h2">Concept review. The map files, indirect versus direct.</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`man 5 auto.master\nman 5 autofs`}</pre></div></div>
+
+<p><code>/etc/auto.master</code> is the top file. It lists mountpoints and points each at a map file that holds the actual mounts. An indirect map manages a set of subdirectories under one parent, good when several shares live under a common directory. A direct map handles specific full paths that do not share a parent.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">autofs hierarchy</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`/etc/auto.master        the master, lists mountpoints and their maps\n  -> /etc/auto.shares   an indirect map (parent dir plus sub-mounts)\n  -> /etc/auto.direct   a direct map (full path mounts)\n\n# in auto.master:\n/shares /etc/auto.shares    indirect, parent is /shares\n/-      /etc/auto.direct    direct, the /- is the literal indicator`}</pre></div></div>
+
+<h2 id="indirect" class="pp-h2">The indirect map</h2>
+
+<p>The map line names a subdirectory, options, and the source. The final path becomes the parent from auto.master plus the subdirectory, here <code>/shares/team</code>.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo tee /etc/auto.shares << 'EOF'\nteam   -rw,sync   localhost:/srv/nfsshare\nEOF\n\nsudo cp /etc/auto.master /etc/auto.master.bak\necho "/shares /etc/auto.shares" | sudo tee -a /etc/auto.master`}</pre></div></div>
+
+<h2 id="direct" class="pp-h2">The direct map</h2>
+
+<p>A direct map is different in two places. The auto.master line uses the literal <code>/-</code> instead of a parent path, and the map file uses absolute paths on each line instead of relative subdirectories.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo tee /etc/auto.direct << 'EOF'\n/data/projects   -rw,sync   localhost:/srv/nfsshare\nEOF\n\necho "/- /etc/auto.direct" | sudo tee -a /etc/auto.master`}</pre></div></div>
+
+<h2 id="activate" class="pp-h2">Activate autofs and test</h2>
+
+<p>Start the service, then trigger each mount just by looking into the path. autofs creates and mounts it on demand.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo systemctl enable --now autofs\nsudo systemctl reload autofs    # after editing maps\n\n# indirect: listing the path triggers the mount\nls /shares/team\nmount | grep team\ncat /shares/team/welcome.txt\n\n# direct: same idea\nls /data/projects\nmount | grep projects`}</pre></div></div>
+
+<h2 id="timeout" class="pp-h2">Idle timeout</h2>
+
+<p>The default idle timeout is five minutes. Access a path and it mounts, leave it alone and autofs unmounts it. You can tune the timeout in auto.master.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`ls /shares/team\nmount | grep team          # mounted\n# leave it idle past the timeout and it unmounts on its own\n\n# set a custom timeout in auto.master:\n# /shares /etc/auto.shares --timeout=60`}</pre></div></div>
+
+<h2 id="exam" class="pp-h2">Exam questions</h2>
+
+<p>Write the command first.</p>
+
+<p><span class="c-pink">Q1.</span> Install and start autofs so it is enabled at boot.</p>
+
+<p><span class="c-pink">Q2.</span> Configure an indirect map so access to <code>/nfs/data</code> auto-mounts <code>server:/share</code> read-write.</p>
+
+<p><span class="c-pink">Q3.</span> Configure a direct map to auto-mount <code>nfsserver:/exports/projects</code> at <code>/projects</code>, then verify by entering it.</p>
+
+<p><span class="c-green">Answers.</span></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# A1\nsudo dnf install -y autofs\nsudo systemctl enable --now autofs\n# A2 (indirect)\necho 'data   -rw   server:/share' | sudo tee /etc/auto.nfs\necho '/nfs /etc/auto.nfs' | sudo tee -a /etc/auto.master\nsudo systemctl reload autofs; ls /nfs/data\n# A3 (direct)\necho '/projects  -rw  nfsserver:/exports/projects' | sudo tee /etc/auto.direct\necho '/- /etc/auto.direct' | sudo tee -a /etc/auto.master\nsudo systemctl reload autofs; cd /projects && ls`}</pre></div></div>
+
+<h2 id="checklist" class="pp-h2">Final checklist: confirm everything works</h2>
+
+<p>If every check passes, the ticket is done.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# 1. autofs installed and running\nsystemctl is-active autofs\n\n# 2. indirect map mounts at /shares/team on access\nls /shares/team; mount | grep team\n\n# 3. direct map mounts at /data/projects on access\nls /data/projects; mount | grep projects\n\n# 4. auto.master has both pointers (/shares and /-)\n# 5. all three exam commands written from scratch\n# 6. tracker entry checked off`}</pre></div></div>
+
+<p>Reply to nfsadmin: autofs configured. Indirect map mounts on <code>/shares/team</code>, direct map at <code>/data/projects</code>, both auto-unmount on idle, service enabled at boot.</p>
+
+<div class="pp-next">
+  <a href="/blog/ticket-queue-24-time-chrony" style="text-decoration:none;color:inherit;display:block">
+    <div class="pp-next-label">next post</div>
+    <div class="pp-next-title">Fixing time drift with chrony and the systemd control tools</div>
+  </a>
+</div>

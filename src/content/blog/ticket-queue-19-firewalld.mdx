@@ -1,0 +1,110 @@
+---
+title: "firewalld zones, services, and rich rules"
+description: "secadmin wants a clean firewall: web open to everyone, SSH only from the management subnet, a custom port for one host, and Cockpit open for an hour. All permanent, all reloaded."
+date: 2026-06-26
+category: sysadmin
+readTime: 14
+series: "The Ticket Queue"
+seriesOrder: 19
+---
+
+<div class="pp-meta"><span>sysadmin</span> · June 26, 2026 · 14 min read</div>
+
+<h1 class="pp-title">firewalld from scratch.<br/><em>zones, services, rich rules, and timed rules.</em></h1>
+
+<p class="pp-subtitle">secadmin wants a clean firewall: web open to everyone, SSH only from the management subnet, a custom port for one host, and Cockpit open for an hour. All permanent, all reloaded.</p>
+
+<div class="pp-toc">
+  <div class="pp-toc-label">// <span>what we're getting into</span></div>
+  <ol>
+    <li><a href="#the-ticket">The ticket</a></li>
+    <li><a href="#concept-review">Concept review. Zones and the two flags.</a></li>
+    <li><a href="#inventory">Inventory the current firewall</a></li>
+    <li><a href="#web">Open HTTP and HTTPS</a></li>
+    <li><a href="#ssh-rich">Restrict SSH with a rich rule</a></li>
+    <li><a href="#custom-port">A custom port for one host</a></li>
+    <li><a href="#timed">A timed rule for Cockpit</a></li>
+    <li><a href="#report">Generate the report</a></li>
+    <li><a href="#exam">Exam questions</a></li>
+    <li><a href="#checklist">Final checklist: confirm everything works</a></li>
+  </ol>
+</div>
+
+<p>secadmin wants the firewall on server1 rebuilt from a clean sheet, and the rules map straight onto who should reach what. Web open to the world on 80 and 443. SSH only from the management subnet, 10.0.50.0/24, refused from everywhere else. A management UI on 8443 open to exactly one host, 10.0.50.5. Cockpit cracked open for a single one-hour maintenance window. And a snapshot of every rule for the change ticket. All permanent, reloaded after.</p>
+
+<p>Two flags decide whether any of this survives. <code>--permanent</code> writes the rule to disk, <code>--reload</code> pushes the saved rules into the running firewall. Forget <code>--permanent</code> and the rule evaporates at the next reboot. Forget <code>--reload</code> and it sits on disk doing nothing while you swear the change is not working. You will type both more today than anything else.</p>
+
+<h2 id="the-ticket" class="pp-h2">The ticket</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo systemctl is-active firewalld || sudo systemctl enable --now firewalld\nsudo firewall-cmd --state\nsudo firewall-cmd --get-default-zone\nsudo firewall-cmd --list-all`}</pre></div></div>
+
+<h2 id="concept-review" class="pp-h2">Concept review. Zones and the two flags.</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`man firewall-cmd\nman firewalld.richlanguage`}</pre></div></div>
+
+<p>A packet is matched to a zone, usually by the interface or its source address, and the zone decides what is allowed through named services, ports, or rich rules. Anything not allowed is dropped. The default zone on RHEL 9 is <code>public</code>. The <code>trusted</code> zone allows everything, <code>drop</code> silently discards, and <code>block</code> rejects with a reply.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">the two flags you use constantly</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`--permanent   write the rule to disk, so it survives a reboot\n--reload      apply the on-disk rules to the running firewall\n\n# without --permanent the rule vanishes on reboot\n# without --reload a permanent rule does not take effect yet`}</pre></div></div>
+
+<h2 id="inventory" class="pp-h2">Inventory the current firewall</h2>
+
+<p>Know your baseline before you change anything.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo firewall-cmd --get-default-zone\nsudo firewall-cmd --get-active-zones\nsudo firewall-cmd --list-all\nsudo firewall-cmd --get-services | tr ' ' '\\n' | head -20`}</pre></div></div>
+
+<h2 id="web" class="pp-h2">Open HTTP and HTTPS</h2>
+
+<p>Named services are easier than raw ports, because they already map to the standard port numbers. Add them permanently, then reload.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo firewall-cmd --permanent --zone=public --add-service=http\nsudo firewall-cmd --permanent --zone=public --add-service=https\nsudo firewall-cmd --reload\nsudo firewall-cmd --zone=public --list-services`}</pre></div></div>
+
+<h2 id="ssh-rich" class="pp-h2">Restrict SSH with a rich rule</h2>
+
+<p>This is the step people get subtly wrong. Adding a rich rule that allows SSH from one subnet does nothing if the global ssh service is still open, because that still lets anyone in. Remove the global allow first, then add the scoped rule.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo firewall-cmd --permanent --zone=public --remove-service=ssh\n\nsudo firewall-cmd --permanent --zone=public \\\n    --add-rich-rule='rule family="ipv4" source address="10.0.50.0/24" service name="ssh" accept'\n\nsudo firewall-cmd --reload\nsudo firewall-cmd --zone=public --list-rich-rules`}</pre></div></div>
+
+<h2 id="custom-port" class="pp-h2">A custom port for one host</h2>
+
+<p>Same idea, scoped to a single address and a raw port instead of a named service.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo firewall-cmd --permanent --zone=public \\\n    --add-rich-rule='rule family="ipv4" source address="10.0.50.5" port port="8443" protocol="tcp" accept'\nsudo firewall-cmd --reload\nsudo firewall-cmd --zone=public --list-rich-rules`}</pre></div></div>
+
+<h2 id="timed" class="pp-h2">A timed rule for Cockpit</h2>
+
+<p>A maintenance window wants a rule that cleans itself up. A timeout rule is runtime only, not permanent, and firewalld removes it automatically when the clock runs out.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo firewall-cmd --zone=public --add-service=cockpit --timeout=3600\nsudo firewall-cmd --zone=public --list-services\n# cockpit is removed from the runtime config automatically after an hour`}</pre></div></div>
+
+<h2 id="report" class="pp-h2">Generate the report</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo mkdir -p /srv/audit_reports\nsudo firewall-cmd --list-all-zones | sudo tee /srv/audit_reports/firewall_$(date +%Y%m%d).txt`}</pre></div></div>
+
+<h2 id="exam" class="pp-h2">Exam questions</h2>
+
+<p>Write the command first.</p>
+
+<p><span class="c-pink">Q1.</span> Permanently open port 8080/tcp in the default zone and reload.</p>
+
+<p><span class="c-pink">Q2.</span> Open HTTPS in the <code>public</code> zone permanently and verify it is listed.</p>
+
+<p><span class="c-pink">Q3.</span> Create a rich rule allowing SSH only from 10.0.0.5, permanent and applied immediately.</p>
+
+<p><span class="c-green">Answers.</span></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# A1\nsudo firewall-cmd --permanent --add-port=8080/tcp\nsudo firewall-cmd --reload\n# A2\nsudo firewall-cmd --permanent --zone=public --add-service=https\nsudo firewall-cmd --reload; sudo firewall-cmd --zone=public --list-services\n# A3 (remember to remove the global ssh service too)\nsudo firewall-cmd --permanent --zone=public --remove-service=ssh\nsudo firewall-cmd --permanent --zone=public \\\n    --add-rich-rule='rule family="ipv4" source address="10.0.0.5" service name="ssh" accept'\nsudo firewall-cmd --reload`}</pre></div></div>
+
+<h2 id="checklist" class="pp-h2">Final checklist: confirm everything works</h2>
+
+<p>If every check passes, the ticket is done.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# 1. http and https open publicly\nsudo firewall-cmd --zone=public --list-services\n\n# 2. SSH scoped to the management subnet, custom port to one host\nsudo firewall-cmd --zone=public --list-rich-rules\n\n# 3. cockpit opened with a 1 hour timeout (runtime only)\n# 4. snapshot saved, every permanent change followed by --reload\n# 5. all three exam commands written from scratch\n# 6. tracker entry checked off`}</pre></div></div>
+
+<p>Reply to secadmin: firewalld configured. Web public, SSH limited to the management subnet, port 8443 to the single management host, Cockpit timed open for an hour. Snapshot in <code>/srv/audit_reports/</code>.</p>
+
+<div class="pp-next">
+  <a href="/blog/ticket-queue-20-selinux-contexts" style="text-decoration:none;color:inherit;display:block">
+    <div class="pp-next-label">next post</div>
+    <div class="pp-next-title">SELinux part one: diagnosing denials and fixing file contexts</div>
+  </a>
+</div>

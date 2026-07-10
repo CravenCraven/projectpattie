@@ -1,0 +1,109 @@
+---
+title: "Static IP, hostname, and DNS with nmcli"
+description: "server1 is moving to a new VLAN tomorrow and needs a static IP, gateway, DNS, a persistent hostname, and a local hosts entry, all set with nmcli and verified with ip and ss."
+date: 2026-06-22
+category: sysadmin
+readTime: 14
+series: "The Ticket Queue"
+seriesOrder: 17
+---
+
+<div class="pp-meta"><span>sysadmin</span> · June 22, 2026 · 14 min read</div>
+
+<h1 class="pp-title">Static networking.<br/><em>nmcli, hostnamectl, and /etc/hosts.</em></h1>
+
+<p class="pp-subtitle">server1 is moving to a new VLAN tomorrow and needs a static IP, gateway, DNS, a persistent hostname, and a local hosts entry, all set with nmcli and verified with ip and ss.</p>
+
+<div class="pp-toc">
+  <div class="pp-toc-label">// <span>what we're getting into</span></div>
+  <ol>
+    <li><a href="#the-ticket">The ticket</a></li>
+    <li><a href="#concept-review">Concept review. nmcli and the ip tools.</a></li>
+    <li><a href="#identify">Identify the active connection</a></li>
+    <li><a href="#static">Apply the static IP config</a></li>
+    <li><a href="#hostname">Set a persistent hostname</a></li>
+    <li><a href="#hosts">A local /etc/hosts entry</a></li>
+    <li><a href="#verify">Verify with ip and ss</a></li>
+    <li><a href="#exam">Exam questions</a></li>
+    <li><a href="#checklist">Final checklist: confirm everything works</a></li>
+  </ol>
+</div>
+
+<p>The network team is moving server1 into a new VLAN tomorrow morning and needs it pinned to a static address before the cutover: 192.168.50.100/24, gateway 192.168.50.1, DNS 192.168.50.10 with 1.1.1.1 behind it, the hostname staying server1 but set so it survives a reboot, and a <code>db.internal</code> entry so the box can reach the database without waiting on DNS. All of it through <code>nmcli</code>, because that is what the exam expects and what a change ticket can actually review afterward.</p>
+
+<p>Two things sink people here. The settings do not take effect the moment you type them, they wait for the connection to go down and come back up. And if you leave off <code>ipv4.method manual</code>, DHCP wakes up on the next reconnect and quietly stamps over everything you just set.</p>
+
+<div class="pp-warn"><strong>warning:</strong> Changing the IP of the connection you are logged in over can disconnect you. On the exam, do this from the console or keep a second way in. Never harden yourself out of the only session you have.</div>
+
+<h2 id="the-ticket" class="pp-h2">The ticket</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`nmcli device status      # find your interface name\nnmcli connection show\nip a`}</pre></div></div>
+
+<h2 id="concept-review" class="pp-h2">Concept review. nmcli and the ip tools.</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`man nmcli\nman hostnamectl`}</pre></div></div>
+
+<p><code>nmcli device status</code> lists interfaces, <code>nmcli connection show</code> lists the connection profiles. The <code>ip</code> commands are read-only views: <code>ip a</code> shows addresses, <code>ip r</code> shows routes. <code>ss -tlnp</code> shows listening TCP sockets. You configure with NetworkManager and confirm with these.</p>
+
+<p>The pattern is modify then apply. Set a property, then bring the connection up to make it take effect.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">the config pattern</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`nmcli connection modify NAME PROPERTY VALUE\nnmcli connection up NAME\n\n# the ipv4 properties you need:\nipv4.addresses 192.168.1.100/24    # CIDR, not a separate netmask\nipv4.gateway   192.168.1.1\nipv4.dns       "8.8.8.8 1.1.1.1"   # multiple servers, space separated, quoted\nipv4.method    manual              # disables DHCP; without it DHCP can override`}</pre></div></div>
+
+<h2 id="identify" class="pp-h2">Identify the active connection</h2>
+
+<p>Get the exact connection name and interface first, and store them so the later commands are copy-paste safe. Adjust these to what your box actually shows.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`nmcli device status\nnmcli connection show\n\nCONN="Wired connection 1"    # your actual profile name\nIFACE="enp0s3"               # your actual interface`}</pre></div></div>
+
+<h2 id="static" class="pp-h2">Apply the static IP config</h2>
+
+<p>Set all four properties in one command, then bounce the connection to apply.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo nmcli connection modify "$CONN" \\\n    ipv4.addresses 192.168.50.100/24 \\\n    ipv4.gateway 192.168.50.1 \\\n    ipv4.dns "192.168.50.10 1.1.1.1" \\\n    ipv4.method manual\n\nsudo nmcli connection down "$CONN"\nsudo nmcli connection up "$CONN"\n\nip a show $IFACE\nip r\ncat /etc/resolv.conf`}</pre></div></div>
+
+<h2 id="hostname" class="pp-h2">Set a persistent hostname</h2>
+
+<p><code>hostnamectl set-hostname</code> writes <code>/etc/hostname</code> so it survives a reboot, unlike the old <code>hostname</code> command which only changes the running value.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`hostnamectl\nsudo hostnamectl set-hostname server1\nhostnamectl\ncat /etc/hostname`}</pre></div></div>
+
+<h2 id="hosts" class="pp-h2">A local /etc/hosts entry</h2>
+
+<p><code>/etc/hosts</code> is read directly by the resolver on every lookup, so a new entry works immediately with no service restart.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo cp /etc/hosts /etc/hosts.bak\necho "192.168.50.20 db.internal" | sudo tee -a /etc/hosts\ngetent hosts db.internal    # should return the mapping`}</pre></div></div>
+
+<h2 id="verify" class="pp-h2">Verify with ip and ss</h2>
+
+<p>Confirm every piece landed. The three you actually read are the address, the default route, and the local resolution.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`ip -4 a show $IFACE\n#   inet 192.168.50.100/24 brd 192.168.50.255 scope global noprefixroute enp0s3\nip r\n# default via 192.168.50.1 dev enp0s3 proto static metric 100\n# 192.168.50.0/24 dev enp0s3 proto kernel scope link src 192.168.50.100\ngetent hosts db.internal\n# 192.168.50.20   db.internal`}</pre></div></div>
+
+<h2 id="exam" class="pp-h2">Exam questions</h2>
+
+<p>Write the command first.</p>
+
+<p><span class="c-pink">Q1.</span> Display all NetworkManager connection profiles.</p>
+
+<p><span class="c-pink">Q2.</span> Configure the primary profile with static IP 10.10.10.50/24, gateway 10.10.10.1, DNS 10.10.10.5, using nmcli only.</p>
+
+<p><span class="c-pink">Q3.</span> Add a permanent <code>/etc/hosts</code> entry mapping <code>app.internal</code> to 10.10.10.80 and verify resolution without restarting a service.</p>
+
+<p><span class="c-green">Answers.</span></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# A1\nnmcli connection show\n# A2\nCONN="Wired connection 1"\nsudo nmcli connection modify "$CONN" ipv4.addresses 10.10.10.50/24 \\\n    ipv4.gateway 10.10.10.1 ipv4.dns 10.10.10.5 ipv4.method manual\nsudo nmcli connection down "$CONN"; sudo nmcli connection up "$CONN"\n# A3\necho "10.10.10.80 app.internal" | sudo tee -a /etc/hosts\ngetent hosts app.internal`}</pre></div></div>
+
+<h2 id="checklist" class="pp-h2">Final checklist: confirm everything works</h2>
+
+<p>If every check passes, the ticket is done.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# 1. static IP, gateway, DNS applied\nip a; ip r; cat /etc/resolv.conf\n\n# 2. hostname persisted\nhostnamectl; cat /etc/hostname\n\n# 3. db.internal resolves locally\ngetent hosts db.internal\n\n# 4. all three exam commands written from scratch\n# 5. tracker entry checked off`}</pre></div></div>
+
+<p>Reply to ops1: server1 is set to 192.168.50.100/24, gateway 192.168.50.1, DNS 192.168.50.10 plus 1.1.1.1. Hostname persisted with hostnamectl, and <code>db.internal</code> resolves via <code>/etc/hosts</code>. Ready for the VLAN cutover.</p>
+
+<div class="pp-next">
+  <a href="/blog/ticket-queue-18-ssh-hardening" style="text-decoration:none;color:inherit;display:block">
+    <div class="pp-next-label">next post</div>
+    <div class="pp-next-title">SSH hardening: key-only auth and scoped access</div>
+  </a>
+</div>

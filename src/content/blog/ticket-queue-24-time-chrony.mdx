@@ -1,0 +1,96 @@
+---
+title: "Fixing time drift with chrony and the systemd control tools"
+description: "Audit logs are drifting four minutes off real time, which breaks correlation for compliance. Sync the clock with chrony and confirm timezone, hostname, and locale with the systemd control tools."
+date: 2026-07-08
+category: sysadmin
+readTime: 13
+series: "The Ticket Queue"
+seriesOrder: 24
+---
+
+<div class="pp-meta"><span>sysadmin</span> · July 8, 2026 · 13 min read</div>
+
+<h1 class="pp-title">Time, hostname, locale.<br/><em>chrony, timedatectl, hostnamectl, localectl.</em></h1>
+
+<p class="pp-subtitle">Audit logs are drifting four minutes off real time, which breaks correlation for compliance. Sync the clock with chrony and confirm timezone, hostname, and locale with the systemd control tools.</p>
+
+<div class="pp-toc">
+  <div class="pp-toc-label">// <span>what we're getting into</span></div>
+  <ol>
+    <li><a href="#the-ticket">The ticket</a></li>
+    <li><a href="#concept-review">Concept review. The control tools.</a></li>
+    <li><a href="#chrony">Configure chrony</a></li>
+    <li><a href="#verify-sync">Verify the sync</a></li>
+    <li><a href="#timedatectl">timedatectl for time and timezone</a></li>
+    <li><a href="#hostname-locale">Hostname and locale</a></li>
+    <li><a href="#exam">Exam questions</a></li>
+    <li><a href="#checklist">Final checklist: confirm everything works</a></li>
+  </ol>
+</div>
+
+<p>auditor1 opened this one because server1's clock is running four minutes fast, and four minutes is plenty to make the audit logs useless: you cannot line an event on this box up against the same event on another box when the timestamps disagree. So the clock has to genuinely sync, via chrony against <code>time.cloudflare.com</code> and <code>pool.ntp.org</code>, the timezone has to read America/New_York, and the hostname and locale get confirmed while you are already in there.</p>
+
+<p>None of this is hard once you know which tool owns which setting, and that is the real content: <code>chronyc</code> for the sync, <code>timedatectl</code> for time and timezone, <code>hostnamectl</code> for the name, <code>localectl</code> for the locale. The one part that takes practice is reading chrony's source table to confirm the clock actually locked onto something instead of just reaching for it.</p>
+
+<h2 id="the-ticket" class="pp-h2">The ticket</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo dnf install -y chrony\nsystemctl is-active chronyd\ntimedatectl`}</pre></div></div>
+
+<h2 id="concept-review" class="pp-h2">Concept review. The control tools.</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`man chronyc\nman timedatectl\nman hostnamectl\nman localectl`}</pre></div></div>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">who owns what</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`chronyc       live chrony queries, sources and tracking\ntimedatectl   time, date, timezone, and the NTP toggle\nhostnamectl   the static and transient hostname\nlocalectl     the system locale and keymap`}</pre></div></div>
+
+<h2 id="chrony" class="pp-h2">Configure chrony</h2>
+
+<p>Back up the config, strip the default pool and server lines, and add the two sources the ticket asked for. <code>iburst</code> makes the first sync happen in seconds instead of minutes.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo cp /etc/chrony.conf /etc/chrony.conf.bak\nsudo sed -i '/^pool /d; /^server /d' /etc/chrony.conf\nsudo bash -c 'cat >> /etc/chrony.conf << EOF\nserver time.cloudflare.com iburst\npool pool.ntp.org iburst\nEOF'\ngrep -E '^pool|^server' /etc/chrony.conf`}</pre></div></div>
+
+<h2 id="verify-sync" class="pp-h2">Verify the sync</h2>
+
+<p>Restart chrony, give it a few seconds, then read the sources and the tracking. In <code>chronyc sources</code>, the marker at the start of a line tells you the state: <code>^*</code> is the selected source, <code>^+</code> is combined in, <code>^-</code> is excluded, and <code>^?</code> is unreachable.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo systemctl enable --now chronyd\nsudo systemctl restart chronyd\nsleep 5\n\nchronyc sources\n# MS Name/IP address       Stratum Poll Reach LastRx Last sample\n# ^* time.cloudflare.com         3    6   377     17   -42us[ -61us] +/- 12ms\n#  the ^* is what you are looking for: this source is selected and in use\nchronyc tracking\n# Stratum     : 4\n# System time : 0.000038 seconds fast of NTP time    <- no longer 4 minutes`}</pre></div></div>
+
+<h2 id="timedatectl" class="pp-h2">timedatectl for time and timezone</h2>
+
+<p>One command shows the whole time picture, including whether the clock is synchronized and NTP is active. Setting the timezone through timedatectl validates the name and fixes the <code>/etc/localtime</code> link for you.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`timedatectl              # local time, timezone, synced?, NTP active?\n\ntimedatectl list-timezones | grep -i new_york\nsudo timedatectl set-timezone America/New_York\n\n# timedatectl also toggles NTP, since it manages chronyd\nsudo timedatectl set-ntp true\ntimedatectl | grep -i ntp`}</pre></div></div>
+
+<h2 id="hostname-locale" class="pp-h2">Hostname and locale</h2>
+
+<p>Confirm the hostname, then set the system locale. The locale change applies at the next login.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`hostnamectl\nsudo hostnamectl set-hostname server1\n\nlocalectl\nlocalectl list-locales | grep en_US\nsudo localectl set-locale LANG=en_US.UTF-8`}</pre></div></div>
+
+<h2 id="exam" class="pp-h2">Exam questions</h2>
+
+<p>Write the command first.</p>
+
+<p><span class="c-pink">Q1.</span> Display the current time, timezone, and NTP sync status in one command.</p>
+
+<p><span class="c-pink">Q2.</span> Set the system timezone to <code>Europe/London</code> and verify.</p>
+
+<p><span class="c-pink">Q3.</span> Configure chrony to use <code>time.cloudflare.com</code> as a source, restart, and confirm it is being used.</p>
+
+<p><span class="c-green">Answers.</span></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# A1\ntimedatectl\n# A2\nsudo timedatectl set-timezone Europe/London\ntimedatectl\n# A3\necho 'server time.cloudflare.com iburst' | sudo tee -a /etc/chrony.conf\nsudo systemctl restart chronyd; sleep 5\nchronyc sources -v      # expect ^* on time.cloudflare.com`}</pre></div></div>
+
+<h2 id="checklist" class="pp-h2">Final checklist: confirm everything works</h2>
+
+<p>If every check passes, the ticket is done.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# 1. chrony configured with the two sources and syncing\nchronyc tracking; chronyc sources -v\n\n# 2. timezone America/New_York, NTP active\ntimedatectl\n\n# 3. hostname server1, locale en_US.UTF-8\nhostnamectl; localectl\n\n# 4. all three exam commands written from scratch\n# 5. tracker entry checked off`}</pre></div></div>
+
+<p>Reply to auditor1: time drift fixed. chrony is synced to Cloudflare and the ntp.org pool, timedatectl confirms America/New_York with NTP active and the clock synchronized. Hostname and locale verified.</p>
+
+<div class="pp-next">
+  <a href="/blog/ticket-queue-25-sysctl-tuned" style="text-decoration:none;color:inherit;display:block">
+    <div class="pp-next-label">next post</div>
+    <div class="pp-next-title">Kernel tuning with sysctl and tuned profiles</div>
+  </a>
+</div>

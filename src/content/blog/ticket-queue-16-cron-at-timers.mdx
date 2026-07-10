@@ -1,0 +1,106 @@
+---
+title: "Scheduling work with cron, at, and systemd timers"
+description: "logadmin1 needs a daily backup, a weekly cleanup, and a one-shot update tonight. Three scheduling tools, one for each job, all logging so you know they ran."
+date: 2026-06-19
+category: sysadmin
+readTime: 14
+series: "The Ticket Queue"
+seriesOrder: 16
+---
+
+<div class="pp-meta"><span>sysadmin</span> · June 19, 2026 · 14 min read</div>
+
+<h1 class="pp-title">Scheduling work.<br/><em>cron, at, and systemd timers, and when to use which.</em></h1>
+
+<p class="pp-subtitle">logadmin1 needs a daily backup, a weekly cleanup, and a one-shot update tonight. Three scheduling tools, one for each job, all logging so you know they ran.</p>
+
+<div class="pp-toc">
+  <div class="pp-toc-label">// <span>what we're getting into</span></div>
+  <ol>
+    <li><a href="#the-ticket">The ticket</a></li>
+    <li><a href="#concept-review">Concept review. Three tools, three jobs.</a></li>
+    <li><a href="#cron">cron for the daily backup</a></li>
+    <li><a href="#at">at for the one-shot update</a></li>
+    <li><a href="#timer">A systemd timer for the weekly cleanup</a></li>
+    <li><a href="#patterns">cron time patterns worth reading aloud</a></li>
+    <li><a href="#exam">Exam questions</a></li>
+    <li><a href="#checklist">Final checklist: confirm everything works</a></li>
+  </ol>
+</div>
+
+<p>logadmin1 has three jobs that need to run with nobody watching. The <code>/etc</code> backup from the backup-pipeline ticket, every night at 2:30. A sweep of tarballs older than 14 days, every Sunday at 4. And a one-off <code>dnf upgrade</code> tonight at 11, once, never again. Three schedules, and the twist in the ticket is that each one wants a different tool. That is not overkill. It is the right answer to three different shapes of problem.</p>
+
+<p>Recurring and simple is cron. One time in the future is <code>at</code>. Modern, with calendar syntax and the ability to catch up a run it missed while the box was powered off, is a systemd timer. And each of them can drop a tagged line into the journal, which is the only part the audit will actually check.</p>
+
+<h2 id="the-ticket" class="pp-h2">The ticket</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo dnf install -y cronie at\nsudo systemctl enable --now crond atd\nsystemctl is-active crond atd`}</pre></div></div>
+
+<h2 id="concept-review" class="pp-h2">Concept review. Three tools, three jobs.</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`man 5 crontab\nman at\nman systemd.timer`}</pre></div></div>
+
+<p>A cron line has five time fields followed by the command. The order is the part people get wrong, so read it left to right every time.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">cron format</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`* * * * *  command\n| | | | |\n| | | | +- day of week (0-7, Sunday is 0 or 7)\n| | | +--- month (1-12)\n| | +----- day of month (1-31)\n| +------- hour (0-23)\n+--------- minute (0-59)`}</pre></div></div>
+
+<p>There are shortcut strings too: <code>@daily</code>, <code>@weekly</code>, <code>@monthly</code>, <code>@reboot</code>.</p>
+
+<h2 id="cron" class="pp-h2">cron for the daily backup</h2>
+
+<p>Edit root's crontab and add one line. The percent signs inside the date command must be escaped with a backslash, because cron treats a bare percent as a newline.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo crontab -e\n\n# add this line (minute hour day month weekday):\n30 2 * * * /usr/bin/tar -czf /srv/backups/etc-$(date +\\%Y\\%m\\%d).tar.gz /etc/ 2>/dev/null && logger -t backup "daily etc backup completed"\n\nsudo crontab -l\nsudo journalctl -u crond -n 20`}</pre></div></div>
+
+<p><code>logger -t backup</code> writes a tagged line into the journal, which is how you prove the job ran.</p>
+
+<h2 id="at" class="pp-h2">at for the one-shot update</h2>
+
+<p><code>at</code> reads the command from stdin, so piping is the cleanest form. Queue it, then confirm with <code>atq</code>.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`echo "dnf upgrade -y && logger -t maint 'security upgrade complete'" | sudo at 23:00\n# warning: commands will be executed using /bin/sh\n# job 1 at Wed Jul 15 23:00:00 2026\n\nsudo atq\n# 1  Wed Jul 15 23:00:00 2026 a root\nsudo at -c 1             # dumps the full script that will run\n# sudo atrm 1            # remove it if plans change`}</pre></div></div>
+
+<p>Time formats <code>at</code> understands include <code>23:00</code>, <code>now + 2 hours</code>, <code>midnight</code>, and <code>3pm Friday</code>. If you give it a time that already passed today, it schedules for tomorrow, which surprises people at least once.</p>
+
+<h2 id="timer" class="pp-h2">A systemd timer for the weekly cleanup</h2>
+
+<p>A timer is two unit files that share a name: a <code>.service</code> that does the work and a <code>.timer</code> that says when. The service is <code>Type=oneshot</code> because it runs and exits rather than staying up.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo bash -c 'cat > /etc/systemd/system/backup-cleanup.service << "EOF"\n[Unit]\nDescription=Delete backup tarballs older than 14 days\n\n[Service]\nType=oneshot\nExecStart=/usr/bin/find /srv/backups -name "*.tar.*" -mtime +14 -delete\nExecStartPost=/usr/bin/logger -t backup-cleanup "completed"\nEOF'\n\nsudo bash -c 'cat > /etc/systemd/system/backup-cleanup.timer << "EOF"\n[Unit]\nDescription=Run backup cleanup every Sunday at 4am\n\n[Timer]\nOnCalendar=Sun *-*-* 04:00:00\nPersistent=true\n\n[Install]\nWantedBy=timers.target\nEOF'\n\nsudo systemctl daemon-reload\nsudo systemctl enable --now backup-cleanup.timer\nsystemctl list-timers backup-cleanup.timer\n# NEXT                        LEFT    UNIT                  ACTIVATES\n# Sun 2026-07-19 04:00:00 EDT 3 days  backup-cleanup.timer  backup-cleanup.service\n\n# test the service now rather than waiting until Sunday to find a typo\nsudo systemctl start backup-cleanup.service\nsudo journalctl -u backup-cleanup.service -n 10`}</pre></div></div>
+
+<div class="pp-note"><strong>note:</strong> <code>Persistent=true</code> means if the machine was off when the timer should have fired, it runs at the next boot instead of silently skipping.</div>
+
+<h2 id="patterns" class="pp-h2">cron time patterns worth reading aloud</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">cron patterns</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`0 0 * * *      daily at midnight\n*/15 * * * *   every 15 minutes\n0 9 * * 1-5    9 AM Monday through Friday\n0 0 1 * *      first of every month at midnight\n0 22 * * 0,6   10 PM on Saturday and Sunday`}</pre></div></div>
+
+<p>The systemd equivalents use <code>OnCalendar</code>: <code>*-*-* 05:00:00</code> is daily at 5, <code>Mon *-*-* 09:00:00</code> is Mondays at 9, and <code>Mon..Fri *-*-* 17:30:00</code> is weekdays at 5:30 PM.</p>
+
+<h2 id="exam" class="pp-h2">Exam questions</h2>
+
+<p>Write the command first.</p>
+
+<p><span class="c-pink">Q1.</span> Schedule <code>/usr/local/bin/backup.sh</code> to run every Monday at 2:30 AM as the current user.</p>
+
+<p><span class="c-pink">Q2.</span> Schedule a one-time job to run <code>dnf -y update</code> tonight at 10:30 PM, and verify it is queued.</p>
+
+<p><span class="c-pink">Q3.</span> Create a systemd timer that runs <code>/usr/local/bin/cleanup.sh</code> every day at 5:00 AM, enabled on boot.</p>
+
+<p><span class="c-green">Answers.</span></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# A1: crontab -e, then add:\n30 2 * * 1 /usr/local/bin/backup.sh\n# order is minute hour day month weekday; 1 is Monday\n\n# A2\necho "dnf -y update" | sudo at 22:30\nsudo atq\n\n# A3: two unit files, cleanup.service (Type=oneshot) and cleanup.timer\n# timer: OnCalendar=*-*-* 05:00:00 and Persistent=true, then:\nsudo systemctl daemon-reload\nsudo systemctl enable --now cleanup.timer`}</pre></div></div>
+
+<h2 id="checklist" class="pp-h2">Final checklist: confirm everything works</h2>
+
+<p>If every check passes, the ticket is done.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# 1. daily 2:30 backup in root's crontab\nsudo crontab -l\n\n# 2. 11 PM upgrade queued\nsudo atq\n\n# 3. Sunday cleanup timer enabled\nsystemctl list-timers backup-cleanup.timer\n\n# 4. all three test-fired without errors\n# 5. all three exam commands written from scratch\n# 6. tracker entry checked off`}</pre></div></div>
+
+<p>Reply to logadmin1: all three scheduled. Daily backup via cron, weekly cleanup via a systemd timer, tonight's upgrade via <code>at</code>. Each logs to the journal with its own tag.</p>
+
+<div class="pp-next">
+  <a href="/blog/ticket-queue-17-static-ip-nmcli" style="text-decoration:none;color:inherit;display:block">
+    <div class="pp-next-label">next post</div>
+    <div class="pp-next-title">Static IP, hostname, and DNS with nmcli</div>
+  </a>
+</div>

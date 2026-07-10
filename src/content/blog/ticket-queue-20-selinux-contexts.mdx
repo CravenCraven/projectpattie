@@ -1,0 +1,109 @@
+---
+title: "SELinux part one: diagnosing denials and fixing file contexts"
+description: "httpd serves files from /srv/webcontent but returns 403 on every request. Disabling SELinux fixes it, but you are not going to do that. Diagnose the denial and fix the file context properly."
+date: 2026-06-29
+category: sysadmin
+readTime: 15
+series: "The Ticket Queue"
+seriesOrder: 20
+---
+
+<div class="pp-meta"><span>sysadmin</span> · June 29, 2026 · 15 min read</div>
+
+<h1 class="pp-title">SELinux, part one.<br/><em>reading denials and fixing file contexts.</em></h1>
+
+<p class="pp-subtitle">httpd serves files from /srv/webcontent but returns 403 on every request. Disabling SELinux fixes it, but you are not going to do that. Diagnose the denial and fix the file context properly.</p>
+
+<div class="pp-toc">
+  <div class="pp-toc-label">// <span>what we're getting into</span></div>
+  <ol>
+    <li><a href="#the-ticket">The ticket</a></li>
+    <li><a href="#concept-review">Concept review. Modes and contexts.</a></li>
+    <li><a href="#reproduce">Reproduce the 403</a></li>
+    <li><a href="#confirm">Confirm SELinux is the cause</a></li>
+    <li><a href="#permissive">Use permissive to prove it</a></li>
+    <li><a href="#chcon">The temporary fix, and why it does not last</a></li>
+    <li><a href="#semanage">The permanent fix with semanage fcontext</a></li>
+    <li><a href="#exam">Exam questions</a></li>
+    <li><a href="#checklist">Final checklist: confirm everything works</a></li>
+  </ol>
+</div>
+
+<p>webadmin stood up the web tier on server1, pointed httpd at <code>/srv/webcontent</code>, the same SGID directory from the shared-folder ticket back on day three, and every request comes back the same way: <code>403 Forbidden</code>. Not some of them. All of them. The files are there, httpd is listening, and the permissions are fine. The one thing that makes it work is <code>setenforce 0</code>, which is exactly the thing you are not going to leave in place.</p>
+
+<p>That last detail is the whole diagnosis. If turning SELinux off fixes it, SELinux is doing its job and refusing httpd access to files carrying the wrong label. Anything you create under <code>/srv</code> lands with a generic <code>default_t</code> type, and httpd is only allowed to read <code>httpd_sys_content_t</code>. So this is not a permissions bug or an httpd bug. It is a label, and the real work is relabeling those files in a way a later <code>restorecon</code> will not silently undo.</p>
+
+<h2 id="the-ticket" class="pp-h2">Confirm the ground you are standing on</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`getenforce                        # Enforcing\nsystemctl is-active httpd         # active\nls -Z /srv/webcontent 2>/dev/null`}</pre></div></div>
+
+<h2 id="concept-review" class="pp-h2">The three modes and the one field that matters</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`man selinux\nman restorecon`}</pre></div></div>
+
+<p>There are three modes. Enforcing blocks and logs. Permissive blocks nothing but still logs, which is why it is the mode you diagnose in. Disabled is off and needs a reboot to change, so leave it alone. Every file carries a context of four colon-separated fields, and on this exam the only one you touch is the third, the type.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">the context on /var/www/html</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`system_u:object_r:httpd_sys_content_t:s0\n         ^^^^^^^^  ^^^^^^^^^^^^^^^^^^^\n         role      type  <- the field that decides access\n\nhttpd_sys_content_t     httpd may read it\nhttpd_sys_rw_content_t  httpd may write it\ndefault_t               what /srv gets, and httpd cannot read it`}</pre></div></div>
+
+<h2 id="reproduce" class="pp-h2">Watch the 403 happen</h2>
+
+<p>Point httpd at the directory and fetch it. The permissions are wide open (<code>Require all granted</code>), so when this still returns 403, permissions are ruled out and the label is the only suspect left.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo tee /etc/httpd/conf.d/server1.conf << 'EOF'\nDocumentRoot "/srv/webcontent"\n<Directory "/srv/webcontent">\n    Require all granted\n</Directory>\nEOF\nsudo systemctl restart httpd\n\ncurl -I http://localhost/\n# HTTP/1.1 403 Forbidden\n# Server: Apache/2.4.62 (Red Hat Enterprise Linux)`}</pre></div></div>
+
+<h2 id="confirm" class="pp-h2">Read the denial, then read the labels</h2>
+
+<p>The denial is written to the audit log in plain sight. It names httpd as the source, the file it wanted, and the type it choked on. Then put your file's label next to the default web root's label and the mismatch is right there.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo ausearch -m AVC -ts recent | tail -3\n# type=AVC msg=audit(...): avc:  denied  { getattr } for  pid=1893\n#   comm="httpd" path="/srv/webcontent/index.html"\n#   scontext=system_u:system_r:httpd_t:s0\n#   tcontext=unconfined_u:object_r:default_t:s0  tclass=file\n\nls -Z /srv/webcontent/index.html\n# unconfined_u:object_r:default_t:s0            <- httpd is refused this\nls -Z /var/www/html/\n# system_u:object_r:httpd_sys_content_t:s0      <- this is the target`}</pre></div></div>
+
+<p>There it is: <code>tcontext=...:default_t:s0</code> in the denial, and <code>default_t</code> on the file. httpd wanted <code>httpd_sys_content_t</code> and got the <code>/srv</code> default instead.</p>
+
+<h2 id="permissive" class="pp-h2">One flip to prove it, then flip back</h2>
+
+<p>You do not have to guess. Permissive stops blocking but keeps logging, so if the 403 turns into a 200 the instant you flip it, SELinux was the only thing in the way. Then go straight back to enforcing, because leaving it in permissive is the same cop-out as disabling it.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo setenforce 0\ncurl -I http://localhost/\n# HTTP/1.1 200 OK        <- same files, same httpd, only SELinux changed\nsudo setenforce 1`}</pre></div></div>
+
+<h2 id="chcon" class="pp-h2">The fix that looks right and then rots</h2>
+
+<p>The obvious move is <code>chcon</code>, which stamps a new label straight onto the file. It works immediately, which is the trap. <code>chcon</code> only changes the file, not the policy, so the file's "correct" label according to SELinux is still <code>default_t</code>. The next <code>restorecon</code> that runs, and one runs on relabels, reboots, and plenty of admin tasks, resets it and the 403 comes back. Watch it happen:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo chcon -R -t httpd_sys_content_t /srv/webcontent\ncurl -I http://localhost/    # 200 OK... for now\n\nsudo restorecon -Rv /srv/webcontent\n# Relabeled /srv/webcontent/index.html from\n#   unconfined_u:object_r:httpd_sys_content_t:s0 to ...:default_t:s0\ncurl -I http://localhost/    # 403 Forbidden again`}</pre></div></div>
+
+<h2 id="semanage" class="pp-h2">The fix that survives</h2>
+
+<p>The durable move changes the policy, not the file. <code>semanage fcontext -a</code> records a rule that says "anything at this path should be <code>httpd_sys_content_t</code>," and then <code>restorecon</code> enforces that rule. Now <code>restorecon</code> is on your side: because the policy agrees with the label, every future run keeps it.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo dnf install -y policycoreutils-python-utils\nsudo semanage fcontext -a -t httpd_sys_content_t "/srv/webcontent(/.*)?"\nsudo restorecon -Rv /srv/webcontent\n# Relabeled /srv/webcontent/index.html from ...:default_t:s0 to\n#   ...:httpd_sys_content_t:s0\n\ncurl -I http://localhost/    # 200 OK, and this time it stays\nsudo restorecon -Rv /srv/webcontent    # run it again: no change, it holds`}</pre></div></div>
+
+<div class="pp-note"><strong>note:</strong> The <code>(/.*)?</code> on the end is the piece people drop, and it is a regex meaning "this directory or anything under it." Leave it off and you label the directory but not the <code>index.html</code> inside it, so the page still 403s and you spend ten minutes confused.</div>
+
+<h2 id="exam" class="pp-h2">Exam questions</h2>
+
+<p>Write the command first.</p>
+
+<p><span class="c-pink">Q1.</span> Show the current SELinux mode and the mode configured for boot.</p>
+
+<p><span class="c-pink">Q2.</span> Temporarily switch SELinux to permissive and verify without rebooting.</p>
+
+<p><span class="c-pink">Q3.</span> A web service cannot read files in <code>/webdir</code> due to SELinux. Fix the context permanently so it survives <code>restorecon</code> and reboots.</p>
+
+<p><span class="c-green">Answers.</span></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# A1\ngetenforce; sestatus; cat /etc/selinux/config\n# A2\nsudo setenforce 0; getenforce\n# A3\nsudo semanage fcontext -a -t httpd_sys_content_t "/webdir(/.*)?"\nsudo restorecon -Rv /webdir\nls -Z /webdir`}</pre></div></div>
+
+<h2 id="checklist" class="pp-h2">Final checklist: confirm everything works</h2>
+
+<p>If every check passes, the ticket is done.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# 1. 403 reproduced, then confirmed as SELinux via permissive\n# 2. semanage fcontext + restorecon used, not just chcon\nsudo semanage fcontext -l | grep webcontent\n\n# 3. label survives a fresh restorecon\nsudo restorecon -Rv /srv/webcontent; ls -Z /srv/webcontent/index.html\n\n# 4. enforcing restored and httpd serves 200 OK\ngetenforce; curl -I http://localhost/\n\n# 5. all three exam commands written from scratch\n# 6. tracker entry checked off`}</pre></div></div>
+
+<p>Reply to webadmin: fixed with <code>semanage fcontext -a -t httpd_sys_content_t '/srv/webcontent(/.*)?'</code> then <code>restorecon -R</code>. Permanent, SELinux back to enforcing, curl returns 200.</p>
+
+<div class="pp-next">
+  <a href="/blog/ticket-queue-21-selinux-ports-booleans" style="text-decoration:none;color:inherit;display:block">
+    <div class="pp-next-label">next post</div>
+    <div class="pp-next-title">SELinux part two: ports, booleans, and audit2allow</div>
+  </a>
+</div>
