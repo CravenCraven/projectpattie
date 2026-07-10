@@ -1,0 +1,107 @@
+---
+title: "Installing tools and building a local repo mirror"
+description: "dev1 needs monitoring tools installed and a local DNF repository built from a directory of RPMs, ready for an air-gapped replica that will have no internet repos."
+date: 2026-06-10
+category: sysadmin
+readTime: 14
+series: "The Ticket Queue"
+seriesOrder: 12
+---
+
+<div class="pp-meta"><span>sysadmin</span> · June 10, 2026 · 14 min read</div>
+
+<h1 class="pp-title">dnf, rpm, and a local repo.<br/><em>packages, groups, and an offline mirror.</em></h1>
+
+<p class="pp-subtitle">dev1 needs monitoring tools installed and a local DNF repository built from a directory of RPMs, ready for an air-gapped replica that will have no internet repos.</p>
+
+<div class="pp-toc">
+  <div class="pp-toc-label">// <span>what we're getting into</span></div>
+  <ol>
+    <li><a href="#the-ticket">The ticket</a></li>
+    <li><a href="#concept-review">Concept review. dnf and rpm.</a></li>
+    <li><a href="#install">Install the monitoring tools</a></li>
+    <li><a href="#group">Install a package group</a></li>
+    <li><a href="#owns">Which package owns a file</a></li>
+    <li><a href="#mirror">Build the local repo mirror</a></li>
+    <li><a href="#history">dnf history and provides</a></li>
+    <li><a href="#exam">Exam questions</a></li>
+    <li><a href="#checklist">Final checklist: confirm everything works</a></li>
+  </ol>
+</div>
+
+<p><span class="c-light">The ticket:</span> dev1 wants <code>htop</code>, <code>tree</code>, <code>nmap</code>, <code>bind-utils</code>, and the Development Tools group installed. And, because a hardened replica is going into a DMZ next month with no internet repos, they want a local DNF repository built now from a directory of RPMs, with the workflow documented. Bonus: figure out which package owns <code>/usr/sbin/sshd</code>.</p>
+
+<p><span class="c-light">The real problem:</span> installing packages is easy. Building a working repository from scratch is the part the exam tests, and it is the part that saves you when there is no internet.</p>
+
+<p><span class="c-light">What we are doing:</span> using <code>dnf</code> and <code>rpm</code> confidently, then building and testing a local repo.</p>
+
+<h2 id="the-ticket" class="pp-h2">The ticket</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo dnf repolist\nsudo subscription-manager status`}</pre></div></div>
+
+<h2 id="concept-review" class="pp-h2">Concept review. dnf and rpm.</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`man dnf rpm createrepo`}</pre></div></div>
+
+<p><code>dnf</code> is the high level package manager. It resolves dependencies and talks to repositories. <code>rpm</code> is the lower level tool for querying what is already installed.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">dnf</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`dnf install pkg          install\ndnf remove pkg           remove\ndnf search keyword       find by keyword\ndnf provides /path       which package owns a file\ndnf group list           list package groups\ndnf group install NAME   install a group\ndnf history              transaction log, with undo`}</pre></div></div>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">rpm queries</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`rpm -q pkg        is it installed\nrpm -qa          list everything installed\nrpm -ql pkg      files a package installed\nrpm -qf /path    which package owns this file\nrpm -qc pkg      config files only`}</pre></div></div>
+
+<h2 id="install" class="pp-h2">Install the monitoring tools</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo dnf install -y htop tree nmap bind-utils\nrpm -q htop tree nmap bind-utils\nwhich htop tree nmap dig`}</pre></div></div>
+
+<h2 id="group" class="pp-h2">Install a package group</h2>
+
+<p>Groups bundle related packages. Development Tools pulls in the compiler toolchain.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo dnf group list | head -20\nsudo dnf group info "Development Tools"\nsudo dnf group install -y "Development Tools"\nrpm -q gcc make rpm-build`}</pre></div></div>
+
+<h2 id="owns" class="pp-h2">Which package owns a file</h2>
+
+<p>The bonus ask, and a genuinely useful skill during audits.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`rpm -qf /usr/sbin/sshd        # openssh-server-...\nrpm -ql openssh-server | head -10\nrpm -qc openssh-server        # its config files`}</pre></div></div>
+
+<h2 id="mirror" class="pp-h2">Build the local repo mirror</h2>
+
+<p>This is the exam scenario. Install the repo tool, download RPMs into a directory without installing them, generate the metadata, then write a repo file that points at the directory. Finally, prove you can install from that repo alone.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo dnf install -y createrepo_c\nsudo mkdir -p /srv/repo_mirror\n\n# download RPMs plus dependencies without installing\nsudo dnf install -y --downloadonly --downloaddir=/srv/repo_mirror htop tree\n\n# generate the repository metadata\nsudo createrepo /srv/repo_mirror/\n\n# write the .repo file pointing at the directory\nsudo bash -c 'cat > /etc/yum.repos.d/server1-local.repo << "EOF"\n[server1-local]\nname=Server1 Local Mirror\nbaseurl=file:///srv/repo_mirror\nenabled=1\ngpgcheck=0\nEOF'\n\nsudo dnf clean all\nsudo dnf repolist    # server1-local should appear\n\n# prove it: install using ONLY the local repo\nsudo dnf remove -y tree\nsudo dnf --disablerepo='*' --enablerepo='server1-local' install -y tree\nrpm -q tree`}</pre></div></div>
+
+<h2 id="history" class="pp-h2">dnf history and provides</h2>
+
+<p>Two more tools worth reflexes. History lets you undo a transaction that broke something. Provides finds the package for a command you do not have yet.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo dnf history | head -10\nsudo dnf history info 1\n# sudo dnf history undo last   # reverses the last transaction\n\nsudo dnf provides /usr/bin/htpasswd    # -> httpd-tools\nsudo dnf provides '*/semanage'         # -> policycoreutils-python-utils`}</pre></div></div>
+
+<h2 id="exam" class="pp-h2">Exam questions</h2>
+
+<p>Write the command first.</p>
+
+<p><span class="c-pink">Q1.</span> Find which installed package provides <code>/etc/ssh/sshd_config</code>.</p>
+
+<p><span class="c-pink">Q2.</span> Configure a local DNF repository called <code>localrepo</code> from packages in <code>/packages</code>, GPG check off, enabled by default.</p>
+
+<p><span class="c-pink">Q3.</span> Without internet repos, install <code>httpd</code> using only a local repo built from RPMs in <code>/tmp/rpms</code>.</p>
+
+<p><span class="c-green">Answers.</span></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# A1\nrpm -qf /etc/ssh/sshd_config    # openssh-server-...\n# A2\nsudo bash -c 'cat > /etc/yum.repos.d/localrepo.repo << EOF\n[localrepo]\nname=Local Repo\nbaseurl=file:///packages\nenabled=1\ngpgcheck=0\nEOF'\nsudo dnf clean all; sudo dnf repolist\n# A3\nsudo createrepo /tmp/rpms\n# write a .repo with baseurl=file:///tmp/rpms, then:\nsudo dnf --disablerepo='*' --enablerepo='tmprepo' install -y httpd`}</pre></div></div>
+
+<h2 id="checklist" class="pp-h2">Final checklist: confirm everything works</h2>
+
+<p>If every check passes, the ticket is done.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# 1. all requested tools installed\nrpm -q htop tree nmap bind-utils gcc\n\n# 2. sshd ownership identified\nrpm -qf /usr/sbin/sshd\n\n# 3. local repo shows in repolist and can install offline\nsudo dnf repolist | grep server1-local\n\n# 4. all three exam commands written from scratch\n# 5. tracker entry checked off`}</pre></div></div>
+
+<p>Reply to dev1: all tools installed. Local mirror at <code>/srv/repo_mirror</code> with <code>server1-local.repo</code>. For offline installs, <code>--disablerepo='*' --enablerepo='server1-local'</code>. And <code>/usr/sbin/sshd</code> belongs to <code>openssh-server</code>.</p>
+
+<div class="pp-next">
+  <a href="/blog/ticket-queue-13-backup-pipeline" style="text-decoration:none;color:inherit;display:block">
+    <div class="pp-next-label">next post</div>
+    <div class="pp-next-title">A backup pipeline with tar, rsync, and scp</div>
+  </a>
+</div>

@@ -1,0 +1,105 @@
+---
+title: "systemd services and reading logs with journalctl"
+description: "httpd is not surviving reboots and cost webadmin two hours after a kernel patch. Set it up properly with systemd, mask a daemon that should never run, and read its logs through journalctl."
+date: 2026-06-17
+category: sysadmin
+readTime: 14
+series: "The Ticket Queue"
+seriesOrder: 15
+---
+
+<div class="pp-meta"><span>sysadmin</span> · June 17, 2026 · 14 min read</div>
+
+<h1 class="pp-title">systemd and journalctl.<br/><em>enable on boot, mask, and read the logs.</em></h1>
+
+<p class="pp-subtitle">httpd is not surviving reboots and cost webadmin two hours after a kernel patch. Set it up properly with systemd, mask a daemon that should never run, and read its logs through journalctl.</p>
+
+<div class="pp-toc">
+  <div class="pp-toc-label">// <span>what we're getting into</span></div>
+  <ol>
+    <li><a href="#the-ticket">The ticket</a></li>
+    <li><a href="#concept-review">Concept review. systemctl and targets.</a></li>
+    <li><a href="#enable">Install and enable httpd in one shot</a></li>
+    <li><a href="#mask">Mask the daemon that should never run</a></li>
+    <li><a href="#journalctl">Read the logs with journalctl</a></li>
+    <li><a href="#targets">Confirm the boot target</a></li>
+    <li><a href="#units">Inspect and override unit files</a></li>
+    <li><a href="#exam">Exam questions</a></li>
+    <li><a href="#checklist">Final checklist: confirm everything works</a></li>
+  </ol>
+</div>
+
+<p><span class="c-light">The ticket:</span> the web service runs but does not survive reboots. A kernel-patch reboot last week left httpd down and cost two hours. webadmin wants four things. Install httpd and enable it on boot in one command. Mask an old ntp-style daemon so it can never start, even by accident. Show how to read httpd logs through <code>journalctl</code> instead of digging in <code>/var/log/httpd/</code>. And confirm the default boot target is text, not a GUI.</p>
+
+<p><span class="c-light">The real problem:</span> starting a service and enabling it are two different things, and the reboot survival everyone assumes comes from <code>enable</code>, not <code>start</code>. Masking is also stronger than disabling, and the difference matters here.</p>
+
+<p><span class="c-light">What we are doing:</span> the service lifecycle with <code>systemctl</code>, log reading with <code>journalctl</code>, and boot targets.</p>
+
+<h2 id="the-ticket" class="pp-h2">The ticket</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`id webadmin\nsystemctl --version\nsudo dnf repolist | head -3`}</pre></div></div>
+
+<h2 id="concept-review" class="pp-h2">Concept review. systemctl and targets.</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`man systemctl journalctl systemd.unit`}</pre></div></div>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">systemctl</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`start / stop / restart / reload   lifecycle\nenable / disable                 boot persistence\nenable --now                     enable AND start in one command\nmask / unmask                    block a unit entirely\nis-active / is-enabled           scriptable checks\nget-default / set-default        boot target\ndaemon-reload                    reload unit files after editing`}</pre></div></div>
+
+<p>Targets replaced the old runlevels. <code>multi-user.target</code> is text and networked, the old runlevel 3. <code>graphical.target</code> is the GUI, runlevel 5. <code>rescue.target</code> is single user, and <code>emergency.target</code> is minimal recovery. This server should sit on multi-user so no GUI ever loads.</p>
+
+<h2 id="enable" class="pp-h2">Install and enable httpd in one shot</h2>
+
+<p>The key command is <code>enable --now</code>. <code>enable</code> makes it start at boot, and <code>--now</code> also starts it immediately, so you do not need a separate <code>start</code>. This is the shortcut the exam expects you to know cold.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo dnf install -y httpd\nsudo systemctl enable --now httpd\n\nsystemctl is-active httpd     # active\nsystemctl is-enabled httpd    # enabled\nsudo systemctl status httpd`}</pre></div></div>
+
+<h2 id="mask" class="pp-h2">Mask the daemon that should never run</h2>
+
+<p>Masking symlinks the unit to <code>/dev/null</code>, so it cannot start at all, not even when something else depends on it. That is stronger than <code>disable</code>, which only stops auto-start but still allows a manual start. Practice on chronyd, then unmask it, since you actually want chrony later.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo systemctl mask chronyd\nsudo systemctl start chronyd    # fails: Unit chronyd.service is masked\n\nsudo systemctl unmask chronyd\nsudo systemctl start chronyd`}</pre></div></div>
+
+<h2 id="journalctl" class="pp-h2">Read the logs with journalctl</h2>
+
+<p>The journal replaces hunting through log files. Filter by unit, count, priority, boot, and time.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo journalctl -u httpd            # all httpd logs\nsudo journalctl -u httpd -n 50      # last 50 lines\nsudo journalctl -u httpd -f         # follow live, Ctrl+C to stop\nsudo journalctl -u httpd -b         # since the current boot\nsudo journalctl -u httpd -p err     # errors only\nsudo journalctl -u httpd --since "1 hour ago"\nsudo journalctl -u httpd --since today`}</pre></div></div>
+
+<h2 id="targets" class="pp-h2">Confirm the boot target</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo systemctl get-default          # expect multi-user.target\n# to change it (do not unless needed):\n# sudo systemctl set-default multi-user.target\nsudo systemctl list-units --type=target | head`}</pre></div></div>
+
+<h2 id="units" class="pp-h2">Inspect and override unit files</h2>
+
+<p>Never edit a shipped unit file directly. <code>systemctl edit</code> creates a drop-in override, and after any unit change you reload the daemon.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`systemctl cat httpd\nsudo systemctl edit httpd    # creates a drop-in override.conf\nsudo systemctl daemon-reload\nsudo systemctl restart httpd`}</pre></div></div>
+
+<h2 id="exam" class="pp-h2">Exam questions</h2>
+
+<p>Write the command first.</p>
+
+<p><span class="c-pink">Q1.</span> Enable httpd to start at boot and start it immediately, in a single command.</p>
+
+<p><span class="c-pink">Q2.</span> Mask the <code>cups</code> service so it cannot be started by anyone, and verify.</p>
+
+<p><span class="c-pink">Q3.</span> Show all error-level httpd log entries since the last boot, newest first.</p>
+
+<p><span class="c-green">Answers.</span></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# A1\nsudo systemctl enable --now httpd\n# A2\nsudo systemctl mask cups\nsystemctl is-enabled cups    # masked\nsudo systemctl start cups    # fails: Unit cups.service is masked\n# A3\nsudo journalctl -u httpd -p err -b -r    # -p err level, -b since boot, -r newest first`}</pre></div></div>
+
+<h2 id="checklist" class="pp-h2">Final checklist: confirm everything works</h2>
+
+<p>If every check passes, the ticket is done.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# 1. httpd installed, enabled, and running\nsystemctl is-active httpd; systemctl is-enabled httpd\n\n# 2. masking demonstrated and reversed\n# 3. journalctl filters practiced: -u, -p, -b, --since\n# 4. default target is multi-user (no GUI)\nsudo systemctl get-default\n\n# 5. all three exam commands written before peeking\n# 6. tracker entry checked off`}</pre></div></div>
+
+<p>Reply to webadmin: httpd is enabled and running, and it will survive reboots because it is enabled, not just started. The masking pattern is documented for future use. Default target is multi-user, so no GUI will load.</p>
+
+<div class="pp-next">
+  <a href="/series/the-ticket-queue" style="text-decoration:none;color:inherit;display:block">
+    <div class="pp-next-label">next post</div>
+    <div class="pp-next-title">More in The Ticket Queue</div>
+  </a>
+</div>

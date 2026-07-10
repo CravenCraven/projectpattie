@@ -1,0 +1,111 @@
+---
+title: "Partitioning a new disk for the database tier"
+description: "Procurement delivered a second disk. dbadmin1 needs it carved into an LVM partition, a swap partition, and a plain filesystem partition, with the kernel actually seeing them before hand-off."
+date: 2026-06-01
+category: sysadmin
+readTime: 13
+series: "The Ticket Queue"
+seriesOrder: 8
+---
+
+<div class="pp-meta"><span>sysadmin</span> · June 1, 2026 · 13 min read</div>
+
+<h1 class="pp-title">Partitioning a new disk.<br/><em>gdisk, GPT, and the type codes that matter.</em></h1>
+
+<p class="pp-subtitle">Procurement delivered a second disk. dbadmin1 needs it carved into an LVM partition, a swap partition, and a plain filesystem partition, with the kernel actually seeing them before hand-off.</p>
+
+<div class="pp-toc">
+  <div class="pp-toc-label">// <span>what we're getting into</span></div>
+  <ol>
+    <li><a href="#the-ticket">The ticket</a></li>
+    <li><a href="#concept-review">Concept review. MBR versus GPT, and the type codes.</a></li>
+    <li><a href="#inspect">Inspect the disk first</a></li>
+    <li><a href="#gdisk">Partition with gdisk</a></li>
+    <li><a href="#partprobe">Make the kernel re-read the table</a></li>
+    <li><a href="#fdisk">The MBR alternative with fdisk</a></li>
+    <li><a href="#parted">parted, the scriptable way</a></li>
+    <li><a href="#exam">Exam questions</a></li>
+    <li><a href="#checklist">Final checklist: confirm everything works</a></li>
+  </ol>
+</div>
+
+<p><span class="c-light">The ticket:</span> a fresh second disk is attached to the box. dbadmin1 needs three partitions off it. One large one for database files that will become an LVM physical volume, one roughly 512MB for swap, and one roughly 1GB flagged as a plain Linux filesystem. Pick MBR or GPT, document why, and make sure the kernel actually sees the partitions before you hand it off.</p>
+
+<p><span class="c-light">The real problem:</span> partitioning is easy to do and easy to do wrong. The two things people miss are setting the correct type code so LVM and swap tools recognize the partition, and telling the running kernel to re-read the table so the new partitions actually appear.</p>
+
+<p><span class="c-light">What we are doing:</span> partitioning with <code>gdisk</code> for GPT (and <code>fdisk</code> for MBR), setting type codes, and refreshing the kernel view.</p>
+
+<h2 id="the-ticket" class="pp-h2">The ticket</h2>
+
+<p>This step is the one to be careful with. You need a real second disk, and you must be certain which device it is before you write to it. Writing to the wrong disk is how you lose a system.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`lsblk\n# you need a SECOND disk, typically /dev/sdb, /dev/vdb, or /dev/nvme1n1\n# if only one disk shows, stop and add a virtual disk to your VM first\nsudo fdisk -l 2>/dev/null | grep -i "disk /dev"`}</pre></div></div>
+
+<h2 id="concept-review" class="pp-h2">Concept review. MBR versus GPT, and the type codes.</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`man fdisk\nman gdisk\nman parted`}</pre></div></div>
+
+<p>MBR is the old scheme. It caps out at 2TB and four primary partitions, and it keeps no backup of the partition table. GPT is the modern scheme. It handles enormous disks, up to 128 partitions, and stores a backup table. On RHEL 9 the default and the right choice is GPT, so that is what this ticket uses. <code>gdisk</code> is the GPT tool, <code>fdisk</code> is the MBR tool.</p>
+
+<p>The type code tells the system what a partition is for. Set it wrong and LVM or swap will not recognize the partition later.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">partition type codes</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`purpose             fdisk (hex)   gdisk\nLinux filesystem    83            8300\nLinux swap          82            8200\nLinux LVM           8e            8e00`}</pre></div></div>
+
+<h2 id="inspect" class="pp-h2">Inspect the disk first</h2>
+
+<p>Confirm the device path and the size before touching it. Replace <code>/dev/sdb</code> below with whatever your second disk actually is.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`lsblk\nsudo fdisk -l /dev/sdb\nsudo blockdev --getsize64 /dev/sdb    # size in bytes`}</pre></div></div>
+
+<h2 id="gdisk" class="pp-h2">Partition with gdisk</h2>
+
+<p><code>gdisk</code> is interactive. You create a fresh GPT table if the disk is empty, then add each partition with a number, a size, and a type code, then write. The comments below show the exact keystrokes.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo gdisk /dev/sdb\n\n# inside gdisk:\n#   o            new empty GPT table (only on a fresh disk), confirm y\n#   n            new partition\n#     1          partition number\n#     <Enter>    default first sector\n#     +2G        size\n#     8e00       type: Linux LVM\n#   n  -> 2 -> <Enter> -> +512M -> 8200   (Linux swap)\n#   n  -> 3 -> <Enter> -> +1G   -> 8300   (Linux filesystem)\n#   p            print to verify\n#   w            write and exit, confirm y\n\n# verify from outside gdisk\nlsblk /dev/sdb\nsudo gdisk -l /dev/sdb`}</pre></div></div>
+
+<h2 id="partprobe" class="pp-h2">Make the kernel re-read the table</h2>
+
+<p>If <code>lsblk</code> does not show the new partitions, the running kernel is still holding the old table in memory. <code>partprobe</code> forces a re-read without a reboot. This is the reflex that saves you on the exam.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo partprobe /dev/sdb\nlsblk /dev/sdb\nsudo udevadm settle    # if device nodes lag behind`}</pre></div></div>
+
+<h2 id="fdisk" class="pp-h2">The MBR alternative with fdisk</h2>
+
+<p>Worth knowing both tools. <code>fdisk</code> drives MBR the same way, with slightly different keys. Only run this on a spare disk you are willing to wipe.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo fdisk /dev/sdc\n\n# inside fdisk:\n#   o    new MBR (DOS) partition table\n#   n -> p -> 1 -> <Enter> -> +1G\n#   t -> 8e    change type to Linux LVM\n#   p          verify\n#   w          write\n\nsudo partprobe /dev/sdc\nlsblk /dev/sdc`}</pre></div></div>
+
+<h2 id="parted" class="pp-h2">parted, the scriptable way</h2>
+
+<p><code>parted</code> does the same job non-interactively, which is handy for automation. Just look at the state for now rather than writing to a full disk.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo parted /dev/sdb print\n# example of a scripted add (do not run on a full disk):\n# sudo parted /dev/sdb mkpart primary 4097MiB 5121MiB`}</pre></div></div>
+
+<h2 id="exam" class="pp-h2">Exam questions</h2>
+
+<p>Write the command first.</p>
+
+<p><span class="c-pink">Q1.</span> List all block devices along with their filesystem types and UUIDs in a single command.</p>
+
+<p><span class="c-pink">Q2.</span> On a fresh <code>/dev/sdb</code> using GPT, create a 2GB partition tagged for LVM and a 512MB partition tagged for swap, then verify the table.</p>
+
+<p><span class="c-pink">Q3.</span> You created partitions but <code>lsblk</code> does not see them. What command fixes that without a reboot, and why is it needed?</p>
+
+<p><span class="c-green">Answers.</span></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# A1\nlsblk -f\n# A2\nsudo gdisk /dev/sdb   # o (if fresh), n 1 +2G 8e00, n 2 +512M 8200, w\nsudo gdisk -l /dev/sdb\n# A3\nsudo partprobe /dev/sdb\n# the running kernel caches the old table; without this the new\n# partitions do not appear in /dev or lsblk until a reboot`}</pre></div></div>
+
+<h2 id="checklist" class="pp-h2">Final checklist: confirm everything works</h2>
+
+<p>If every check passes, the ticket is done.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# 1. three partitions with the right type codes\nsudo gdisk -l /dev/sdb\n\n# 2. lsblk reflects all three\nlsblk /dev/sdb\n\n# 3. partprobe reflex if the kernel did not see them\n# 4. GPT choice documented (recommend GPT on RHEL 9)\n# 5. all three exam commands written from scratch\n# 6. tracker entry checked off`}</pre></div></div>
+
+<p>Reply to ops1: <code>/dev/sdb</code> is partitioned with GPT. sdb1 is 2GB LVM, sdb2 is 512MB swap, sdb3 is 1GB Linux filesystem. Ready for dbadmin1 to build the LVM stack tomorrow.</p>
+
+<div class="pp-next">
+  <a href="/blog/ticket-queue-09-lvm-stack-online-resize" style="text-decoration:none;color:inherit;display:block">
+    <div class="pp-next-label">next post</div>
+    <div class="pp-next-title">Building the database LVM stack with online resize</div>
+  </a>
+</div>

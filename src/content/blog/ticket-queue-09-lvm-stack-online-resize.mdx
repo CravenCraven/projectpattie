@@ -1,0 +1,113 @@
+---
+title: "Building the database LVM stack with online resize"
+description: "dbadmin1 needs a growable volume for the database files, mounted at /srv/db, that can be extended without downtime. This is the full LVM stack plus an online resize and a snapshot."
+date: 2026-06-03
+category: sysadmin
+readTime: 15
+series: "The Ticket Queue"
+seriesOrder: 9
+---
+
+<div class="pp-meta"><span>sysadmin</span> · June 3, 2026 · 15 min read</div>
+
+<h1 class="pp-title">The LVM stack.<br/><em>PV to VG to LV, grown live, with a snapshot.</em></h1>
+
+<p class="pp-subtitle">dbadmin1 needs a growable volume for the database files, mounted at /srv/db, that can be extended without downtime. This is the full LVM stack plus an online resize and a snapshot.</p>
+
+<div class="pp-toc">
+  <div class="pp-toc-label">// <span>what we're getting into</span></div>
+  <ol>
+    <li><a href="#the-ticket">The ticket</a></li>
+    <li><a href="#concept-review">Concept review. The stack, bottom to top.</a></li>
+    <li><a href="#build">Build the stack</a></li>
+    <li><a href="#mount">Format and mount</a></li>
+    <li><a href="#extend">Extend it online, the key skill</a></li>
+    <li><a href="#add-pv">Add a second physical volume</a></li>
+    <li><a href="#snapshot">Snapshot before a migration</a></li>
+    <li><a href="#exam">Exam questions</a></li>
+    <li><a href="#checklist">Final checklist: confirm everything works</a></li>
+  </ol>
+</div>
+
+<p><span class="c-light">The ticket:</span> now that the disk is partitioned, dbadmin1 needs a volume group named <code>dbvg</code> on <code>/dev/sdb1</code>, a 1GB logical volume named <code>dblv</code> inside it, mounted at <code>/srv/db</code>. The hard requirement is that it must be extensible while mounted, with no downtime. Bonus: take a snapshot before any major migration.</p>
+
+<p><span class="c-light">The real problem:</span> LVM is one of the most heavily tested RHCSA topics, and the part people fumble is the two-step resize. Growing the logical volume does not grow the filesystem. You have to do both.</p>
+
+<p><span class="c-light">What we are doing:</span> building the full stack, physical volume to volume group to logical volume to mount, then growing it live and taking a snapshot.</p>
+
+<h2 id="the-ticket" class="pp-h2">The ticket</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`lsblk    # confirm /dev/sdb1 exists from the partitioning ticket\nwhich pvcreate vgcreate lvcreate    # lvm2 is usually already installed`}</pre></div></div>
+
+<h2 id="concept-review" class="pp-h2">Concept review. The stack, bottom to top.</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`man pvcreate vgcreate lvcreate lvextend`}</pre></div></div>
+
+<p>LVM is three layers. A physical volume is a disk or partition marked for LVM use. One or more physical volumes are pooled into a volume group, which is just a pool of storage. Out of that pool you carve logical volumes, and a logical volume is the thing you format and mount. The point of all this is that the pool and the volumes can grow after the fact.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">the LVM stack</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`[ /dev/sdb1 ]  --pvcreate-->  [ Physical Volume ]\n                              --vgcreate-->  [ Volume Group: dbvg ]   (the pool)\n                              --lvcreate-->  [ Logical Volume: dblv ]  (what you mount)\n                              --mkfs+mount-->  /srv/db`}</pre></div></div>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">create / show / remove</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`PV   pvcreate   pvs / pvdisplay   pvremove\nVG   vgcreate   vgs / vgdisplay   vgremove\nLV   lvcreate   lvs / lvdisplay   lvremove`}</pre></div></div>
+
+<h2 id="build" class="pp-h2">Build the stack</h2>
+
+<p>Three commands, bottom to top. Mark the partition as a physical volume, pool it into a volume group, carve a logical volume out of the pool.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo pvcreate /dev/sdb1\nsudo pvs\n\nsudo vgcreate dbvg /dev/sdb1\nsudo vgs\n\nsudo lvcreate -L 1G -n dblv dbvg\nsudo lvs\n\n# the LV is reachable at two equivalent paths\nls -l /dev/dbvg/dblv\nls -l /dev/mapper/dbvg-dblv`}</pre></div></div>
+
+<p>Sizing flags worth knowing: <code>-L 1G</code> is a fixed size, <code>-l 100%FREE</code> takes all remaining space, and <code>-l 50%VG</code> takes half the pool.</p>
+
+<h2 id="mount" class="pp-h2">Format and mount</h2>
+
+<p>Format XFS and mount it to confirm the stack works. The permanent fstab entry comes in the next ticket.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo mkfs.xfs /dev/dbvg/dblv\nsudo mkdir -p /srv/db\nsudo mount /dev/dbvg/dblv /srv/db\ndf -h /srv/db`}</pre></div></div>
+
+<h2 id="extend" class="pp-h2">Extend it online, the key skill</h2>
+
+<p>This is the part the exam cares about. Growing the logical volume gives it more space, but the filesystem does not know yet. You grow the filesystem separately, and both steps happen live with the volume mounted.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# grow the logical volume by 500MB, instant, no downtime\nsudo lvextend -L +500M /dev/dbvg/dblv\nsudo lvs dbvg\ndf -h /srv/db    # df still shows the old size, the FS does not know yet\n\n# grow the XFS filesystem to fill the new space, also live\nsudo xfs_growfs /srv/db\ndf -h /srv/db    # now it shows the new size`}</pre></div></div>
+
+<div class="pp-note"><strong>note:</strong> The filesystem grow command differs by type. XFS uses <code>xfs_growfs</code> and takes the mountpoint. ext4 uses <code>resize2fs</code> and takes the device. Mixing them up is a common exam slip.</div>
+
+<h2 id="add-pv" class="pp-h2">Add a second physical volume</h2>
+
+<p>When the pool runs low, add more storage to the volume group and then extend the logical volume into it.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo pvcreate /dev/sdb3\nsudo vgextend dbvg /dev/sdb3\nsudo vgs    # VFree grows\n\n# now consume all the free space\nsudo lvextend -l +100%FREE /dev/dbvg/dblv\nsudo xfs_growfs /srv/db\ndf -h /srv/db`}</pre></div></div>
+
+<h2 id="snapshot" class="pp-h2">Snapshot before a migration</h2>
+
+<p>A snapshot is a point in time copy you can roll back to. Take one before a risky change, verify it holds the original data, then clean it up.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`echo "original DB schema v1" | sudo tee /srv/db/schema.sql\n\n# create the snapshot with -s\nsudo lvcreate -L 200M -s -n dblv_snap /dev/dbvg/dblv\nsudo lvs    # the snapshot's Attr starts with s\n\n# mount it read-only and confirm the original data\nsudo mkdir -p /mnt/db_snapshot\nsudo mount -o nouuid,ro /dev/dbvg/dblv_snap /mnt/db_snapshot\ncat /mnt/db_snapshot/schema.sql\n\n# simulate a destructive change on the live volume\necho "DROP TABLE users;" | sudo tee /srv/db/schema.sql\ncat /mnt/db_snapshot/schema.sql    # snapshot still has the original\n\n# clean up\nsudo umount /mnt/db_snapshot\nsudo lvremove -y /dev/dbvg/dblv_snap`}</pre></div></div>
+
+<h2 id="exam" class="pp-h2">Exam questions</h2>
+
+<p>Write the command first.</p>
+
+<p><span class="c-pink">Q1.</span> Create a 2GB LV named <code>applv</code> in a new VG called <code>appvg</code> on <code>/dev/sdb1</code>, and format it XFS.</p>
+
+<p><span class="c-pink">Q2.</span> <code>applv</code> is filling up. Extend it by 1GB online without unmounting, and show every step.</p>
+
+<p><span class="c-pink">Q3.</span> You added a disk <code>/dev/sdc</code>. Add it to <code>appvg</code> and use all the new space to extend <code>applv</code>.</p>
+
+<p><span class="c-green">Answers.</span></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# A1\nsudo pvcreate /dev/sdb1\nsudo vgcreate appvg /dev/sdb1\nsudo lvcreate -L 2G -n applv appvg\nsudo mkfs.xfs /dev/appvg/applv\n# A2\nsudo lvextend -L +1G /dev/appvg/applv\nsudo xfs_growfs /mountpoint\n# A3\nsudo pvcreate /dev/sdc\nsudo vgextend appvg /dev/sdc\nsudo lvextend -l +100%FREE /dev/appvg/applv\nsudo xfs_growfs /mountpoint`}</pre></div></div>
+
+<h2 id="checklist" class="pp-h2">Final checklist: confirm everything works</h2>
+
+<p>If every check passes, the ticket is done.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# 1. dbvg exists and contains /dev/sdb1\nsudo vgs; sudo pvs\n\n# 2. dblv is mounted at /srv/db\ndf -h /srv/db\n\n# 3. online resize proven (lvextend then xfs_growfs)\n# 4. snapshot created and mounted read-only at least once\n# 5. all three exam commands written from scratch\n# 6. tracker entry checked off`}</pre></div></div>
+
+<p>Reply to dbadmin1: <code>dbvg/dblv</code> is mounted at <code>/srv/db</code>. Online resize is verified, <code>lvextend -L +SIZE</code> then <code>xfs_growfs /srv/db</code>. For a pre-migration safety net, <code>lvcreate -L SIZE -s -n NAME /dev/dbvg/dblv</code>.</p>
+
+<div class="pp-next">
+  <a href="/blog/ticket-queue-10-fstab-persist-and-recover" style="text-decoration:none;color:inherit;display:block">
+    <div class="pp-next-label">next post</div>
+    <div class="pp-next-title">Persisting /srv/db and recovering a broken fstab</div>
+  </a>
+</div>

@@ -1,0 +1,104 @@
+---
+title: "Persisting /srv/db and recovering a broken fstab"
+description: "The database volume has to survive reboots, mounted by UUID. Plus a legacy ext4 volume, and the recovery drill for the broken fstab that took a box down last week."
+date: 2026-06-05
+category: sysadmin
+readTime: 14
+series: "The Ticket Queue"
+seriesOrder: 10
+---
+
+<div class="pp-meta"><span>sysadmin</span> · June 5, 2026 · 14 min read</div>
+
+<h1 class="pp-title">fstab, done safely.<br/><em>UUID mounts, ext4, and recovering a broken boot.</em></h1>
+
+<p class="pp-subtitle">The database volume has to survive reboots, mounted by UUID. Plus a legacy ext4 volume, and the recovery drill for the broken fstab that took a box down last week.</p>
+
+<div class="pp-toc">
+  <div class="pp-toc-label">// <span>what we're getting into</span></div>
+  <ol>
+    <li><a href="#the-ticket">The ticket</a></li>
+    <li><a href="#concept-review">Concept review. The fstab fields.</a></li>
+    <li><a href="#persist">Persist /srv/db by UUID</a></li>
+    <li><a href="#test">Test without rebooting</a></li>
+    <li><a href="#ext4">Add the legacy ext4 volume</a></li>
+    <li><a href="#recovery">The broken fstab recovery drill</a></li>
+    <li><a href="#exam">Exam questions</a></li>
+    <li><a href="#checklist">Final checklist: confirm everything works</a></li>
+  </ol>
+</div>
+
+<p><span class="c-light">The ticket:</span> dbadmin1 has two needs and a scar. First, <code>/srv/db</code> must mount automatically on boot using its UUID, not the device path, and it has to be tested without a reboot. Second, a second logical volume needs to be ext4 for a legacy app, mounted at <code>/srv/legacy</code>. And they want to learn the recovery flow, because a typo in fstab took a staging box down last week and needed remote hands.</p>
+
+<p><span class="c-light">The real problem:</span> a bad fstab line can stop a machine from booting. The whole point of this ticket is persisting mounts safely and knowing how to recover when it goes wrong.</p>
+
+<p><span class="c-light">What we are doing:</span> UUID-based fstab entries, an ext4 volume alongside the XFS one, and the broken-fstab recovery drill.</p>
+
+<h2 id="the-ticket" class="pp-h2">The ticket</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`lsblk\nsudo lvs               # confirm dbvg/dblv from the LVM ticket\nsudo blkid /dev/dbvg/dblv`}</pre></div></div>
+
+<h2 id="concept-review" class="pp-h2">Concept review. The fstab fields.</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`man fstab\nman mount\nman mkfs.xfs mkfs.ext4`}</pre></div></div>
+
+<p>Each fstab line has six fields: the device, the mountpoint, the filesystem type, the mount options, a dump flag that is always 0, and a pass number that controls fsck order (0 for none, 1 for root, 2 for everything else).</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">fstab fields</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`device         mountpoint   fstype   options    dump  pass\nUUID=xxxx      /srv/db      xfs      defaults   0     0`}</pre></div></div>
+
+<p>Always use the UUID, not the device path. Device names like <code>/dev/sdb</code> are assigned by the kernel at boot and can shift when you add hardware. The UUID lives inside the filesystem itself and never moves.</p>
+
+<h2 id="persist" class="pp-h2">Persist /srv/db by UUID</h2>
+
+<p>Back up fstab before every edit. Then capture the UUID into a variable and append a clean line.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo cp /etc/fstab /etc/fstab.bak.$(date +%Y%m%d)\n\nDB_UUID=$(sudo blkid -s UUID -o value /dev/dbvg/dblv)\necho "UUID=$DB_UUID /srv/db xfs defaults 0 0" | sudo tee -a /etc/fstab\ntail -1 /etc/fstab`}</pre></div></div>
+
+<h2 id="test" class="pp-h2">Test without rebooting</h2>
+
+<p>This is the reboot test you can run safely. Unmount what is there, then let fstab mount everything. If <code>mount -a</code> works cleanly, the reboot will too.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo umount /srv/db\nmount | grep /srv/db    # should be empty now\n\nsudo mount -a\nmount | grep /srv/db    # mounted again, from fstab this time\ndf -h /srv/db`}</pre></div></div>
+
+<h2 id="ext4" class="pp-h2">Add the legacy ext4 volume</h2>
+
+<p>Same pattern, different filesystem. Create the volume, format ext4, and persist it by UUID.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo lvcreate -L 500M -n legacylv dbvg\nsudo mkfs.ext4 /dev/dbvg/legacylv\nsudo mkdir -p /srv/legacy\n\nLEGACY_UUID=$(sudo blkid -s UUID -o value /dev/dbvg/legacylv)\necho "UUID=$LEGACY_UUID /srv/legacy ext4 defaults 0 0" | sudo tee -a /etc/fstab\nsudo mount -a\ndf -hT /srv/legacy    # -T shows the filesystem type`}</pre></div></div>
+
+<h2 id="recovery" class="pp-h2">The broken fstab recovery drill</h2>
+
+<p>Practice this now, calmly, so you can do it under pressure later. Add a deliberately bad line, watch <code>mount -a</code> reject it, then recover from the backup. That same error at boot is what drops a machine into emergency mode.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo cp /etc/fstab /etc/fstab.working\n\n# add a bad line on purpose\necho "UUID=0000-bad /broken xfs defaults 0 0" | sudo tee -a /etc/fstab\nsudo mount -a    # error: cannot find the UUID. this is what blocks boot\n\n# recover: restore the good file and re-test\nsudo cp /etc/fstab.working /etc/fstab\nsudo mount -a    # clean again\nsudo rm /etc/fstab.working`}</pre></div></div>
+
+<div class="pp-warn"><strong>warning:</strong> If a bad line does reach a reboot and the box lands in emergency mode, the recovery is: log in as root, remount root read-write with <code>mount -o remount,rw /</code>, fix or remove the bad line in <code>/etc/fstab</code>, then <code>systemctl reboot</code>. Knowing this is the difference between a two minute fix and a call to the data center.</div>
+
+<h2 id="exam" class="pp-h2">Exam questions</h2>
+
+<p>Write the command first.</p>
+
+<p><span class="c-pink">Q1.</span> Find and display the UUID of <code>/dev/dbvg/dblv</code>.</p>
+
+<p><span class="c-pink">Q2.</span> Create a persistent fstab entry for the XFS volume <code>/dev/dbvg/dblv</code> at <code>/srv/db</code> using its UUID, and test it without rebooting.</p>
+
+<p><span class="c-pink">Q3.</span> A malformed fstab entry makes <code>mount -a</code> fail. Walk through fixing it on a running system, then explain recovery if the box already rebooted into emergency mode.</p>
+
+<p><span class="c-green">Answers.</span></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# A1\nsudo blkid /dev/dbvg/dblv\n# A2\nUUID=$(sudo blkid -s UUID -o value /dev/dbvg/dblv)\necho "UUID=$UUID /srv/db xfs defaults 0 0" | sudo tee -a /etc/fstab\nsudo umount /srv/db 2>/dev/null; sudo mount -a; df -h /srv/db\n# A3\n# running system: fix the bad line, then mount -a to verify\n# emergency mode: mount -o remount,rw / ; fix /etc/fstab ; systemctl reboot`}</pre></div></div>
+
+<h2 id="checklist" class="pp-h2">Final checklist: confirm everything works</h2>
+
+<p>If every check passes, the ticket is done.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# 1. /srv/db mounts by UUID, verified with mount -a\ngrep /srv/db /etc/fstab; df -h /srv/db\n\n# 2. /srv/legacy is ext4 and mounts by UUID\ndf -hT /srv/legacy\n\n# 3. fstab backed up before edits\nls /etc/fstab.bak.*\n\n# 4. broken-fstab recovery drilled at least once\n# 5. all three exam commands written from scratch\n# 6. tracker entry checked off`}</pre></div></div>
+
+<p>Reply to dbadmin1: <code>/srv/db</code> (XFS) and <code>/srv/legacy</code> (ext4) both persist by UUID and pass <code>mount -a</code>. For a broken fstab: boot to emergency mode, remount root read-write, fix the file, reboot.</p>
+
+<div class="pp-next">
+  <a href="/blog/ticket-queue-11-emergency-swap" style="text-decoration:none;color:inherit;display:block">
+    <div class="pp-next-label">next post</div>
+    <div class="pp-next-title">Emergency swap when the database is getting OOM-killed</div>
+  </a>
+</div>

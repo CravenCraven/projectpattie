@@ -1,0 +1,110 @@
+---
+title: "A backup pipeline with tar, rsync, and scp"
+description: "logadmin1's backup script broke when the last admin left. Rebuild it: a daily gzip archive of /etc, a weekly bzip2 snapshot of a home directory, and a continuous rsync mirror of /var/log."
+date: 2026-06-12
+category: sysadmin
+readTime: 14
+series: "The Ticket Queue"
+seriesOrder: 13
+---
+
+<div class="pp-meta"><span>sysadmin</span> · June 12, 2026 · 14 min read</div>
+
+<h1 class="pp-title">A backup pipeline.<br/><em>tar, rsync, scp, and the trailing-slash trap.</em></h1>
+
+<p class="pp-subtitle">logadmin1's backup script broke when the last admin left. Rebuild it: a daily gzip archive of /etc, a weekly bzip2 snapshot of a home directory, and a continuous rsync mirror of /var/log.</p>
+
+<div class="pp-toc">
+  <div class="pp-toc-label">// <span>what we're getting into</span></div>
+  <ol>
+    <li><a href="#the-ticket">The ticket</a></li>
+    <li><a href="#concept-review">Concept review. tar flags and compression.</a></li>
+    <li><a href="#setup">Set up the backup directory</a></li>
+    <li><a href="#tar-etc">Daily archive of /etc</a></li>
+    <li><a href="#tar-home">Weekly bzip2 snapshot</a></li>
+    <li><a href="#rsync">The rsync mirror and the trailing slash</a></li>
+    <li><a href="#scp">Copy an archive with scp</a></li>
+    <li><a href="#extract">Extracting, including a single file</a></li>
+    <li><a href="#exam">Exam questions</a></li>
+    <li><a href="#checklist">Final checklist: confirm everything works</a></li>
+  </ol>
+</div>
+
+<p><span class="c-light">The ticket:</span> logadmin1 lost their backup script when the previous admin left. Three things to rebuild. A daily compressed tarball of <code>/etc</code>, a weekly bzip2 snapshot of <code>/home/dev1</code> for better compression on source code, and a continuous rsync mirror of <code>/var/log</code> that excludes already-rotated <code>.gz</code> files and removes anything from the mirror that is gone from the source. Also test scp by copying one archive locally.</p>
+
+<p><span class="c-light">The real problem:</span> two traps live here. The trailing slash in rsync changes what gets copied, and the <code>--delete</code> flag is unforgiving. Both deserve a dry run.</p>
+
+<p><span class="c-light">What we are doing:</span> tar in every compression flavor, rsync with delete and exclude, and scp.</p>
+
+<h2 id="the-ticket" class="pp-h2">The ticket</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`id logadmin1\nls /srv/backups 2>/dev/null || sudo mkdir -p /srv/backups\nwhich tar rsync scp`}</pre></div></div>
+
+<h2 id="concept-review" class="pp-h2">Concept review. tar flags and compression.</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`man tar rsync scp`}</pre></div></div>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">tar flags</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`c  create      x  extract     t  list\nv  verbose     f  filename (always right before the archive name)\nz  gzip (.tar.gz)   j  bzip2 (.tar.bz2)   J  xz (.tar.xz)\n-C change to a directory before extracting\n--exclude  skip a pattern`}</pre></div></div>
+
+<p>The three compressors trade speed for ratio. gzip is fast and moderate, good for daily backups. bzip2 is slower but compresses text and source better. xz is slowest and smallest, for long-term storage.</p>
+
+<h2 id="setup" class="pp-h2">Set up the backup directory</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo mkdir -p /srv/backups/logs\nsudo chown admin:logadmins /srv/backups\nsudo chmod 770 /srv/backups\nls -ld /srv/backups`}</pre></div></div>
+
+<h2 id="tar-etc" class="pp-h2">Daily archive of /etc</h2>
+
+<p>Put the date in the filename so daily runs do not overwrite each other. <code>c z v f</code> means create, gzip, verbose, filename. Always verify the archive after.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`DATE=$(date +%Y%m%d)\nsudo tar -czvf /srv/backups/etc-\${DATE}.tar.gz /etc/ 2>/dev/null\nls -lh /srv/backups/etc-*.tar.gz\ntar -tzvf /srv/backups/etc-\${DATE}.tar.gz | head -10    # list without extracting`}</pre></div></div>
+
+<h2 id="tar-home" class="pp-h2">Weekly bzip2 snapshot</h2>
+
+<p>Same idea, bzip2 this time with <code>j</code> for better compression on source code.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`DATE=$(date +%Y%m%d)\nsudo tar -cjvf /srv/backups/dev1-\${DATE}.tar.bz2 /home/dev1/ 2>/dev/null\nls -lh /srv/backups/dev1-*.tar.bz2`}</pre></div></div>
+
+<h2 id="rsync" class="pp-h2">The rsync mirror and the trailing slash</h2>
+
+<p>The trailing slash on the source is the whole game. A trailing slash copies the contents of the directory. No trailing slash copies the directory itself into the destination. Because <code>--delete</code> removes anything in the destination that is not in the source, always dry run first.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# the difference, in words:\n#   rsync -av /src/  /dst/   copies the CONTENTS of src into dst\n#   rsync -av /src   /dst/   creates /dst/src/\n\n# dry run first, always, with --delete\nsudo rsync -av --dry-run --delete --exclude='*.gz' /var/log/ /srv/backups/logs/\n\n# looks safe? run it for real\nsudo rsync -av --delete --exclude='*.gz' /var/log/ /srv/backups/logs/\ndu -sh /srv/backups/logs/`}</pre></div></div>
+
+<h2 id="scp" class="pp-h2">Copy an archive with scp</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`mkdir -p /tmp/scp_landing\nDATE=$(date +%Y%m%d)\nscp /srv/backups/etc-\${DATE}.tar.gz localhost:/tmp/scp_landing/\nls -lh /tmp/scp_landing/\n\n# recursive directory copy\nscp -r /srv/backups/logs localhost:/tmp/scp_landing/`}</pre></div></div>
+
+<h2 id="extract" class="pp-h2">Extracting, including a single file</h2>
+
+<p>Restores matter as much as backups. You can extract everything, or pull one file out by naming its path inside the archive.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`DATE=$(date +%Y%m%d)\n\n# extract everything to a new directory\nmkdir -p /tmp/restore_test\nsudo tar -xzvf /srv/backups/etc-\${DATE}.tar.gz -C /tmp/restore_test/\n\n# extract only one file\nmkdir -p /tmp/restore_one\nsudo tar -xzvf /srv/backups/etc-\${DATE}.tar.gz -C /tmp/restore_one/ etc/hostname\nls -la /tmp/restore_one/etc/\n\nsudo rm -rf /tmp/restore_test /tmp/restore_one`}</pre></div></div>
+
+<h2 id="exam" class="pp-h2">Exam questions</h2>
+
+<p>Write the command first.</p>
+
+<p><span class="c-pink">Q1.</span> Create a gzip tar archive of <code>/etc</code> at <code>/tmp/etc_backup.tar.gz</code>, then list its contents without extracting.</p>
+
+<p><span class="c-pink">Q2.</span> Extract only <code>/etc/hostname</code> from that archive into <code>/tmp/restored/</code>.</p>
+
+<p><span class="c-pink">Q3.</span> rsync <code>/var/log</code> to <code>/backup/logs</code>, excluding all <code>.gz</code> files, deleting anything in the destination no longer in the source. Show the dry run first.</p>
+
+<p><span class="c-green">Answers.</span></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# A1\nsudo tar -czvf /tmp/etc_backup.tar.gz /etc/ 2>/dev/null\ntar -tzvf /tmp/etc_backup.tar.gz | head -20\n# A2\nmkdir -p /tmp/restored\nsudo tar -xzvf /tmp/etc_backup.tar.gz -C /tmp/restored/ etc/hostname\n# A3\nsudo mkdir -p /backup/logs\nsudo rsync -av --dry-run --delete --exclude='*.gz' /var/log/ /backup/logs/\nsudo rsync -av --delete --exclude='*.gz' /var/log/ /backup/logs/`}</pre></div></div>
+
+<h2 id="checklist" class="pp-h2">Final checklist: confirm everything works</h2>
+
+<p>If every check passes, the ticket is done.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# 1. daily /etc gzip archive exists\nls /srv/backups/etc-*.tar.gz\n\n# 2. weekly bzip2 home snapshot exists\nls /srv/backups/dev1-*.tar.bz2\n\n# 3. /var/log mirror excludes .gz and honors --delete\nls /srv/backups/logs/ | head\n\n# 4. --delete tested with --dry-run first\n# 5. all three exam commands written from scratch\n# 6. tracker entry checked off`}</pre></div></div>
+
+<p>Reply to logadmin1: daily gzip archives of <code>/etc</code> and weekly bzip2 snapshots of <code>/home/dev1</code> in <code>/srv/backups/</code>. Continuous <code>/var/log</code> rsync mirror at <code>/srv/backups/logs/</code> with <code>--delete</code> and <code>--exclude=*.gz</code>. Ready to wire into cron.</p>
+
+<div class="pp-next">
+  <a href="/blog/ticket-queue-14-xfs-quotas" style="text-decoration:none;color:inherit;display:block">
+    <div class="pp-next-label">next post</div>
+    <div class="pp-next-title">XFS quotas before the database team fills the disk</div>
+  </a>
+</div>
