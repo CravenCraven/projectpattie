@@ -1,0 +1,115 @@
+---
+title: "A shared folder that stops the team fighting over files"
+description: "New files in the webteam's shared directory keep landing with the wrong group, and members keep deleting each other's work. The fix is two special permission bits, and knowing why the default setup fails."
+date: 2026-05-20
+category: sysadmin
+readTime: 13
+series: "The Ticket Queue"
+seriesOrder: 3
+---
+
+<div class="pp-meta"><span>sysadmin</span> · May 20, 2026 · 13 min read</div>
+
+<h1 class="pp-title">A shared folder that behaves.<br/><em>SGID, the sticky bit, and special permissions.</em></h1>
+
+<p class="pp-subtitle">New files in the webteam's shared directory keep landing with the wrong group, and members keep deleting each other's work. The fix is two special permission bits, and knowing why the default setup fails.</p>
+
+<div class="pp-toc">
+  <div class="pp-toc-label">// <span>what we're getting into</span></div>
+  <ol>
+    <li><a href="#the-ticket">The ticket</a></li>
+    <li><a href="#concept-review">Concept review. Octal and the special bits.</a></li>
+    <li><a href="#diagnose">Diagnose the broken setup first</a></li>
+    <li><a href="#build-it">Build the directory correctly</a></li>
+    <li><a href="#sticky">Add the sticky bit</a></li>
+    <li><a href="#add-users">Add the users the right way</a></li>
+    <li><a href="#octal-practice">Octal versus symbolic practice</a></li>
+    <li><a href="#exam">Exam questions</a></li>
+    <li><a href="#checklist">Final checklist: confirm everything works</a></li>
+  </ol>
+</div>
+
+<p><span class="c-light">The ticket:</span> the webteam needs a shared folder at <code>/srv/webcontent</code>. Every time someone creates a file it gets that user's primary group instead of <code>webteam</code>, so the next person cannot write to it. On top of that, members keep deleting each other's files. Current members are root and student, with dev1 and dev2 to be added once it works.</p>
+
+<p><span class="c-light">The real problem:</span> the naive <code>775</code> directory looks right but is missing two special permission bits. Once you know which two, the fix is one <code>chmod</code>.</p>
+
+<p><span class="c-light">What we are doing:</span> file permissions, octal versus symbolic notation, and the three special bits, SUID, SGID, and sticky, built into a working collaboration directory.</p>
+
+<h2 id="the-ticket" class="pp-h2">The ticket</h2>
+
+<p>Confirm the group and the users before you start.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`getent group webteam   # GID 6000, members root and student\nid student             # already in webteam\nid webadmin            # the requester`}</pre></div></div>
+
+<h2 id="concept-review" class="pp-h2">Concept review. Octal and the special bits.</h2>
+
+<p>Read the two manual pages, then lock in the octal table and the special bits.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`man chmod\nman chown`}</pre></div></div>
+
+<p>The normal three permission digits are owner, group, other, each a sum of read 4, write 2, execute 1. So 7 is rwx, 6 is rw, 5 is r-x, 4 is r, 0 is nothing.</p>
+
+<p>There is a fourth digit that goes in front, and two of its values are exactly what this ticket needs.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">the special bits</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`SUID  (4)  on an executable, it runs as the file's OWNER. e.g. /usr/bin/passwd runs as root\nSGID  (2)  on a directory, new files inherit the directory's GROUP   <- fixes the group problem\nsticky(1)  on a directory, only a file's owner can delete it          <- stops cross-deletion`}</pre></div></div>
+
+<p>Reading <code>ls -l</code>: an <code>s</code> in the group execute slot is SGID, a <code>t</code> in the other execute slot is sticky. An uppercase <code>S</code> or <code>T</code> means the special bit is set but the underlying execute bit is not, which is usually a mistake.</p>
+
+<h2 id="diagnose" class="pp-h2">Diagnose the broken setup first</h2>
+
+<p>Reproduce the bug before you fix it. New files inherit the creator's primary group, not the directory's group, so student's file comes out owned by student.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo mkdir /srv/webcontent_broken\nsudo chown root:webteam /srv/webcontent_broken\nsudo chmod 775 /srv/webcontent_broken\nls -ld /srv/webcontent_broken    # drwxrwxr-x, no SGID, no sticky\n\nsudo -u student touch /srv/webcontent_broken/student_file.html\nls -l /srv/webcontent_broken/    # group is 'student', not 'webteam'. that is the bug`}</pre></div></div>
+
+<h2 id="build-it" class="pp-h2">Build the directory correctly</h2>
+
+<p>SGID is the 2 in front. <code>2775</code> gives you SGID plus rwxrwxr-x, so new files inherit the directory's group.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo mkdir /srv/webcontent\nsudo chown root:webteam /srv/webcontent\nsudo chmod 2775 /srv/webcontent\nls -ld /srv/webcontent    # drwxrwsr-x, the 's' in group execute is SGID\n\nsudo -u student touch /srv/webcontent/student_correct.html\nls -l /srv/webcontent/    # group is 'webteam' now. SGID worked`}</pre></div></div>
+
+<h2 id="sticky" class="pp-h2">Add the sticky bit</h2>
+
+<p>Without the sticky bit, any member can delete any file in the directory. The sticky bit restricts deletion to each file's owner. Add it on its own, or set both bits at once with a leading 3.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# add it to the existing directory\nsudo chmod +t /srv/webcontent\nls -ld /srv/webcontent    # drwxrwsr-t, the 't' is the sticky bit\n\n# or set SGID and sticky together from the start\nsudo chmod 3775 /srv/webcontent    # 3 = SGID + sticky`}</pre></div></div>
+
+<h2 id="add-users" class="pp-h2">Add the users the right way</h2>
+
+<p>webadmin asked for dev1 and dev2 once it worked. The flag that matters is <code>-a</code>.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo usermod -aG webteam dev1\nsudo usermod -aG webteam dev2\ngetent group webteam\nid dev1\n\n# prove the sticky bit works: dev2 cannot delete dev1's file\nsudo -u dev1 touch /srv/webcontent/dev1_page.html\nsudo -u dev2 rm /srv/webcontent/dev1_page.html    # Permission denied`}</pre></div></div>
+
+<div class="pp-warn"><strong>warning:</strong> <code>-aG</code> appends to the user's supplementary groups. Drop the <code>-a</code> and <code>usermod -G</code> replaces every supplementary group they had, quietly removing them from everything else. Always use <code>-aG</code> together.</div>
+
+<h2 id="octal-practice" class="pp-h2">Octal versus symbolic practice</h2>
+
+<p>Both notations show up on the exam. Octal sets the whole mode at once. Symbolic nudges individual bits.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo touch /tmp/perm_test\nsudo chmod 644 /tmp/perm_test          # rw-r--r--\nls -l /tmp/perm_test\n\nsudo chmod u+x,g-r,o= /tmp/perm_test   # add owner execute, drop group read, clear other\nls -l /tmp/perm_test\n\nsudo chmod a+r /tmp/perm_test          # everyone gets read\nls -l /tmp/perm_test`}</pre></div></div>
+
+<h2 id="exam" class="pp-h2">Exam questions</h2>
+
+<p>Write the command first.</p>
+
+<p><span class="c-pink">Q1.</span> Set <code>/srv/webcontent/index.html</code> so the owner has read and write, the group has read, and others have nothing. Use octal.</p>
+
+<p><span class="c-pink">Q2.</span> Create <code>/srv/devshare</code> owned by group <code>developers</code> where all new files automatically inherit the <code>developers</code> group.</p>
+
+<p><span class="c-pink">Q3.</span> Create <code>/srv/dropbox</code> where any user can write files but nobody can delete anyone else's.</p>
+
+<p><span class="c-green">Answers.</span></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# A1\nsudo touch /srv/webcontent/index.html\nsudo chmod 640 /srv/webcontent/index.html    # -rw-r-----\n# A2\nsudo mkdir /srv/devshare\nsudo chown root:developers /srv/devshare\nsudo chmod 2775 /srv/devshare                # drwxrwsr-x\n# A3\nsudo mkdir /srv/dropbox\nsudo chmod 1777 /srv/dropbox                 # drwxrwxrwt`}</pre></div></div>
+
+<h2 id="checklist" class="pp-h2">Final checklist: confirm everything works</h2>
+
+<p>If every check passes, the ticket is done.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# 1. webcontent has SGID and sticky, owned by webteam\nls -ld /srv/webcontent    # expect drwxrwsr-t\n\n# 2. new files inherit the webteam group\nsudo -u student touch /srv/webcontent/check.html && ls -l /srv/webcontent/check.html\n\n# 3. dev1 and dev2 are in webteam\nid dev1; id dev2\n\n# 4. a member cannot delete another member's file (sticky works)\n# 5. all three exam commands written from scratch\n# 6. tracker entry checked off`}</pre></div></div>
+
+<p>Reply to webadmin: <code>/srv/webcontent</code> is now drwxrwsr-t. SGID so new files inherit the webteam group, sticky so members cannot delete each other's work. dev1 and dev2 added with <code>usermod -aG</code> so their other groups stayed intact.</p>
+
+<div class="pp-next">
+  <div class="pp-next-label">next post</div>
+  <div class="pp-next-title">Three reports out of /etc/passwd, and a safe find and replace</div>
+</div>

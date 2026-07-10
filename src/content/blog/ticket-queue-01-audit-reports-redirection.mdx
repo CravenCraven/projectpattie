@@ -1,0 +1,132 @@
+---
+title: "Clean audit reports with redirection and find"
+description: "secadmin wants two clean reports off a base RHEL 9 box, and the real problem is not find. It is that nobody explained where the noise comes from."
+date: 2026-05-15
+category: sysadmin
+readTime: 12
+series: "The Ticket Queue"
+seriesOrder: 1
+---
+
+<div class="pp-meta"><span>sysadmin</span> · May 15, 2026 · 12 min read</div>
+
+<h1 class="pp-title">Clean audit reports.<br/><em>redirection, find, and pipes.</em></h1>
+
+<p class="pp-subtitle">secadmin wants two clean reports off a base RHEL 9 box, and the real problem is not find. It is that nobody explained where the noise comes from.</p>
+
+<div class="pp-toc">
+  <div class="pp-toc-label">// <span>what we're getting into</span></div>
+  <ol>
+    <li><a href="#the-ticket">The ticket</a></li>
+    <li><a href="#how-redirection-works">How redirection actually works</a></li>
+    <li><a href="#reports-directory">Set up the reports directory</a></li>
+    <li><a href="#recent-conf">Report one. Recent .conf files.</a></li>
+    <li><a href="#suid-audit">Report two. The SUID binary audit.</a></li>
+    <li><a href="#find-filters">More find filters worth knowing</a></li>
+    <li><a href="#pipe-chains">Pipe chains that answer real questions</a></li>
+    <li><a href="#hand-off">Hand the reports off</a></li>
+    <li><a href="#exam">Exam questions</a></li>
+    <li><a href="#checklist">Final checklist: confirm everything works</a></li>
+  </ol>
+</div>
+
+<p><span class="c-light">The ticket:</span> secadmin is running a compliance audit. They want every <code>.conf</code> file under <code>/etc</code> that changed in the last week, and a full list of the SUID binaries on the box for the security review. Their complaint is that every time they run <code>find</code>, half the screen fills with "Permission denied" and they cannot tell the real results from the noise.</p>
+
+<p><span class="c-light">The real problem:</span> This is not a <code>find</code> bug. <code>find</code> is doing its job. The errors and the results are landing on the same terminal, so they look tangled together when they are actually on two separate streams. Once you see that, the fix is one small piece of redirection.</p>
+
+<p><span class="c-light">What we are doing:</span> Learning I/O redirection, the <code>find</code> command, and pipes well enough to hand the security team two clean files. No extra packages, no new users, just base RHEL 9.</p>
+
+<h2 id="the-ticket" class="pp-h2">The ticket</h2>
+
+<p>Before anything else, confirm the ground you are standing on. Know who you are, and confirm the requester exists.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`whoami         # confirm you are your admin user\nid secadmin    # confirm secadmin exists (UID 3501)`}</pre></div></div>
+
+<h2 id="how-redirection-works" class="pp-h2">Concept review. How redirection works.</h2>
+
+<p>Start where you always start on this exam. The manual pages. These three cover everything the ticket touches, and the redirection section of the bash man page is the one to actually read.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`man bash    # then type /REDIRECTION to jump to that section\nman find\nman grep`}</pre></div></div>
+
+<p>Every command has two output streams. Standard output, called stdout, is file descriptor 1, and it carries the real results. Standard error, called stderr, is file descriptor 2, and it carries diagnostics like "Permission denied". Both point at your terminal by default, which is exactly why they look mixed. They are not. You can send each one somewhere different.</p>
+
+<p>These are the operators the whole ticket rests on. Lock them in.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">the operators</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`'>'     send stdout to a file, overwriting whatever was there\n'>>'    append stdout to a file instead of overwriting\n'2>'    redirect stderr on its own\n2>/dev/null   throw stderr away entirely\n2>&1    send stderr wherever stdout is currently pointed\n'&>'    shorthand for both streams at once (bash only)\n'|'     feed stdout of one command into stdin of the next`}</pre></div></div>
+
+<p>Keep the results, bin the errors. That is the entire trick.</p>
+
+<h2 id="reports-directory" class="pp-h2">Set up the reports directory</h2>
+
+<p>Make a place for the deliverables before you generate them. You own it, the <code>secops</code> group can get in, nobody else can. <code>770</code> gives owner and group full access and everyone else nothing.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo mkdir -p /srv/audit_reports\nsudo chown admin:secops /srv/audit_reports\nsudo chmod 770 /srv/audit_reports\nls -ld /srv/audit_reports`}</pre></div></div>
+
+<h2 id="recent-conf" class="pp-h2">Report one. Recent .conf files.</h2>
+
+<p>Run it once with no redirection so you actually see the problem you are about to solve.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`find /etc -name "*.conf" -mtime -7`}</pre></div></div>
+
+<p><code>-mtime -7</code> means modified less than seven days ago. You get the files you want, salted with permission errors. Now split the streams. Real results into the report, errors into nowhere.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`find /etc -name "*.conf" -mtime -7 2>/dev/null > /srv/audit_reports/recent_conf.txt\ncat /srv/audit_reports/recent_conf.txt\nwc -l /srv/audit_reports/recent_conf.txt`}</pre></div></div>
+
+<p>The order of the two redirections does not matter here, because they point at different places. The file now holds only the answer.</p>
+
+<h2 id="suid-audit" class="pp-h2">Report two. The SUID binary audit.</h2>
+
+<p>A SUID binary runs with the privileges of its owner, not the person running it. That is why a system wide inventory is a standard security review artifact. This one needs <code>sudo</code> to see everything, and it is the same redirection pattern.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo find / -perm /4000 -type f 2>/dev/null > /srv/audit_reports/suid_binaries.txt\nwc -l /srv/audit_reports/suid_binaries.txt\nhead -10 /srv/audit_reports/suid_binaries.txt`}</pre></div></div>
+
+<p><code>-perm /4000</code> matches any file with the SUID bit set. You keep <code>2>/dev/null</code> even with <code>sudo</code>, because <code>/proc</code> and <code>/sys</code> still throw errors you do not care about.</p>
+
+<h2 id="find-filters" class="pp-h2">More find filters worth knowing</h2>
+
+<p>The exam leans on <code>find</code> constantly, so drill the filters until they are muscle memory. Every one of these is worth running.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# by name\nfind /etc -name "sshd_config"\n\n# by type, only regular files\nfind /var/log -type f -name "*.log" 2>/dev/null | head -5\n\n# by modification time\nfind /etc -mtime -1 2>/dev/null    # changed in the last 24 hours\nfind /etc -mtime +30 2>/dev/null   # not touched in over 30 days\n\n# by size\nfind /var -size +10M -type f 2>/dev/null | head -5\n\n# by owner\nsudo find / -user dbadmin1 2>/dev/null\n\n# combined filters\nfind /etc -type f -name "*.conf" -size -10k -mtime -30 2>/dev/null | head -10\n\n# run a command on each result\nfind /tmp -type f -name "*.txt" -exec ls -lh {} \\; 2>/dev/null`}</pre></div></div>
+
+<h2 id="pipe-chains" class="pp-h2">Pipe chains that answer real questions</h2>
+
+<p>A pipe sends the clean stdout of one command into the next. Chained together they answer questions that would take real effort otherwise.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# how many accounts use /bin/bash\ncat /etc/passwd | grep "/bin/bash" | wc -l\n\n# every shell in use, counted, most common first\ncut -d: -f7 /etc/passwd | sort | uniq -c | sort -rn\n\n# the five biggest log files\nfind /var/log -type f 2>/dev/null | xargs ls -lhS 2>/dev/null | head -5\n\n# processes for a specific user\nps -u admin\nps aux | grep sshd | grep -v grep`}</pre></div></div>
+
+<h2 id="hand-off" class="pp-h2">Hand the reports off</h2>
+
+<p>Make the files readable by the <code>secops</code> group so they can pull them but not edit them, then prove the target user can actually read one.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo chgrp secops /srv/audit_reports/*\nsudo chmod 640 /srv/audit_reports/*\nls -l /srv/audit_reports/\nsudo -u secadmin cat /srv/audit_reports/recent_conf.txt | head -5`}</pre></div></div>
+
+<h2 id="exam" class="pp-h2">Exam questions</h2>
+
+<p>Write the command before you run it. That is the only way it sticks.</p>
+
+<p><span class="c-pink">Q1.</span> Find every <code>.log</code> file under <code>/var/log</code> changed in the last 24 hours, suppress all permission errors, and save it to <code>/srv/audit_reports/recent_logs.txt</code>.</p>
+
+<p><span class="c-pink">Q2.</span> Count every file on the system owned by <code>dbadmin1</code>. Suppress errors and pipe the result through <code>wc -l</code>.</p>
+
+<p><span class="c-pink">Q3.</span> Explain why these two lines behave differently.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`ls /etc /fake > /tmp/out.txt 2>&1\nls /etc /fake 2>&1 > /tmp/out.txt`}</pre></div></div>
+
+<p><span class="c-green">Answers.</span></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# A1\nfind /var/log -name "*.log" -mtime -1 2>/dev/null > /srv/audit_reports/recent_logs.txt\n# A2\nsudo find / -user dbadmin1 2>/dev/null | wc -l`}</pre></div></div>
+
+<p><span class="c-cyan">A3.</span> Redirections are read left to right. In the first line stdout is pointed at the file, then <code>2>&1</code> says send stderr wherever stdout now goes, which is the file, so both land in <code>out.txt</code>. In the second line <code>2>&1</code> runs while stdout is still the terminal, so stderr is nailed to the screen, and only then is stdout moved to the file. The errors print, only stdout gets saved. That ordering trap shows up constantly.</p>
+
+<h2 id="checklist" class="pp-h2">Final checklist: confirm everything works</h2>
+
+<p>If every check passes, the ticket is done.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# 1. recent conf report exists and has content\nwc -l /srv/audit_reports/recent_conf.txt\n\n# 2. suid report exists and has content\nwc -l /srv/audit_reports/suid_binaries.txt\n\n# 3. secadmin can read the reports (group secops)\nsudo -u secadmin cat /srv/audit_reports/recent_conf.txt | head\n\n# 4. eyeball: you wrote all three exam commands before peeking\n# 5. tracker entry checked off in Notion`}</pre></div></div>
+
+<p>Reply to secadmin: both reports are in <code>/srv/audit_reports/</code>, readable by the secops group. The permission errors were stderr, redirected to <code>/dev/null</code> on purpose, not suppressed by luck.</p>
+
+<div class="pp-next">
+  <div class="pp-next-label">next post</div>
+  <div class="pp-next-title">Stable log references and catching broken symlinks before they rot</div>
+</div>

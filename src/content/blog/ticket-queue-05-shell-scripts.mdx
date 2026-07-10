@@ -1,0 +1,102 @@
+---
+title: "Two shell scripts with clean exit codes and an audit trail"
+description: "ops1 wants a disk usage checker that fails gracefully and an idempotent user-creation tool that logs everything. Real scripts with argument handling and proper exit codes."
+date: 2026-05-25
+category: sysadmin
+readTime: 14
+series: "The Ticket Queue"
+seriesOrder: 5
+---
+
+<div class="pp-meta"><span>sysadmin</span> · May 25, 2026 · 14 min read</div>
+
+<h1 class="pp-title">Two real shell scripts.<br/><em>variables, conditionals, exit codes, logging.</em></h1>
+
+<p class="pp-subtitle">ops1 wants a disk usage checker that fails gracefully and an idempotent user-creation tool that logs everything. Real scripts with argument handling and proper exit codes.</p>
+
+<div class="pp-toc">
+  <div class="pp-toc-label">// <span>what we're getting into</span></div>
+  <ol>
+    <li><a href="#the-ticket">The ticket</a></li>
+    <li><a href="#concept-review">Concept review. The bash you actually need.</a></li>
+    <li><a href="#diskcheck">Script one. diskcheck.</a></li>
+    <li><a href="#adduser-safe">Script two. adduser_safe.</a></li>
+    <li><a href="#for-loops">For loops with real data</a></li>
+    <li><a href="#while-loop">While loop with a threshold</a></li>
+    <li><a href="#exam">Exam questions</a></li>
+    <li><a href="#checklist">Final checklist: confirm everything works</a></li>
+  </ol>
+</div>
+
+<p><span class="c-light">The ticket:</span> ops1 needs two scripts in <code>/usr/local/bin/</code>, both runnable by the <code>automation</code> group. A <code>diskcheck</code> that reports the usage of any mountpoint passed as an argument and fails cleanly with a non-zero exit code if the mountpoint does not exist. And an <code>adduser_safe</code> that creates a user if they do not already exist, skips them if they do, and appends every action to an audit log.</p>
+
+<p><span class="c-light">The real problem:</span> this is where scripting stops being one-liners. Argument handling, conditionals, exit codes, and logging, done the way a real tool would.</p>
+
+<p><span class="c-light">What we are doing:</span> writing two genuine shell scripts, testing every failure path, not just the happy one.</p>
+
+<h2 id="the-ticket" class="pp-h2">The ticket</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`id ops1                  # UID 7003\ngetent group automation  # GID 6500`}</pre></div></div>
+
+<h2 id="concept-review" class="pp-h2">Concept review. The bash you actually need.</h2>
+
+<p>The bash man page is enormous. The sections that matter here are SPECIAL PARAMETERS, CONDITIONAL EXPRESSIONS, and Compound Commands.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`man bash    # search /SPECIAL PARAMETERS and /CONDITIONAL`}</pre></div></div>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">the essentials</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`#!/bin/bash        shebang, tells the kernel which interpreter to use\nNAME="value"       a variable. read it back with $NAME\n$1 $2 $@ $#        positional parameters, all args, and the arg count\n$?                 exit code of the last command\nif [ cond ]; then ... fi     conditional\nfor i in list; do ... done   loop over a list\nwhile [ cond ]; do ... done  loop while true\n-f file  -d dir  -z empty-string  -eq numeric-equal   common tests`}</pre></div></div>
+
+<h2 id="diskcheck" class="pp-h2">Script one. diskcheck.</h2>
+
+<p>It takes a mountpoint as <code>$1</code>. If none is given, or the path is not actually a mountpoint, it prints a clear error and exits non-zero. Different failures get different exit codes so a caller can tell them apart.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo bash -c 'cat > /usr/local/bin/diskcheck.sh << "EOF"\n#!/bin/bash\n# diskcheck.sh -- report disk usage for a given mountpoint\n# usage: diskcheck.sh /mountpoint\n\nMOUNT="$1"\n\nif [ -z "$MOUNT" ]; then\n    echo "ERROR: usage: $0 <mountpoint>"\n    exit 1\nfi\n\nif ! mountpoint -q "$MOUNT"; then\n    echo "ERROR: $MOUNT is not a mounted filesystem"\n    exit 2\nfi\n\nUSAGE=$(df -h "$MOUNT" | awk "NR==2 {print \\$5}")\necho "Disk usage at $MOUNT: $USAGE"\nexit 0\nEOF'\n\nsudo chmod 750 /usr/local/bin/diskcheck.sh\nsudo chgrp automation /usr/local/bin/diskcheck.sh\n\n# test every path: valid, invalid, missing arg\n/usr/local/bin/diskcheck.sh / ; echo "exit: $?"\n/usr/local/bin/diskcheck.sh /fakepath ; echo "exit: $?"\n/usr/local/bin/diskcheck.sh ; echo "exit: $?"`}</pre></div></div>
+
+<p><code>-z</code> tests for an empty string, <code>mountpoint -q</code> checks the path is a real mount, and each <code>exit</code> code is distinct so failures are diagnosable.</p>
+
+<h2 id="adduser-safe" class="pp-h2">Script two. adduser_safe.</h2>
+
+<p>Idempotent means running it twice is safe. If the user exists it logs a skip and exits 0. If a named group does not exist it errors. Every outcome is appended to the audit log with a timestamp.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo bash -c 'cat > /usr/local/bin/adduser_safe.sh << "EOF"\n#!/bin/bash\n# adduser_safe.sh -- idempotent user creation with an audit trail\n# usage: adduser_safe.sh <username> [group]\n\nLOGFILE="/var/log/user_provisioning.log"\nUSERNAME="$1"\nGROUP="$2"\nTS=$(date "+%Y-%m-%d %H:%M:%S")\n\nif [ -z "$USERNAME" ]; then\n    echo "ERROR: usage: $0 <username> [group]"\n    exit 1\nfi\n\nif id "$USERNAME" &>/dev/null; then\n    echo "$TS SKIPPED: user $USERNAME already exists" >> "$LOGFILE"\n    echo "User $USERNAME already exists. Skipping."\n    exit 0\nfi\n\nif [ -n "$GROUP" ]; then\n    if ! getent group "$GROUP" &>/dev/null; then\n        echo "$TS ERROR: group $GROUP does not exist" >> "$LOGFILE"\n        echo "ERROR: group $GROUP does not exist"\n        exit 2\n    fi\n    useradd -m -G "$GROUP" "$USERNAME"\n    echo "$TS CREATED: $USERNAME (added to $GROUP)" >> "$LOGFILE"\nelse\n    useradd -m "$USERNAME"\n    echo "$TS CREATED: $USERNAME" >> "$LOGFILE"\nfi\nexit 0\nEOF'\n\nsudo chmod +x /usr/local/bin/adduser_safe.sh\nsudo touch /var/log/user_provisioning.log\nsudo chgrp automation /var/log/user_provisioning.log\nsudo chmod 660 /var/log/user_provisioning.log\n\n# test: create, then re-run (skip), then missing arg, then bad group\nsudo /usr/local/bin/adduser_safe.sh testuser_a developers\nsudo /usr/local/bin/adduser_safe.sh testuser_a developers\nsudo /usr/local/bin/adduser_safe.sh\nsudo /usr/local/bin/adduser_safe.sh testuser_b nonexistent_group\nsudo cat /var/log/user_provisioning.log\nsudo userdel -r testuser_a 2>/dev/null`}</pre></div></div>
+
+<p><code>id "$USERNAME" &>/dev/null</code> is the existence check, its output thrown away because you only care about the exit status. <code>-n</code> tests for a non-empty string, the mirror of <code>-z</code>.</p>
+
+<h2 id="for-loops" class="pp-h2">For loops with real data</h2>
+
+<p>Reading <code>/etc/passwd</code> line by line and acting on a field is a pattern you will reuse constantly.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`cat > ~/list_real_users.sh << 'EOF'\n#!/bin/bash\nprintf "%-20s %-6s %s\\n" "USERNAME" "UID" "HOME"\nwhile IFS=: read -r user _ uid _ _ home _; do\n    if [ "$uid" -ge 1000 ] && [ "$uid" -lt 65000 ]; then\n        printf "%-20s %-6s %s\\n" "$user" "$uid" "$home"\n    fi\ndone < /etc/passwd\nEOF\nchmod +x ~/list_real_users.sh\n~/list_real_users.sh`}</pre></div></div>
+
+<h2 id="while-loop" class="pp-h2">While loop with a threshold</h2>
+
+<p>A default value with <code>${2:-80}</code> means the second argument is optional and falls back to 80.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`cat > ~/disk_watch.sh << 'EOF'\n#!/bin/bash\nMOUNT="$1"\nTHRESHOLD="\${2:-80}"\nfor i in 1 2 3; do\n    USAGE=$(df --output=pcent "$MOUNT" 2>/dev/null | tail -1 | tr -d ' %')\n    if [ "$USAGE" -ge "$THRESHOLD" ]; then\n        echo "WARN: $MOUNT at \${USAGE}% (threshold $THRESHOLD%)"\n    else\n        echo "OK: $MOUNT at \${USAGE}%"\n    fi\n    sleep 1\ndone\nEOF\nchmod +x ~/disk_watch.sh\n~/disk_watch.sh / 50`}</pre></div></div>
+
+<h2 id="exam" class="pp-h2">Exam questions</h2>
+
+<p>Write the script before you run it.</p>
+
+<p><span class="c-pink">Q1.</span> Write a script that takes a filename as <code>$1</code> and prints whether it is a regular file, a directory, or does not exist.</p>
+
+<p><span class="c-pink">Q2.</span> Write a script that takes a username as <code>$1</code>, and if they do not exist, creates them, adds them to group <code>staff</code>, and logs the action with a timestamp to <code>/tmp/audit.log</code>.</p>
+
+<p><span class="c-pink">Q3.</span> Loop through all users in <code>/etc/passwd</code> with UID 1000 and up and print username, UID, and home in a formatted table.</p>
+
+<p><span class="c-green">Answers.</span></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# A1\n#!/bin/bash\nif [ -f "$1" ]; then echo "$1 is a regular file"\nelif [ -d "$1" ]; then echo "$1 is a directory"\nelse echo "$1 does not exist"; fi\n\n# A2\n#!/bin/bash\nUSER="$1"\ngetent group staff || sudo groupadd staff\nif ! id "$USER" &>/dev/null; then\n    sudo useradd -G staff "$USER"\n    echo "$(date): created $USER, added to staff" >> /tmp/audit.log\nelse echo "user $USER already exists"; fi\n\n# A3\nawk -F: '$3 >= 1000 {printf "%-20s %-6s %s\\n", $1, $3, $6}' /etc/passwd`}</pre></div></div>
+
+<h2 id="checklist" class="pp-h2">Final checklist: confirm everything works</h2>
+
+<p>If every check passes, the ticket is done.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# 1. both scripts exist and are executable\nls -l /usr/local/bin/diskcheck.sh /usr/local/bin/adduser_safe.sh\n\n# 2. diskcheck returns 0 on a real mount, non-zero on a fake one\n/usr/local/bin/diskcheck.sh / ; echo $?\n/usr/local/bin/diskcheck.sh /nope ; echo $?\n\n# 3. the audit log has entries\nsudo cat /var/log/user_provisioning.log\n\n# 4. all three exam scripts written from scratch\n# 5. tracker entry checked off`}</pre></div></div>
+
+<p>Reply to ops1: both scripts are in <code>/usr/local/bin/</code>, group-owned by automation. The audit log is at <code>/var/log/user_provisioning.log</code>, group-writable by automation. Every failure path returns a distinct non-zero exit code.</p>
+
+<div class="pp-next">
+  <div class="pp-next-label">next post</div>
+  <div class="pp-next-title">Onboarding contractors and a service account that cannot log in</div>
+</div>
