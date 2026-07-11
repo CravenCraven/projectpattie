@@ -1,8 +1,9 @@
----
+:5---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import TerminalHero from '../components/TerminalHero.astro';
 import PostCard from '../components/PostCard.astro';
 import FeaturedHomelab from '../components/FeaturedHomelab.astro';
+import Search from '../components/Search.astro';
 import { getCollection } from 'astro:content';
 
 const posts = (await getCollection('blog', ({ data }) => !data.draft))
@@ -25,6 +26,7 @@ const categories = categoryNames.map(name => ({
     <!-- CATEGORIES -->
     <!-- FEATURED HOMELAB -->
    <div style="padding-top: 28px;"><FeaturedHomelab /></div>
+     <div style="padding-top: 28px;"><Search /></div>
     <div class="pp-section-label">// <span class="dim">browse by</span> category</div>
     <div class="pp-cat-grid">
       {categories.map(cat => {
