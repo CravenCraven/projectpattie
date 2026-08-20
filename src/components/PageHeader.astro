@@ -1,0 +1,36 @@
+---
+// Shared page-header band: breadcrumb, title, optional subtitle.
+// Title markup comes through the default slot so callers can accent a word
+// with <em>. Used by /about and /kubecraft.
+interface Props {
+  path: string;
+  sub?: string;
+}
+const { path, sub } = Astro.props;
+---
+
+<div class="ph">
+  <div class="hbg"></div>
+  <div class="ph-in">
+    <div class="ph-pl"><span class="u">root@pattie</span> ~ <span class="p">{path}</span></div>
+    <h1 class="ph-t"><slot /></h1>
+    {sub && <p class="ph-s">{sub}</p>}
+  </div>
+</div>
+
+<style>
+  .ph{background:var(--page);border-bottom:1px solid var(--bd);position:relative;overflow:hidden}
+  .hbg{position:absolute;inset:0;background-image:linear-gradient(color-mix(in srgb,var(--a1) 4%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--a1) 4%,transparent) 1px,transparent 1px);background-size:44px 44px;pointer-events:none}
+  .ph-in{max-width:820px;margin:0 auto;padding:46px 24px 34px;position:relative}
+  .ph-pl{color:var(--dim);font-size:12px;margin-bottom:11px}
+  .ph-pl .u{color:var(--a1)}
+  .ph-pl .p{color:var(--a2)}
+  .ph-t{font-size:clamp(26px,4.5vw,34px);font-weight:700;letter-spacing:-.02em;margin-bottom:6px;color:var(--head);line-height:1.25}
+  /* slotted markup carries the caller's scope, so reach it globally */
+  .ph-t :global(em){color:var(--a3);font-style:normal}
+  .ph-s{font-size:12.5px;color:var(--dim);margin-bottom:0}
+
+  @media(max-width:900px){
+    .ph-in{padding-left:18px;padding-right:18px}
+  }
+</style>

@@ -1,0 +1,439 @@
+<p><strong style="color:#e0e0f0">The scenario:</strong> You're managing a RHEL 9 server for a growing team. New people join, people leave, roles change, contractors need temporary access, service accounts need to exist but never log in, and someone always ends up with more permissions than they should have. User management sounds basic until you're the one responsible for making sure the right people have the right access and nobody else does.</p>
+
+<p><strong style="color:#e0e0f0">The problem:</strong> Most tutorials cover <code>useradd</code> and <code>passwd</code> and call it a day. But real user management is deeper than that. It's password policies, account expiration, skeleton directories, group hierarchies, sudo scoping, locking accounts without deleting them, and understanding what happens under the hood when you create a user. If you don't understand the system, you end up with orphaned files, security gaps, and that one contractor account from six months ago that still has sudo access.</p>
+
+<p><strong style="color:#e0e0f0">What we're going to do:</strong> Go deep on every aspect of user and group management on RHEL 9. Not just the commands but what they actually do to the system, which files they modify, and why each option exists. By the end you'll manage users like someone who understands the machinery, not someone who memorized a cheat sheet.</p>
+
+<h2>What happens when you create a user</h2>
+
+<p>When you run <code>useradd jmorales</code>, it feels like one simple thing happened. A user was created. But under the hood, the system touched at least five different files and created a directory. Understanding this is the difference between managing users and actually knowing what you're doing.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>sudo useradd -m -s /bin/bash jmorales</pre></div></div>
+
+<p>Here's everything that just happened:</p>
+
+<p><strong style="color:#00d4ff">1. /etc/passwd got a new line.</strong> This file stores basic user info. One line per user. No passwords here despite the name.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>grep jmorales /etc/passwd
+# jmorales:x:1001:1001::/home/jmorales:/bin/bash</pre></div></div>
+
+<p>Let me break down each field separated by colons:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">/etc/passwd fields</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>jmorales       # username
+x              # password placeholder (actual hash is in /etc/shadow)
+1001           # UID (user ID number)
+1001           # GID (primary group ID number)
+               # GECOS field (comment/full name, empty here)
+/home/jmorales # home directory
+/bin/bash      # login shell</pre></div></div>
+
+<p><strong style="color:#00d4ff">2. /etc/shadow got a new line.</strong> This is where the actual password hash lives. Only root can read this file.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>sudo grep jmorales /etc/shadow
+# jmorales:!!:19837:0:99999:7:::</pre></div></div>
+
+<p>The <code>!!</code> means no password has been set yet. The user exists but can't log in until you set a password. The other fields control password aging (minimum days, maximum days, warning period, etc.). We'll dig into those later.</p>
+
+<p><strong style="color:#00d4ff">3. /etc/group got a new line.</strong> A private group was created with the same name as the user.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>grep jmorales /etc/group
+# jmorales:x:1001:</pre></div></div>
+
+<p>This is called the User Private Group (UPG) scheme. Every user gets their own group by default. This matters for file creation permissions, which we'll cover later.</p>
+
+<p><strong style="color:#00d4ff">4. /home/jmorales was created.</strong> The home directory was populated with files from <code>/etc/skel</code>.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>ls -la /home/jmorales/
+# drwx------. 2 jmorales jmorales  62 Apr 24 10:00 .
+# -rw-r--r--. 1 jmorales jmorales  18 Apr 24 10:00 .bash_logout
+# -rw-r--r--. 1 jmorales jmorales 141 Apr 24 10:00 .bash_profile
+# -rw-r--r--. 1 jmorales jmorales 492 Apr 24 10:00 .bashrc</pre></div></div>
+
+<p><strong style="color:#00d4ff">5. /etc/gshadow got a new line.</strong> This stores group password info (rarely used but it's there).</p>
+
+<p>Five files, one directory, one command. Now you know what <code>useradd</code> actually does.</p>
+
+<h2>The useradd flags that matter</h2>
+
+<p>The bare <code>useradd username</code> command works but it often doesn't give you what you need. Here are the flags you'll use in real life and on the RHCSA:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre># Full-featured user creation
+sudo useradd \
+  -m \                    # create home directory
+  -s /bin/bash \          # set login shell
+  -G developers,wheel \   # supplementary groups
+  -c "Juan Morales" \     # full name (GECOS field)
+  -e 2026-12-31 \         # account expiration date
+  -u 2001 \               # specific UID
+  jmorales</pre></div></div>
+
+<p>Let me explain each one:</p>
+
+<p><code>-m</code> creates the home directory. On RHEL 9 this is the default behavior, but some systems don't create it automatically. Always include it to be safe.</p>
+
+<p><code>-s /bin/bash</code> sets the login shell. Without this, the default is whatever's in <code>/etc/default/useradd</code>, which might be <code>/bin/sh</code> or even nothing. For service accounts that should never log in, use <code>-s /sbin/nologin</code>.</p>
+
+<p><code>-G developers,wheel</code> adds the user to supplementary groups. Capital G. This is different from <code>-g</code> (lowercase) which sets the primary group. The primary group is created automatically with the UPG scheme. Supplementary groups are for shared access.</p>
+
+<p><code>-c "Juan Morales"</code> sets the GECOS field. This is the comment/description that shows up in <code>/etc/passwd</code> and when someone runs <code>finger jmorales</code>. It's just metadata but it helps when you're managing dozens of accounts and can't remember who "jmorales" is.</p>
+
+<p><code>-e 2026-12-31</code> sets an account expiration date. After this date, the user cannot log in. Perfect for contractors or temporary access. The account still exists but it's locked.</p>
+
+<p><code>-u 2001</code> sets a specific UID instead of letting the system auto-assign one. Use this when you need UIDs to match across multiple servers (NFS, for example, relies on matching UIDs).</p>
+
+<h2>Managing passwords properly</h2>
+
+<p>Setting passwords is straightforward. Managing them properly is where it gets interesting.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre># Set a password interactively
+sudo passwd jmorales
+
+# Set a password non-interactively (for scripts)
+echo "jmorales:TempPass123!" | sudo chpasswd
+
+# Force password change on next login
+sudo chage -d 0 jmorales
+
+# Check password aging info
+sudo chage -l jmorales</pre></div></div>
+
+<p>The <code>chage</code> command is the one most people don't know about. It controls all the password aging policies:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre># Password must be changed at least every 90 days
+sudo chage -M 90 jmorales
+
+# Password can't be changed more than once per day (prevents cycling)
+sudo chage -m 1 jmorales
+
+# Warn user 14 days before password expires
+sudo chage -W 14 jmorales
+
+# Account expires on a specific date
+sudo chage -E 2026-12-31 jmorales
+
+# Check all settings
+sudo chage -l jmorales</pre></div></div>
+
+<p>The output of <code>chage -l</code> shows you everything:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">chage -l output</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>Last password change                    : Apr 24, 2026
+Password expires                        : Jul 23, 2026
+Password inactive                       : never
+Account expires                         : Dec 31, 2026
+Minimum number of days between changes  : 1
+Maximum number of days between changes  : 90
+Number of days of warning before expiry : 14</pre></div></div>
+
+<div class="pp-note"><strong>note:</strong> Setting <code>-m 1</code> (minimum 1 day between changes) prevents users from cycling through password changes to get back to their old password. If the system remembers the last 5 passwords and the minimum is 0, a clever user can change their password 5 times in a row and then set it back to the original. Setting a minimum of 1 day stops that.</div>
+
+<h2>System-wide password policies</h2>
+
+<p>The <code>chage</code> command sets policies per user. For system-wide defaults that apply to every new user created, edit <code>/etc/login.defs</code>:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>sudo vim /etc/login.defs</pre></div></div>
+
+<p>The key lines:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">/etc/login.defs</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>PASS_MAX_DAYS   90      # password expires after 90 days
+PASS_MIN_DAYS   1       # must wait 1 day between changes
+PASS_MIN_LEN    12      # minimum password length
+PASS_WARN_AGE   14      # warn 14 days before expiry
+UID_MIN         1000    # regular users start at UID 1000
+UID_MAX         60000   # max UID for regular users
+CREATE_HOME     yes     # always create home directory</pre></div></div>
+
+<p>These defaults apply to every user created AFTER you change this file. Existing users keep their current settings unless you update them individually with <code>chage</code>.</p>
+
+<h2>The skeleton directory. What new users get.</h2>
+
+<p>When <code>useradd -m</code> creates a home directory, it copies everything from <code>/etc/skel</code> into it. This is the skeleton directory. Whatever you put in here, every new user gets.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>ls -la /etc/skel/
+# .bash_logout
+# .bash_profile
+# .bashrc</pre></div></div>
+
+<p>Want every new user to see a welcome message when they log in? Add it to the skeleton:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre># Add a README to the skeleton
+sudo vim /etc/skel/README.txt</pre></div></div>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">README.txt</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>Welcome to dept-server01.
+Please change your password on first login.
+For access issues, contact the sysadmin team.
+Company IT policy: https://internal.company.com/it-policy</pre></div></div>
+
+<p>Want every new user to have a standard directory structure?</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>sudo mkdir -p /etc/skel/{projects,scripts,logs}
+
+# Now when you create a new user:
+sudo useradd -m -s /bin/bash testuser
+ls /home/testuser/
+# projects  scripts  logs  README.txt</pre></div></div>
+
+<p>The skeleton directory is underrated. In a real environment, this saves you from manually setting up every new user's home directory.</p>
+
+<h2>Groups. Primary vs supplementary.</h2>
+
+<p>Every user has exactly one primary group and zero or more supplementary groups. This distinction matters more than most people realize.</p>
+
+<p><strong style="color:#00ff9d">Primary group:</strong> Determines the default group ownership of files the user creates. When <code>jmorales</code> creates a file, it belongs to <code>jmorales:jmorales</code> (user:primary_group).</p>
+
+<p><strong style="color:#00d4ff">Supplementary groups:</strong> Determine what shared resources the user can access. Being in the <code>developers</code> group lets you read and write to <code>/opt/projects</code>. Being in the <code>wheel</code> group gives you sudo access.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre># Create groups
+sudo groupadd developers
+sudo groupadd dbadmin
+sudo groupadd monitoring
+
+# Add a user to supplementary groups at creation
+sudo useradd -m -s /bin/bash -G developers,monitoring kpatel
+
+# Add an existing user to more groups (APPEND, don't replace)
+sudo usermod -aG dbadmin kpatel
+
+# Check the result
+id kpatel
+# uid=1002(kpatel) gid=1002(kpatel) groups=1002(kpatel),1001(developers),1003(dbadmin),1004(monitoring)</pre></div></div>
+
+<div class="pp-warn"><strong>warning:</strong> The <code>-a</code> flag in <code>usermod -aG</code> means APPEND. If you forget the <code>-a</code> and just run <code>usermod -G dbadmin kpatel</code>, you will REPLACE all supplementary groups with just <code>dbadmin</code>. The user will be removed from <code>developers</code> and <code>monitoring</code>. This is the single most common <code>usermod</code> mistake. Always use <code>-aG</code> together.</div>
+
+<p>Remove a user from a group:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>sudo gpasswd -d kpatel dbadmin
+# Removing user kpatel from group dbadmin</pre></div></div>
+
+<h2>Locking and disabling accounts</h2>
+
+<p>When someone leaves the company, your first instinct might be to delete their account. Don't. At least not right away. There might be files, running processes, or audit requirements tied to that account. Lock it first, investigate, then delete if appropriate.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre># Lock the account (adds ! to the password hash, preventing login)
+sudo usermod -L jmorales
+
+# Verify the lock
+sudo grep jmorales /etc/shadow
+# jmorales:!$6$hash...:19837:...
+# The ! prefix means locked
+
+# Also expire the account immediately
+sudo chage -E 0 jmorales
+
+# Verify
+sudo chage -l jmorales
+# Account expires: Jan 01, 1970 (effectively immediately)
+
+# Change shell to nologin as a belt-and-suspenders measure
+sudo usermod -s /sbin/nologin jmorales</pre></div></div>
+
+<p>Now the account is triple-locked: password is locked, account is expired, and the shell prevents interactive login. Even if someone somehow bypasses one layer, the other two stop them.</p>
+
+<p>To unlock later:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>sudo usermod -U jmorales          # unlock password
+sudo chage -E -1 jmorales         # remove expiration (-1 means never)
+sudo usermod -s /bin/bash jmorales # restore shell</pre></div></div>
+
+<h2>Service accounts. Users that should never log in.</h2>
+
+<p>Not every user account is for a human. Applications, daemons, and services often need their own user to run under. These accounts should never have a password and should never be able to log in interactively.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre># Create a service account
+sudo useradd \
+  -r \                     # system account (UID below 1000)
+  -s /sbin/nologin \       # no interactive login
+  -d /opt/myapp \          # home directory is the app directory
+  -M \                     # do NOT create home directory (it already exists)
+  -c "MyApp Service" \     # description
+  myapp</pre></div></div>
+
+<p>The <code>-r</code> flag creates a system account with a UID below 1000. This is a convention that separates human users (UID 1000+) from service/system accounts (UID below 1000). Tools like <code>getent</code> and login screens often filter based on this.</p>
+
+<p>The <code>-s /sbin/nologin</code> flag means if anyone tries to SSH in as this user or <code>su</code> to it, they get a message saying "This account is currently not available" and the session closes. The service can still run as this user, it just can't be used for interactive access.</p>
+
+<h2>Deleting users properly</h2>
+
+<p>When it's finally time to delete an account, don't just <code>userdel username</code>. Think about what files that user owned.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre># Find all files owned by the user BEFORE deleting
+sudo find / -user jmorales -type f 2>/dev/null > /tmp/jmorales-files.txt
+wc -l /tmp/jmorales-files.txt
+
+# Check if any processes are running as this user
+ps -u jmorales
+
+# Delete the user AND their home directory
+sudo userdel -r jmorales
+
+# Without -r, the home directory stays behind as an orphan
+# With -r, home directory and mail spool are removed</pre></div></div>
+
+<p>After deleting a user, any files they owned outside their home directory become orphaned. They'll show a UID number instead of a username when you <code>ls -l</code> them. Clean these up:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre># Find orphaned files (owned by a UID that no longer exists)
+sudo find / -nouser -type f 2>/dev/null
+
+# Reassign them to another user or delete them
+sudo find /opt/projects -nouser -exec chown rchen:developers {} \;</pre></div></div>
+
+<h2>Sudo configuration deep dive</h2>
+
+<p>The <code>wheel</code> group gives blanket sudo access. That's fine for sysadmins. But for everyone else you want targeted permissions. Let's go deeper than the basics.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>sudo visudo -f /etc/sudoers.d/custom-roles</pre></div></div>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">/etc/sudoers.d/custom-roles</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre># Developers: restart web server only
+%developers ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart httpd, /usr/bin/systemctl status httpd
+
+# DB admins: manage MySQL only
+%dbadmin ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart mysqld, /usr/bin/systemctl status mysqld, /usr/bin/mysqldump
+
+# Monitoring team: read logs only
+%monitoring ALL=(ALL) NOPASSWD: /usr/bin/journalctl, /usr/bin/tail /var/log/*
+
+# Specific user: can run one specific script
+kpatel ALL=(ALL) NOPASSWD: /opt/scripts/deploy.sh</pre></div></div>
+
+<p>Each line follows the pattern: WHO WHERE=(AS_WHOM) WHAT. The <code>%</code> prefix means it's a group. <code>ALL=(ALL)</code> means from any host, as any user. <code>NOPASSWD:</code> skips the password prompt. The command paths must be absolute.</p>
+
+<p>Verify what a specific user can do:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>sudo -l -U kpatel</pre></div></div>
+
+<h2>Practical exercises</h2>
+
+<p><strong style="color:#ff00ff">Exercise 1: Create a complete user with all options</strong></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre># Create user with specific UID, groups, shell, expiration, and full name
+sudo useradd -m -s /bin/bash -G developers,monitoring -c "Test User" -e 2026-12-31 -u 2050 testuser1
+
+# Set password and force change on first login
+echo "testuser1:Welcome123!" | sudo chpasswd
+sudo chage -d 0 testuser1
+
+# Verify everything
+id testuser1
+sudo chage -l testuser1
+ls -la /home/testuser1/
+grep testuser1 /etc/passwd</pre></div></div>
+
+<p><strong style="color:#ff00ff">Exercise 2: Set up password policies</strong></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre># Set max age 60 days, min age 2 days, warning 7 days
+sudo chage -M 60 -m 2 -W 7 testuser1
+
+# Verify
+sudo chage -l testuser1
+
+# Lock the account
+sudo usermod -L testuser1
+
+# Verify the lock in /etc/shadow (look for ! prefix)
+sudo grep testuser1 /etc/shadow
+
+# Unlock it
+sudo usermod -U testuser1</pre></div></div>
+
+<p><strong style="color:#ff00ff">Exercise 3: Create a service account</strong></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre># Create a system account for an application
+sudo useradd -r -s /sbin/nologin -c "Monitoring Agent" monitoragent
+
+# Verify the UID is below 1000
+id monitoragent
+
+# Try to log in as this user (should fail)
+su - monitoragent
+# This account is currently not available.</pre></div></div>
+
+<p><strong style="color:#ff00ff">Exercise 4: Group management and the usermod trap</strong></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre># Add testuser1 to three groups
+sudo usermod -aG developers,dbadmin,monitoring testuser1
+id testuser1
+# Should show all three supplementary groups
+
+# Now do it WRONG on purpose (omit the -a flag)
+sudo usermod -G developers testuser1
+id testuser1
+# dbadmin and monitoring are GONE
+
+# Fix it by adding them back
+sudo usermod -aG dbadmin,monitoring testuser1
+id testuser1
+# All three are back</pre></div></div>
+
+<p><strong style="color:#ff00ff">Exercise 5: Full lifecycle. Create, configure, lock, delete.</strong></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre># 1. Create the user
+sudo useradd -m -s /bin/bash -G developers -c "Temp Contractor" -e 2026-06-30 contractor1
+echo "contractor1:Temp999!" | sudo chpasswd
+sudo chage -d 0 contractor1
+
+# 2. Verify everything
+id contractor1
+sudo chage -l contractor1
+
+# 3. The contractor's project ends early. Lock the account.
+sudo usermod -L contractor1
+sudo chage -E 0 contractor1
+sudo usermod -s /sbin/nologin contractor1
+
+# 4. Find all files they own
+sudo find / -user contractor1 -type f 2>/dev/null
+
+# 5. Reassign their project files
+sudo find /opt/projects -user contractor1 -exec chown rchen:developers {} \;
+
+# 6. Delete the account and home directory
+sudo userdel -r contractor1
+
+# 7. Verify they're gone
+grep contractor1 /etc/passwd
+# No output, they're gone
+
+# 8. Check for orphaned files
+sudo find / -nouser -type f 2>/dev/null</pre></div></div>
+
+<h2>Access review checklist</h2>
+
+<p>Run this monthly. Seriously. Accounts accumulate access over time and nobody notices until something goes wrong.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot" style="background:#ff5f57"></div><div class="pp-code-dot" style="background:#febc2e"></div><div class="pp-code-dot" style="background:#28c840"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre># 1. All users with login shells (should recognize every name)
+getent passwd | awk -F: '$7 ~ /bash|sh/' | cut -d: -f1
+
+# 2. All users with sudo access (should be minimal)
+sudo grep -r 'ALL=(ALL)' /etc/sudoers /etc/sudoers.d/
+
+# 3. Users who haven't logged in recently (30+ days = investigate)
+sudo lastlog | grep -v "Never logged in" | grep -v Username
+
+# 4. Locked accounts (should match people who left)
+sudo awk -F: '$2 ~ /^!/' /etc/shadow | cut -d: -f1
+
+# 5. Accounts expiring soon
+sudo awk -F: '$8 != "" && $8 != -1' /etc/shadow | cut -d: -f1,8
+
+# 6. Orphaned files (files owned by deleted users)
+sudo find /opt /srv /var/www -nouser -type f 2>/dev/null
+
+# 7. Group memberships (review who's in privileged groups)
+getent group wheel
+getent group developers
+getent group dbadmin</pre></div></div>
+
+<p>If any of those checks reveals something unexpected, investigate. A dormant account with wheel access is a security incident waiting to happen. An orphaned file in a web directory could contain sensitive data. Access review is boring but it's one of the most important things you can do as a sysadmin.</p>
+
+<p>Next post: Setting up autofs for automatic NFS mounts.</p>
+
+<style>
+.pp-code{background:#0a0a0f;border:1px solid #1a1a2e;border-radius:6px;margin:20px 0;overflow:hidden}
+.pp-code-head{background:#12121f;border-bottom:1px solid #1a1a2e;padding:7px 14px;display:flex;align-items:center;justify-content:space-between}
+.pp-code-dots{display:flex;gap:5px}
+.pp-code-dot{width:7px;height:7px;border-radius:50%}
+.pp-code-lang{color:#3a3a5a;font-size:10px;font-family:'Source Code Pro',monospace}
+.pp-code-copy{color:#3a3a5a;font-size:9px;border:1px solid #1a1a2e;border-radius:3px;padding:2px 8px;background:none;font-family:'Source Code Pro',monospace;cursor:pointer}
+.pp-code-copy:hover{color:#00ff9d;border-color:#00ff9d}
+.pp-code-body{padding:16px 18px;overflow-x:auto}
+.pp-code-body pre{font-size:13px;line-height:1.75;color:#e0e0f0;white-space:pre;font-family:'Source Code Pro',monospace;margin:0;background:transparent;border:none;padding:0}
+</style>

@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import PageHeader from '../components/PageHeader.astro';
 
 const title = 'kubecraft homelab';
 ---
@@ -8,14 +9,7 @@ const title = 'kubecraft homelab';
   title={`${title} — projectpattie;`}
   description="A from-scratch Kubernetes build log. Not published yet."
 >
-  <div class="ph">
-    <div class="hbg"></div>
-    <div class="ph-in">
-      <div class="ph-pl"><span class="u">root@pattie</span> ~ <span class="p">/kubecraft</span></div>
-      <h1 class="ph-t">{title}</h1>
-      <p class="ph-s">// kubernetes, from scratch</p>
-    </div>
-  </div>
+  <PageHeader path="/kubecraft" sub="// kubernetes, from scratch">{title}</PageHeader>
 
   <div class="soon">
     <div class="panel">
