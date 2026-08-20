@@ -47,8 +47,7 @@ const dateStr = date.toLocaleDateString('en-US', { year:'numeric', month:'short'
     /* toc — styled like a terminal card with mac dots */
     .pp-toc { background: var(--bg2); border: 1px solid var(--bd); border-radius: 6px; padding: 0; margin: 30px 0 50px; overflow: hidden; }
     .pp-toc-label { background: var(--card); border-bottom: 1px solid var(--bd); padding: 11px 18px 11px 56px; margin: 0; color: var(--dimmer); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; font-family: 'Source Code Pro', monospace; position: relative; }
-    /* mac window dots stay literal — they are OS chrome, not palette */
-    .pp-toc-label::before { content: ''; position: absolute; top: 50%; left: 18px; width: 7px; height: 7px; border-radius: 50%; background: #ff5f57; transform: translateY(-50%); box-shadow: 12px 0 0 #febc2e, 24px 0 0 #28c840; }
+    .pp-toc-label::before { content: ''; position: absolute; top: 50%; left: 18px; width: 7px; height: 7px; border-radius: 50%; background: var(--dot1); transform: translateY(-50%); box-shadow: 12px 0 0 var(--dot2), 24px 0 0 var(--dot3); }
     .pp-toc-label span { color: var(--a1); }
     .pp-toc ol { padding: 18px 22px; margin: 0; counter-reset: toc; list-style: none; }
     .pp-toc li { counter-increment: toc; margin: 0; padding: 5px 8px 5px 0; position: relative; transition: padding-left .18s ease, background .18s ease; border-radius: 3px; }
@@ -78,9 +77,9 @@ const dateStr = date.toLocaleDateString('en-US', { year:'numeric', month:'short'
     .pp-code-head { background: var(--card); border-bottom: 1px solid var(--bd); padding: 7px 14px; display: flex; align-items: center; gap: 10px; }
     .pp-code-dots { display: flex; gap: 5px; flex-shrink: 0; }
     .pp-code-dot { width: 7px; height: 7px; border-radius: 50%; }
-    .pp-code-dot:nth-child(1) { background: #ff5f57; }
-    .pp-code-dot:nth-child(2) { background: #febc2e; }
-    .pp-code-dot:nth-child(3) { background: #28c840; }
+    .pp-code-dot:nth-child(1) { background: var(--dot1); }
+    .pp-code-dot:nth-child(2) { background: var(--dot2); }
+    .pp-code-dot:nth-child(3) { background: var(--dot3); }
     .pp-code-lang { color: var(--a3); font-size: 11px; flex: 1; }
     .pp-code-copy { color: var(--a3); font-size: 9px; border: 1px solid var(--bd); border-radius: 3px; padding: 2px 8px; background: none; cursor: pointer; margin-left: auto; transition: all .2s; font-family: 'Source Code Pro', monospace; }
     .pp-code-copy:hover { color: var(--a1); border-color: var(--a1); }
@@ -110,7 +109,7 @@ const dateStr = date.toLocaleDateString('en-US', { year:'numeric', month:'short'
     .pp-tag { font-family:'JetBrains Mono',monospace; font-size:.72rem; color:var(--a2); background:var(--card); border:1px solid var(--bd); border-radius:4px; padding:.2rem .5rem; }
     .pp-brief { border:1px solid var(--bd); border-left:3px solid var(--a2); background:color-mix(in srgb, var(--a2) 5%, transparent); border-radius:8px; padding:.4rem 1.2rem; margin:1.4rem 0 2rem; }
     .pp-brief p { margin:.55rem 0; }
-    .pp-part { font-family:'JetBrains Mono',monospace; font-weight:700; font-size:1rem; letter-spacing:.06em; text-transform:uppercase; color:var(--bg2); background:linear-gradient(90deg,var(--a3),var(--a2)); border-radius:8px; padding:.75rem 1.1rem; margin:3.2rem 0 1.2rem; scroll-margin-top:1rem; }
+    .pp-part { font-family:'JetBrains Mono',monospace; font-weight:700; font-size:1rem; letter-spacing:.06em; text-transform:uppercase; color:var(--bg2); background:var(--a3); border-radius:8px; padding:.75rem 1.1rem; margin:3.2rem 0 1.2rem; scroll-margin-top:1rem; }
     .pp-part small { display:block; font-size:.7rem; font-weight:500; text-transform:none; letter-spacing:0; opacity:.85; margin-top:.2rem; }
     .pp-deepdive { border:1px solid var(--bd); border-left:3px solid var(--a2); background:color-mix(in srgb, var(--a2) 4%, transparent); border-radius:6px; padding:.4rem 1.2rem 1rem; margin:1rem 0 1.4rem; }
     .pp-deepdive-label { font-family:'JetBrains Mono',monospace; color:var(--a2); font-size:.74rem; text-transform:uppercase; letter-spacing:.04em; margin:.7rem 0 .2rem; }

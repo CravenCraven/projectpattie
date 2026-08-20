@@ -104,16 +104,16 @@ const totalPostCount = posts.length;
 
 <style>
   .cat-section-label {
-    color: #ff00ff;
+    color: var(--a3);
     font-size: 11px;
     letter-spacing: .15em;
     text-transform: uppercase;
     margin: 0 0 16px;
     font-family: 'Source Code Pro', monospace;
   }
-  .cat-section-label span { color: #4a4a6a; }
+  .cat-section-label span { color: var(--dimmer); }
   .cat-section-count {
-    color: #4a4a6a;
+    color: var(--dimmer);
     margin-left: 8px;
     font-size: 10px;
     letter-spacing: .12em;
@@ -126,16 +126,16 @@ const totalPostCount = posts.length;
   .cat-series-card {
     display: block;
     text-decoration: none;
-    border: 1px solid #1a1a2e;
-    border-left: 3px solid #ff00ff;
+    border: 1px solid var(--bd);
+    border-left: 3px solid var(--a3);
     border-radius: 6px;
-    background: #12121f;
+    background: var(--card);
     padding: 18px 20px;
     transition: border-color .2s, background .2s;
   }
   .cat-series-card:hover {
-    border-color: #ff00ff;
-    background: #15101f;
+    border-color: var(--a3);
+    background: var(--bd);
     text-decoration: none;
   }
   .cat-series-card .cat-section-label { margin-bottom: 14px; }
@@ -146,18 +146,18 @@ const totalPostCount = posts.length;
     margin-bottom: 14px;
   }
   .cat-series-line {
-    color: #c0c0d0;
+    color: var(--tx);
     font-size: 13px;
     font-family: 'Source Code Pro', monospace;
   }
   .cat-series-order {
-    color: #ff00ff;
+    color: var(--a3);
     margin-right: 10px;
     font-size: 12px;
   }
-  .cat-series-more { color: #4a4a6a; }
+  .cat-series-more { color: var(--dimmer); }
   .cat-series-cta {
-    color: #00ff9d;
+    color: var(--a1);
     font-size: 12px;
     letter-spacing: .08em;
     font-family: 'Source Code Pro', monospace;

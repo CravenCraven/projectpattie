@@ -29,7 +29,7 @@ const category = posts[0]?.data.category ?? 'sysadmin';
 <BaseLayout title={`${seriesName} — projectpattie;`}>
   <div style="max-width:900px; margin:0 auto; padding:60px 24px 100px;">
     <div style="font-size:12px; color:var(--dimmer); margin-bottom:12px;">
-      // <a href={`/category/${category}`} style="color:#00d4ff; text-decoration:none;">{category}</a> / series
+      // <a href={`/category/${category}`} style="color:var(--a2); text-decoration:none;">{category}</a> / series
     </div>
     <h1 style="font-size:28px; margin-bottom:8px;">{seriesName}</h1>
     <div class="series-count">{posts.length} part{posts.length > 1 ? 's' : ''} &middot; read top to bottom</div>
@@ -56,7 +56,7 @@ const category = posts[0]?.data.category ?? 'sysadmin';
 
 <style>
   .series-count {
-    color: #4a4a6a;
+    color: var(--dimmer);
     font-size: 11px;
     letter-spacing: .12em;
     text-transform: uppercase;
@@ -75,7 +75,7 @@ const category = posts[0]?.data.category ?? 'sysadmin';
   }
   .series-num {
     flex-shrink: 0;
-    color: #ff00ff;
+    color: var(--a3);
     font-family: 'JetBrains Mono', monospace;
     font-size: 13px;
     padding-top: 18px;
