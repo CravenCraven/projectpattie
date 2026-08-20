@@ -20,20 +20,18 @@ const blog = defineCollection({
     seriesOrder: z.number().optional(),
   }),
 });
-const kubecraft = defineCollection({
+const demo = defineCollection({
   type: 'content',
   schema: z.object({
+    num: z.string(),
     title: z.string(),
-    section: z.string(),
-    date: z.date(),
-    timeSpent: z.string().optional(),
-    confidence: z.number().min(1).max(5).default(3),
-    tags: z.array(z.string()).optional(),
-    difficulty: z.string().optional(),
-    energy: z.string().optional(),
-    nextGoal: z.string().optional(),
-    draft: z.boolean().default(false),
+    sub: z.string(),
+    blurb: z.string(),
+    section: z.enum(['aprender', 'midia', 'infra']),
+    status: z.string(),
+    color: z.enum(['c1', 'c2', 'c3', 'c4', 'c5', 'down']),
+    order: z.number(),
   }),
 });
 
-export const collections = { blog, kubecraft };
+export const collections = { blog, demo };

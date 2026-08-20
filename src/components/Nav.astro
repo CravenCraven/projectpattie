@@ -1,94 +1,124 @@
 ---
-const links = [
-  { label: 'sysadmin',      href: '/category/sysadmin' },
-  { label: 'cybersecurity', href: '/category/cybersecurity' },
-  { label: 'hackerbox',     href: '/category/hackerbox' },
-  { label: 'tryhackme',     href: '/category/tryhackme' },
-  { label: 'devops',        href: '/category/devops' },
-  { label: 'kubecraft',     href: '/kubecraft' },
-  { label: 'thoughts',      href: '/category/thoughts' },
-  { label: 'about',         href: '/about' },
-  { label: 'contact',       href: '/contact' },
+// Two-tier nav from the approved homepage design.
+// Tier 1: logo + site links + search affordance. Tier 2: sections.
+// Below 900px both collapse into the burger drawer.
+const path = Astro.url.pathname;
+
+const sections = [
+  { label: 'sysadmin',          href: '/category/sysadmin',      lab: false, icon: '$' },
+  { label: 'cybersecurity',     href: '/category/cybersecurity', lab: false, icon: '$' },
+  { label: 'devops',            href: '/category/devops',        lab: false, icon: '$' },
+  { label: 'brasil homelab',    href: '/brasil/demo',            lab: true,  icon: '▣' },
+  { label: 'kubecraft homelab', href: '/kubecraft',              lab: true,  icon: '⎈' },
+  { label: 'thoughts',          href: '/category/thoughts',      lab: false, icon: '$' },
 ];
-const current = Astro.url.pathname;
+
+const utility = [
+  { label: 'about me', href: '/about',   icon: '◈' },
+  { label: 'contact',  href: '/contact', icon: '✉' },
+];
+
+const norm = (s: string) => (s.length > 1 ? s.replace(/\/$/, '') : s);
+const isOn = (href: string) => {
+  const a = norm(path);
+  const b = norm(href);
+  return a === b || a.startsWith(b + '/');
+};
+
+const writing = sections.filter(s => !s.lab);
+const homelabs = sections.filter(s => s.lab);
 ---
 
-<style>
-nav {
-  background: #0f0f1a;
-  border-bottom: 1px solid #1a1a2e;
-  padding: 0 28px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 12px;
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-.logo {
-  font-size: 15px;
-  font-weight: 700;
-  color: #00ff9d;
-  padding: 16px 0;
-  white-space: nowrap;
-  font-family: 'Source Code Pro', monospace;
-  text-decoration: none;
-}
-.logo:hover { opacity: 0.8; text-decoration: none; }
-.links {
-  display: flex;
-  flex-wrap: wrap;
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-.links a {
-  display: block;
-  padding: 16px 10px;
-  font-size: 11px;
-  color: #4a4a6a;
-  font-family: 'Source Code Pro', monospace;
-  letter-spacing: .05em;
-  transition: color 0.2s;
-  text-decoration: none;
-}
-.links a:hover,
-.links a.active { color: #00ff9d; text-decoration: none; }
-.hamburger {
-  display: none;
-  background: none;
-  border: none;
-  color: #4a4a6a;
-  font-size: 18px;
-  cursor: pointer;
-  padding: 16px 0;
-}
-@media (max-width: 768px) {
-  .hamburger { display: block; }
-  .links { display: none; width: 100%; flex-direction: column; border-top: 1px solid #1a1a2e; padding-bottom: 12px; }
-  .links.open { display: flex; }
-  .links a { padding: 10px 0; }
-}
-</style>
+<div class="tb">
+  <div class="tb1">
+    <a href="/" class="logo">projectpattie<span class="sc">;</span></a>
+    <span class="sp"></span>
+    <div class="util">
+      {utility.map(u => <a href={u.href} class={isOn(u.href) ? 'on' : ''}>{u.label}</a>)}
+    </div>
+    <div class="cmdk"><span>⌕</span><span>search</span><span class="kb">⌘K</span></div>
+    <button class="burger" id="ppBurger" aria-label="menu" aria-expanded="false" aria-controls="ppDrawer">☰</button>
+  </div>
 
-<nav>
-  <a href="/" class="logo">projectpattie;</a>
-  <button class="hamburger" id="menu-btn" aria-label="Toggle menu">&#9776;</button>
-  <ul class="links" id="nav-links">
-    {links.map(l => (
-      <li>
-        <a href={l.href} class={current.startsWith(l.href) ? 'active' : ''}>
-          {l.label}
-        </a>
-      </li>
+  <div class="tb2"><div class="tb2-in">
+    {sections.map(s => (
+      <a href={s.href} class={`sec${s.lab ? ' lab' : ''}${isOn(s.href) ? ' on' : ''}`}>
+        {s.lab && <span class="dt"></span>}{s.label}
+      </a>
     ))}
-  </ul>
-</nav>
+  </div></div>
+
+  <div class="dw" id="ppDrawer">
+    <div class="dw-srch"><span>⌕</span><span>search the log…</span></div>
+    <div class="dw-h">writing</div>
+    {writing.map(s => (
+      <a href={s.href} class={`dwi${isOn(s.href) ? ' on' : ''}`}><span class="ar">{s.icon}</span>{s.label}</a>
+    ))}
+    <div class="dw-h">homelabs</div>
+    {homelabs.map(s => (
+      <a href={s.href} class={`dwi${isOn(s.href) ? ' on' : ''}`}><span class="ar">{s.icon}</span>{s.label}</a>
+    ))}
+    <div class="dw-h">site</div>
+    {utility.map(u => (
+      <a href={u.href} class={`dwi${isOn(u.href) ? ' on' : ''}`}><span class="ar">{u.icon}</span>{u.label}</a>
+    ))}
+    <div class="dw-ft"><a href="/feed.xml">rss feed</a><a href="https://github.com/CravenCraven">github</a></div>
+  </div>
+</div>
 
 <script>
-  const btn = document.getElementById('menu-btn');
-  const nav = document.getElementById('nav-links');
-  btn?.addEventListener('click', () => nav?.classList.toggle('open'));
+  const burger = document.getElementById('ppBurger');
+  const drawer = document.getElementById('ppDrawer');
+  if (burger && drawer) {
+    burger.addEventListener('click', () => {
+      const open = drawer.classList.toggle('open');
+      burger.setAttribute('aria-expanded', String(open));
+    });
+  }
 </script>
+
+<style>
+  /* tier 1 */
+  .tb{background:var(--page);border-bottom:1px solid var(--bd);position:relative;z-index:200}
+  .tb1{max-width:1080px;margin:0 auto;padding:0 24px;display:flex;align-items:center;gap:4px;min-height:56px}
+  .logo{font-size:15px;font-weight:700;color:var(--a1);white-space:nowrap;flex-shrink:0;text-decoration:none}
+  .logo .sc{color:var(--a3)}
+  .sp{flex:1}
+  .util{display:flex;gap:2px;align-items:center}
+  .util a{font-size:12.5px;color:var(--dim);padding:8px 12px;border-radius:4px;white-space:nowrap;text-decoration:none}
+  .util a:hover{color:var(--head);background:var(--card);text-decoration:none}
+  .util a.on{color:var(--a1);background:var(--card)}
+  .cmdk{display:flex;align-items:center;gap:8px;background:var(--bg2);border:1px solid var(--bd2);border-radius:5px;padding:7px 11px;color:var(--dimmer);font-size:12px;cursor:pointer;margin-left:8px;flex-shrink:0}
+  .cmdk:hover{border-color:var(--a1);color:var(--dim)}
+  .cmdk .kb{font-size:10px;border:1px solid var(--bd2);border-radius:3px;padding:1px 5px}
+  .burger{display:none;background:none;border:1px solid var(--bd2);border-radius:4px;color:var(--dim);font-size:16px;padding:7px 11px;cursor:pointer;font-family:inherit}
+
+  /* tier 2 */
+  .tb2{border-top:1px solid var(--bd);background:var(--bg2)}
+  .tb2-in{max-width:1080px;margin:0 auto;padding:0 24px;display:flex;gap:2px;overflow-x:auto;white-space:nowrap}
+  .tb2-in::-webkit-scrollbar{display:none}
+  .sec{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--dim);padding:11px 13px;border-bottom:2px solid transparent;transition:.15s;flex-shrink:0;text-decoration:none}
+  .sec:hover{color:var(--head);text-decoration:none}
+  .sec.on{color:var(--a1);border-bottom-color:var(--a1)}
+  .sec.lab .dt{width:5px;height:5px;border-radius:50%;background:var(--a2)}
+
+  /* drawer */
+  .dw{display:none;border-top:1px solid var(--bd);background:var(--page);padding:8px 0 14px}
+  .dw.open{display:block}
+  .dw-srch{display:flex;align-items:center;gap:10px;margin:8px 18px 14px;background:var(--bg2);border:1px solid var(--bd2);border-radius:6px;padding:12px 14px;color:var(--dimmer);font-size:13px}
+  .dw-h{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--dimmer);padding:12px 18px 6px}
+  .dw-h::before{content:'// ';color:var(--bd2)}
+  .dwi{display:flex;align-items:center;gap:12px;padding:12px 18px;font-size:14.5px;color:var(--tx);text-decoration:none}
+  .dwi:active{background:var(--card)}
+  .dwi .ar{color:var(--dimmer);font-size:12px;width:12px;flex-shrink:0}
+  .dwi.on{color:var(--a1)}
+  .dwi.on .ar{color:var(--a1)}
+  .dw-ft{display:flex;gap:8px;padding:14px 18px 4px;margin-top:8px;border-top:1px solid var(--bd)}
+  .dw-ft a{flex:1;text-align:center;font-size:11px;color:var(--dim);border:1px solid var(--bd2);border-radius:4px;padding:9px 0;text-decoration:none}
+
+  @media(max-width:900px){
+    .util,.cmdk,.tb2{display:none}
+    .burger{display:block;margin-left:auto}
+    .tb1{padding:0 18px}
+  }
+</style>

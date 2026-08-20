@@ -1,3 +1,4 @@
+@import './tokens.css';
 @import url('https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
 *, *::before, *::after {
@@ -6,18 +7,8 @@
   padding: 0;
 }
 
+/* Colour lives in tokens.css. Only non-colour values belong here. */
 :root {
-  --bg:        #0d0d14;
-  --bg-alt:    #0a0a12;
-  --bg-card:   #12121f;
-  --border:    #1a1a2e;
-  --text:      #c0c0d0;
-  --text-dim:  #6a6a8a;
-  --text-head: #e0e0f0;
-  --green:     #00ff9d;
-  --cyan:      #00d4ff;
-  --pink:      #ff00ff;
-  --orange:    #ff9d00;
   --font: 'JetBrains Mono', 'Source Code Pro', monospace;
 }
 
@@ -25,17 +16,17 @@ html { font-size: 15px; scroll-behavior: smooth; }
 
 body {
   background: var(--bg);
-  color: var(--text);
+  color: var(--tx);
   font-family: var(--font);
   line-height: 1.85;
   -webkit-font-smoothing: antialiased;
 }
 
-a { color: var(--green); text-decoration: none; }
+a { color: var(--a1); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
 h1, h2, h3, h4 {
-  color: var(--text-head);
+  color: var(--head);
   font-weight: 700;
   line-height: 1.2;
 }
@@ -43,18 +34,18 @@ h1, h2, h3, h4 {
 p { margin-bottom: 1.2rem; }
 
 code {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
+  background: var(--card);
+  border: 1px solid var(--bd);
   border-radius: 3px;
   padding: 1px 6px;
   font-size: 13px;
-  color: var(--cyan);
+  color: var(--a2);
   font-family: var(--font);
 }
 
 pre {
-  background: var(--bg-alt) !important;
-  border: 1px solid var(--border);
+  background: var(--bg2) !important;
+  border: 1px solid var(--bd);
   border-radius: 6px;
   padding: 1.2rem;
   overflow-x: auto;
@@ -67,7 +58,7 @@ pre code {
   background: none;
   border: none;
   padding: 0;
-  color: var(--text-head);
+  color: var(--head);
   font-size: inherit;
 }
 
@@ -77,33 +68,33 @@ pre code {
   font-size: 22px;
   margin: 56px 0 20px;
   padding-bottom: 8px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--bd);
   scroll-margin-top: 30px;
 }
 .prose h3 { font-size: 18px; margin: 36px 0 14px; }
 .prose ul, .prose ol { padding-left: 1.5rem; margin-bottom: 1.2rem; }
 .prose li { margin-bottom: 0.4rem; }
 .prose blockquote {
-  border-left: 3px solid var(--orange);
+  border-left: 3px solid var(--a4);
   padding: 14px 18px;
-  background: #0f0f1a;
+  background: var(--page);
   border-radius: 0 6px 6px 0;
   margin: 1.5rem 0;
-  color: #8a8aa0;
+  color: var(--dim);
   font-size: 13px;
 }
 
 /* scrollbar */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: var(--bd); border-radius: 3px; }
 
 /* prevent global styles from overriding post pages */
-.pp-title { font-size: clamp(28px, 5vw, 42px) !important; font-weight: 700 !important; color: #e0e0f0 !important; }
-.pp-title em { color: #ff00ff !important; font-style: normal !important; }
-.pp-subtitle { color: #7a7a9a !important; }
-.pp-h2 { font-size: 22px !important; color: #e0e0f0 !important; border-bottom: 1px solid #1a1a2e !important; }
-.c-pink { color: #ff00ff !important; font-weight: 600 !important; }
-.c-cyan { color: #00d4ff !important; font-weight: 600 !important; }
-.c-green { color: #00ff9d !important; font-weight: 600 !important; }
-.c-orange { color: #ff9d00 !important; font-weight: 600 !important; }
+.pp-title { font-size: clamp(28px, 5vw, 42px) !important; font-weight: 700 !important; color: var(--head) !important; }
+.pp-title em { color: var(--a3) !important; font-style: normal !important; }
+.pp-subtitle { color: var(--dim) !important; }
+.pp-h2 { font-size: 22px !important; color: var(--head) !important; border-bottom: 1px solid var(--bd) !important; }
+.c-pink { color: var(--a3) !important; font-weight: 600 !important; }
+.c-cyan { color: var(--a2) !important; font-weight: 600 !important; }
+.c-green { color: var(--a1) !important; font-weight: 600 !important; }
+.c-orange { color: var(--a4) !important; font-weight: 600 !important; }

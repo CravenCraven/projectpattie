@@ -1,0 +1,224 @@
+---
+title: "Walkthrough: Proving Ephemeral vs Persistent Storage with Postgres"
+description: "The hands-on version. Deploy the same database twice, delete a pod each time, and watch it vanish once and survive once, with the output you should see at every step."
+date: 2026-07-19
+category: devops
+readTime: 12
+---
+
+This is the do-it version of the <a href="/blog/ephemeral-vs-persistent-storage">ephemeral vs persistent storage</a> post. You run Postgres twice. The only thing that changes between the two runs is where it writes its data directory. You delete a pod both times and get opposite results.
+
+Every step below shows the command and the output you should see, so you can tell "working" from "stuck" without guessing. The manifests are in the <a href="https://github.com/CravenCraven/k8s-storage-lab">companion repo</a> under <code>manifests/</code>.
+
+## Before you start
+
+You need a running cluster and <code>kubectl</code>. k3s or k3d both work, since both ship <code>local-path</code> as the default StorageClass. Confirm it is there:
+
+<div className="pp-code">
+  <div className="pp-code-head"><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-lang">bash</span><button className="pp-code-copy">copy</button></div>
+  <div className="pp-code-body">{`kubectl get storageclass`}</div>
+</div>
+
+<div className="pp-code">
+  <div className="pp-code-head"><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-lang">text</span><button className="pp-code-copy">copy</button></div>
+  <div className="pp-code-body">{`NAME                   PROVISIONER             RECLAIMPOLICY   VOLUMEBINDINGMODE      AGE\nlocal-path (default)   rancher.io/local-path   Delete          WaitForFirstConsumer   40d`}</div>
+</div>
+
+Two columns there matter later. <code>RECLAIMPOLICY: Delete</code> means removing the claim wipes the data. <code>VOLUMEBINDINGMODE: WaitForFirstConsumer</code> means the volume is not created until a pod mounts it. Both show up as "gotchas" further down, except now you will know they are expected.
+
+## Part 1: ephemeral, watch the database vanish
+
+<div className="pp-step">
+Deploy Postgres on an <code>emptyDir</code> and wait for it to be ready.
+</div>
+
+<div className="pp-code">
+  <div className="pp-code-head"><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-lang">bash</span><button className="pp-code-copy">copy</button></div>
+  <div className="pp-code-body">{`kubectl apply -f manifests/01-ephemeral-postgres.yaml\nkubectl rollout status deploy/pg-ephemeral`}</div>
+</div>
+
+<div className="pp-code">
+  <div className="pp-code-head"><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-lang">text</span><button className="pp-code-copy">copy</button></div>
+  <div className="pp-code-body">{`deployment.apps/pg-ephemeral created\ndeployment "pg-ephemeral" successfully rolled out`}</div>
+</div>
+
+<div className="pp-note">
+If <code>rollout status</code> hangs for more than a few seconds, the image is probably still pulling. Check with <code>kubectl get pods -l app=pg-ephemeral</code>. A <code>ContainerCreating</code> or <code>Pending</code> state that clears on its own is normal on the first run.
+</div>
+
+<div className="pp-step">
+Make a table and put two rows in it.
+</div>
+
+<div className="pp-code">
+  <div className="pp-code-head"><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-lang">bash</span><button className="pp-code-copy">copy</button></div>
+  <div className="pp-code-body">{`kubectl exec deploy/pg-ephemeral -- psql -U postgres -c "create table notes (id serial, body text);"\nkubectl exec deploy/pg-ephemeral -- psql -U postgres -c "insert into notes (body) values ('first note'), ('second note');"\nkubectl exec deploy/pg-ephemeral -- psql -U postgres -c "select * from notes;"`}</div>
+</div>
+
+<div className="pp-code">
+  <div className="pp-code-head"><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-lang">text</span><button className="pp-code-copy">copy</button></div>
+  <div className="pp-code-body">{`CREATE TABLE\nINSERT 0 2\n id |    body\n----+-------------\n  1 | first note\n  2 | second note\n(2 rows)`}</div>
+</div>
+
+The data is real and it is there. Now break it.
+
+<div className="pp-step">
+Delete the pod. The Deployment replaces it. Read the table again.
+</div>
+
+<div className="pp-code">
+  <div className="pp-code-head"><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-lang">bash</span><button className="pp-code-copy">copy</button></div>
+  <div className="pp-code-body">{`kubectl delete pod -l app=pg-ephemeral\nkubectl rollout status deploy/pg-ephemeral\nkubectl exec deploy/pg-ephemeral -- psql -U postgres -c "select * from notes;"`}</div>
+</div>
+
+<div className="pp-code">
+  <div className="pp-code-head"><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-lang">text</span><button className="pp-code-copy">copy</button></div>
+  <div className="pp-code-body">{`pod "pg-ephemeral-7d9c..." deleted\ndeployment "pg-ephemeral" successfully rolled out\nERROR:  relation "notes" does not exist\nLINE 1: select * from notes;\n                      ^`}</div>
+</div>
+
+The table is gone, not empty. Here is what just happened: the new pod got a brand new <code>emptyDir</code>, which is an empty directory. Postgres saw an empty data directory, assumed a fresh install, and ran <code>initdb</code> from scratch. Your table was never on that new disk. This is the failure the concept post opens with, reproduced in about thirty seconds.
+
+## Part 2: persistent, watch it survive
+
+<div className="pp-step">
+Create the claim first, then look at it before anything mounts it.
+</div>
+
+<div className="pp-code">
+  <div className="pp-code-head"><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-lang">bash</span><button className="pp-code-copy">copy</button></div>
+  <div className="pp-code-body">{`kubectl apply -f manifests/02-pvc.yaml\nkubectl get pvc pg-data`}</div>
+</div>
+
+<div className="pp-code">
+  <div className="pp-code-head"><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-lang">text</span><button className="pp-code-copy">copy</button></div>
+  <div className="pp-code-body">{`persistentvolumeclaim/pg-data created\nNAME      STATUS    VOLUME   CAPACITY   ACCESS MODES   STORAGECLASS   AGE\npg-data   Pending                                      local-path     3s`}</div>
+</div>
+
+<code>Pending</code> with no volume looks broken. It is not. This is <code>WaitForFirstConsumer</code> from the storage class output earlier. The volume gets created when a pod actually needs it, not a second before.
+
+<div className="pp-step">
+Deploy Postgres on the claim. Now the PVC binds.
+</div>
+
+<div className="pp-code">
+  <div className="pp-code-head"><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-lang">bash</span><button className="pp-code-copy">copy</button></div>
+  <div className="pp-code-body">{`kubectl apply -f manifests/03-persistent-postgres.yaml\nkubectl rollout status deploy/pg-persistent\nkubectl get pvc pg-data`}</div>
+</div>
+
+<div className="pp-code">
+  <div className="pp-code-head"><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-lang">text</span><button className="pp-code-copy">copy</button></div>
+  <div className="pp-code-body">{`deployment "pg-persistent" successfully rolled out\nNAME      STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS   AGE\npg-data   Bound    pvc-8f3a1c22-...                            1Gi        RWO            local-path     45s`}</div>
+</div>
+
+<code>Bound</code>, with a real volume and 1Gi behind it.
+
+<div className="pp-step">
+Same table, same rows.
+</div>
+
+<div className="pp-code">
+  <div className="pp-code-head"><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-lang">bash</span><button className="pp-code-copy">copy</button></div>
+  <div className="pp-code-body">{`kubectl exec deploy/pg-persistent -- psql -U postgres -c "create table notes (id serial, body text);"\nkubectl exec deploy/pg-persistent -- psql -U postgres -c "insert into notes (body) values ('first note'), ('second note');"`}</div>
+</div>
+
+<div className="pp-step">
+Delete the pod. Same command as Part 1. Read the table again.
+</div>
+
+<div className="pp-code">
+  <div className="pp-code-head"><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-lang">bash</span><button className="pp-code-copy">copy</button></div>
+  <div className="pp-code-body">{`kubectl delete pod -l app=pg-persistent\nkubectl rollout status deploy/pg-persistent\nkubectl exec deploy/pg-persistent -- psql -U postgres -c "select * from notes;"`}</div>
+</div>
+
+<div className="pp-code">
+  <div className="pp-code-head"><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-lang">text</span><button className="pp-code-copy">copy</button></div>
+  <div className="pp-code-body">{`pod "pg-persistent-6b4f..." deleted\ndeployment "pg-persistent" successfully rolled out\n id |    body\n----+-------------\n  1 | first note\n  2 | second note\n(2 rows)`}</div>
+</div>
+
+Same deletion, opposite result. The new pod mounted the same claim, Postgres found its existing data directory, skipped <code>initdb</code>, and started on top of the data that was already there.
+
+## Where the data actually lives
+
+The PVC is a real directory on the node's disk. Find the path:
+
+<div className="pp-code">
+  <div className="pp-code-head"><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-lang">bash</span><button className="pp-code-copy">copy</button></div>
+  <div className="pp-code-body">{`kubectl get pv\nkubectl describe pv <volume-name> | grep -i path`}</div>
+</div>
+
+<div className="pp-code">
+  <div className="pp-code-head"><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-lang">text</span><button className="pp-code-copy">copy</button></div>
+  <div className="pp-code-body">{`Path:  /var/lib/rancher/k3s/storage/pvc-8f3a1c22-.../`}</div>
+</div>
+
+On k3s that directory is on the node's real filesystem. On k3d the node is a container, so the same path is inside the k3d node container instead.
+
+## Gotchas and troubleshooting
+
+These are the ones that actually cost me time. Each has a symptom so you can match it to what you are seeing.
+
+<div className="pp-warn">
+<b>You deleted the PVC and the data is gone.</b> This is not a bug. <code>local-path</code> defaults to <code>reclaimPolicy: Delete</code>, so removing the claim wipes the directory on the node with no undo. Deleting the pod is safe. Deleting the claim is destructive. Keep them straight.
+</div>
+
+<div className="pp-step">
+PVC stays <code>Pending</code> and never binds
+</div>
+
+If nothing is mounting it, that is expected (<code>WaitForFirstConsumer</code>). If a pod is scheduled and it still will not bind, check that the local-path provisioner is actually running:
+
+<div className="pp-code">
+  <div className="pp-code-head"><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-lang">bash</span><button className="pp-code-copy">copy</button></div>
+  <div className="pp-code-body">{`kubectl -n kube-system get pods | grep local-path\nkubectl describe pvc pg-data`}</div>
+</div>
+
+The <code>describe</code> events at the bottom will tell you what it is waiting on.
+
+<div className="pp-step">
+Rollout hangs after an edit, new pod stuck
+</div>
+
+Symptom: you change the persistent Deployment, the rollout never finishes, and <code>kubectl get pods</code> shows the new pod stuck in <code>ContainerCreating</code> with a multi-attach error in its events. Cause: a <code>ReadWriteOnce</code> volume can attach to one pod at a time, and the default RollingUpdate tries to start the new pod before the old one lets go. Fix is already in the manifest:
+
+<div className="pp-code">
+  <div className="pp-code-head"><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-lang">yaml</span><button className="pp-code-copy">copy</button></div>
+  <div className="pp-code-body">{`spec:\n  strategy:\n    type: Recreate`}</div>
+</div>
+
+<code>Recreate</code> tears the old pod down before bringing the new one up, so the volume is free when the replacement needs it.
+
+<div className="pp-step">
+Persistent Postgres crash-loops on first boot
+</div>
+
+Symptom: the pod goes <code>CrashLoopBackOff</code>, and <code>kubectl logs</code> shows <code>initdb</code> refusing because the data directory is not empty. Cause: some volumes hand you a directory that already contains a <code>lost+found</code> from a fresh filesystem. <code>local-path</code> gives you a clean directory so this lab is fine, but on other provisioners point <code>PGDATA</code> at a subdirectory:
+
+<div className="pp-code">
+  <div className="pp-code-head"><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-lang">yaml</span><button className="pp-code-copy">copy</button></div>
+  <div className="pp-code-body">{`env:\n  - name: PGDATA\n    value: /var/lib/postgresql/data/pgdata`}</div>
+</div>
+
+<div className="pp-step">
+Other things worth knowing
+</div>
+
+- <code>emptyDir</code> survives a container crash inside the pod. It does not survive a pod delete, a node drain, or a reschedule. It is not the safety net people assume.
+- <code>local-path</code> pins data to one node. The PV carries node affinity, so the pod is forced back to the node holding the disk. On multiple nodes it cannot move freely, and if that node's disk dies the data dies with it. No replication.
+- The size request is not a hard limit. <code>requests.storage: 1Gi</code> is recorded on the PVC, but <code>local-path</code> does not enforce it. You can write past it until the node's real disk fills.
+
+## Cleanup
+
+<div className="pp-code">
+  <div className="pp-code-head"><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-lang">bash</span><button className="pp-code-copy">copy</button></div>
+  <div className="pp-code-body">{`kubectl delete -f manifests/01-ephemeral-postgres.yaml\nkubectl delete -f manifests/03-persistent-postgres.yaml\nkubectl delete -f manifests/02-pvc.yaml\nkubectl get pvc,pv`}</div>
+</div>
+
+The last command should return nothing for these resources. Deleting the PVC releases the PV, and <code>local-path</code> removes the directory on the node.
+
+<div className="pp-tags">
+  <span className="pp-tag">kubernetes</span>
+  <span className="pp-tag">k3s</span>
+  <span className="pp-tag">storage</span>
+  <span className="pp-tag">postgres</span>
+  <span className="pp-tag">walkthrough</span>
+</div>

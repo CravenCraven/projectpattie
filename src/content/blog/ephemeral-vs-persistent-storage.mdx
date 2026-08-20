@@ -1,0 +1,99 @@
+---
+title: "Ephemeral vs Persistent Storage in Kubernetes"
+description: "What each one is, how you ask for it, when to reach for which, and why the difference decides whether your data is still there after a pod restarts."
+date: 2026-07-19
+category: devops
+readTime: 7
+---
+
+The first time storage bit me, I had Postgres running in a pod, I deleted the pod to restart it, and every table was gone when it came back. Not empty. Gone. Nothing warned me it was going to happen.
+
+That is the whole reason this distinction exists. This post is the concept: what ephemeral and persistent storage are, how you ask for each, when to use which, and why the difference matters. The hands-on version, where you reproduce that failure on purpose and watch it not happen the second time, is the separate walkthrough linked at the bottom.
+
+## What it is
+
+Two categories. The whole topic is knowing which one you are standing on.
+
+<span className="c-cyan">Ephemeral storage</span> lives and dies with the workload. Two kinds:
+
+- The container's own writable layer. Invisible, default, wiped when the container restarts.
+- <code>emptyDir</code>. A volume attached to the pod. It survives a container crash inside the pod, but it is deleted the moment the pod is removed.
+
+<span className="c-green">Persistent storage</span> outlives the pod. Three objects working together:
+
+- A <code>PersistentVolumeClaim</code> (PVC) is your request. "I want 1Gi."
+- A <code>PersistentVolume</code> (PV) is the actual disk that request binds to.
+- A <code>StorageClass</code> provisions that disk automatically, so you are not hand-creating volumes.
+
+<table className="pp-table">
+  <thead>
+    <tr><th>Storage</th><th>Survives container restart</th><th>Survives pod delete</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Writable layer</td><td>No</td><td>No</td></tr>
+    <tr><td><code>emptyDir</code></td><td>Yes</td><td>No</td></tr>
+    <tr><td>PVC</td><td>Yes</td><td>Yes</td></tr>
+  </tbody>
+</table>
+
+## How to use it
+
+Ephemeral storage you get by default. If you want a named scratch volume, that is an <code>emptyDir</code> on the pod:
+
+<div className="pp-code">
+  <div className="pp-code-head"><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-lang">yaml</span><button className="pp-code-copy">copy</button></div>
+  <div className="pp-code-body">{`volumes:\n  - name: scratch\n    emptyDir: {}`}</div>
+</div>
+
+The volume starts empty and is scoped to the pod. Nothing to size, nothing to provision. When the pod goes, it goes.
+
+Persistent storage is two steps. First you claim it:
+
+<div className="pp-code">
+  <div className="pp-code-head"><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-lang">yaml</span><button className="pp-code-copy">copy</button></div>
+  <div className="pp-code-body">{`apiVersion: v1\nkind: PersistentVolumeClaim\nmetadata:\n  name: pg-data\nspec:\n  accessModes: [ReadWriteOnce]\n  storageClassName: local-path\n  resources:\n    requests:\n      storage: 1Gi`}</div>
+</div>
+
+Three lines in there are doing the work. <code>accessModes: [ReadWriteOnce]</code> means the volume can be mounted read and write by one node at a time. Most block storage is like this, and it is the setting that later dictates how you can roll a pod that uses it. <code>storageClassName: local-path</code> picks which provisioner makes the disk. <code>local-path</code> is what k3s ships with, and it carves the volume out as a directory on the node. <code>requests.storage: 1Gi</code> is how much you are asking for.
+
+Then you mount that claim into the pod like any other volume:
+
+<div className="pp-code">
+  <div className="pp-code-head"><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-dot" /><span className="pp-code-lang">yaml</span><button className="pp-code-copy">copy</button></div>
+  <div className="pp-code-body">{`volumes:\n  - name: pgdata\n    persistentVolumeClaim:\n      claimName: pg-data`}</div>
+</div>
+
+Notice the pod references the claim by name. It never names a disk. The claim binds to a PV the StorageClass created, and the pod just asks for the claim. That indirection is the point: your workload does not need to know what storage is underneath it.
+
+## When to reach for which
+
+The test I use is simple. If losing the contents would matter tomorrow, it needs a PVC. If I could throw it away and rebuild it without caring, ephemeral is fine.
+
+Ephemeral (<code>emptyDir</code> or the writable layer) is for cache, temp files, a scratch area, or handing files between two containers in the same pod. Things you can regenerate.
+
+Persistent (a PVC) is for databases, user uploads, anything with state you expect to still be there after a restart. If it holds the only copy of something, it goes on a PVC.
+
+## Why it matters
+
+Kubernetes assumes your workload can die and come back anywhere. To make that safe, it treats the container filesystem as disposable. A web server that holds nothing in itself does not care. A database does.
+
+Here is the difference made concrete, which is the whole shape of the walkthrough. Run Postgres on an <code>emptyDir</code>, create a table, delete the pod. The replacement pod comes up with a fresh empty directory, Postgres re-initializes from scratch, and the table is gone. Run the same Postgres on a PVC, create the same table, delete the pod. The replacement mounts the same claim, Postgres finds its existing data, and the table is still there. Same deletion, opposite result, and the only thing that changed was where the data was written.
+
+The cost of not knowing is the story at the top. You do not find out your storage was ephemeral until something you needed is already gone.
+
+## Things that trip people up
+
+- <code>emptyDir</code> feels durable because it survives a container crash. It does not survive a pod delete, a node drain, or a reschedule. It is not the safety net people assume.
+- Once you have a PVC, deleting the <b>pod</b> keeps your data. Deleting the <b>claim</b> destroys it. Those are two very different deletes, and the second one has no undo on <code>local-path</code>.
+- <code>local-path</code> keeps the data on one node's disk and pins the pod back to that node. It survives the pod, not the node. There are no copies, so a dead disk is a dead database.
+
+<div className="pp-next">
+The hands-on version: <a href="/blog/ephemeral-vs-persistent-storage-walkthrough"><b>Walkthrough: proving ephemeral vs persistent storage with Postgres</b></a>. Every command, the output you should see at each step, and a troubleshooting section for the parts that look broken but are not.
+</div>
+
+<div className="pp-tags">
+  <span className="pp-tag">kubernetes</span>
+  <span className="pp-tag">k3s</span>
+  <span className="pp-tag">storage</span>
+  <span className="pp-tag">devops</span>
+</div>

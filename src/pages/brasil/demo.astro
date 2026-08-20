@@ -1,0 +1,423 @@
+---
+import { getCollection } from 'astro:content';
+
+const BLOG_COLLECTION = 'blog';
+const postUrl = (slug) => `/blog/${slug}`;
+const LAB_CATEGORIES = ['sysadmin','devops'];
+const MAX_POSTS = 6;
+
+const slugOf = (e) => e.slug ?? e.id;
+
+let posts = [];
+try {
+  posts = (await getCollection(BLOG_COLLECTION))
+    .filter(p => !p.data.draft && LAB_CATEGORIES.includes(p.data.category))
+    .sort((a,b) => new Date(b.data.date) - new Date(a.data.date))
+    .slice(0, MAX_POSTS);
+} catch { posts = []; }
+
+const tiles = (await getCollection("demo")).sort((a,b) => a.data.order - b.data.order);
+const section = (s) => tiles.filter(t => t.data.section === s);
+const isUp = (s) => s === 'running' || s === 'cli';
+---
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Laboratório Brasil — a Kubernetes homelab for learning Portuguese</title>
+<meta name="description" content="A self-hosted Portuguese learning platform running on a two-node k3s cluster. GitOps with Flux, local LLM inference, Prometheus monitoring.">
+
+<meta property="og:title" content="Laboratório Brasil">
+<meta property="og:description" content="A self-hosted Portuguese learning platform on a two-node k3s cluster.">
+<meta property="og:type" content="website">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --petrol:#12232B;
+  --petrol-deep:#0A1519;
+  --laranja:#F25C05;
+  --magenta:#E0166B;
+  --turquesa:#12A594;
+  --amarelo:#F2B705;
+  --areia:#F0E3CC;
+  --areia-dim:rgba(240,227,204,.55);
+  --display:'Archivo Black',system-ui,sans-serif;
+  --body:'Archivo',system-ui,sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{background:var(--petrol-deep);color:var(--areia);font-family:var(--body);line-height:1.45}
+
+.context{
+  background:var(--areia);color:var(--petrol-deep);
+  padding:14px 20px;
+  display:flex;flex-wrap:wrap;align-items:center;justify-content:center;
+  gap:8px 22px;text-align:center;
+  font-size:.84rem;font-weight:500;
+}
+.context strong{font-weight:600}
+.context .tag{
+  font-family:var(--mono);font-size:.6rem;letter-spacing:.18em;text-transform:uppercase;
+  background:var(--petrol-deep);color:var(--areia);padding:4px 9px;
+}
+.context a{color:var(--petrol-deep);text-decoration:underline;text-underline-offset:3px}
+.context a:hover{color:var(--magenta)}
+
+.wave-band{height:64px;overflow:hidden;background:var(--petrol);border-bottom:3px solid var(--petrol-deep)}
+.wave-band svg{display:block;width:200%;height:100%;animation:drift 28s linear infinite}
+@keyframes drift{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+.wrap{max-width:1180px;margin:0 auto;padding:0 20px 72px}
+
+header{
+  display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;
+  gap:24px;padding:36px 0 28px;border-bottom:2px solid rgba(240,227,204,.14);
+}
+.brand h1{
+  font-family:var(--display);font-size:clamp(2.6rem,7vw,4.6rem);line-height:.86;
+  letter-spacing:-.045em;text-transform:uppercase;
+}
+.brand h1 em{font-style:normal;color:var(--laranja)}
+.brand p{
+  font-family:var(--mono);font-size:.72rem;letter-spacing:.16em;
+  text-transform:uppercase;color:var(--areia-dim);margin-top:12px;
+}
+.clocks{display:flex;gap:28px}
+.clock{text-align:right}
+.clock .t{font-family:var(--mono);font-size:1.5rem;font-weight:700;line-height:1}
+.clock .l{font-family:var(--mono);font-size:.62rem;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--areia-dim);margin-top:6px}
+.clock.rio .t{color:var(--amarelo)}
+
+.palavra{
+  margin:28px 0 34px;background:var(--laranja);color:var(--petrol-deep);
+  padding:22px 26px;display:flex;flex-wrap:wrap;align-items:baseline;
+  gap:8px 20px;cursor:pointer;transition:background .18s ease;
+}
+.palavra:hover,.palavra:focus-visible{background:var(--amarelo);outline:none}
+.palavra .eyebrow{font-family:var(--mono);font-size:.62rem;letter-spacing:.2em;
+  text-transform:uppercase;opacity:.72;width:100%}
+.palavra .word{font-family:var(--display);font-size:clamp(1.7rem,4.4vw,2.5rem);
+  letter-spacing:-.03em;text-transform:lowercase}
+.palavra .gloss{font-size:1rem;font-weight:500;flex:1;min-width:220px}
+.palavra .ex{font-family:var(--mono);font-size:.74rem;width:100%;opacity:.78;
+  border-top:2px solid rgba(10,21,25,.22);padding-top:10px;margin-top:4px}
+
+.sec{font-family:var(--mono);font-size:.66rem;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--areia-dim);
+  margin:38px 0 14px;display:flex;align-items:center;gap:14px}
+.sec::after{content:"";flex:1;height:2px;background:rgba(240,227,204,.14)}
+.sec .en{text-transform:none;letter-spacing:.04em;opacity:.6}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(232px,1fr));gap:3px}
+.tile{
+  position:relative;display:block;padding:22px 20px 44px;min-height:158px;
+  text-decoration:none;color:var(--petrol-deep);
+  transition:transform .16s cubic-bezier(.2,.7,.3,1);isolation:isolate;
+}
+.tile:hover,.tile:focus-visible{transform:translateY(-4px);outline:none;z-index:2}
+.tile:focus-visible{box-shadow:0 0 0 3px var(--areia)}
+.tile.c1{background:var(--laranja)}
+.tile.c2{background:var(--magenta);color:var(--areia)}
+.tile.c3{background:var(--turquesa)}
+.tile.c4{background:var(--amarelo)}
+.tile.c5{background:var(--areia)}
+.tile .num{font-family:var(--mono);font-size:.6rem;letter-spacing:.16em;opacity:.6}
+.tile h3{font-family:var(--display);font-size:1.42rem;line-height:1;
+  letter-spacing:-.03em;text-transform:uppercase;margin:14px 0 6px}
+.tile .sub{font-family:var(--mono);font-size:.6rem;letter-spacing:.1em;
+  text-transform:uppercase;opacity:.62;margin-bottom:8px}
+.tile p{font-size:.86rem;font-weight:500;opacity:.82;max-width:22ch}
+.tile .status{position:absolute;bottom:16px;left:20px;right:20px;
+  display:flex;align-items:center;gap:8px;font-family:var(--mono);
+  font-size:.6rem;letter-spacing:.14em;text-transform:uppercase;opacity:.72}
+.dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+.dot.up{animation:pulse 2.4s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.28}}
+.tile.down{background:var(--petrol);color:var(--areia-dim)}
+.tile.down h3{color:var(--areia)}
+
+.streak{margin-top:38px;background:var(--petrol);padding:24px 26px;
+  display:flex;flex-wrap:wrap;align-items:center;gap:26px}
+.streak .big{font-family:var(--display);font-size:3.1rem;line-height:.85;
+  letter-spacing:-.04em;color:var(--turquesa)}
+.streak .lab{font-family:var(--mono);font-size:.64rem;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--areia-dim);margin-top:8px}
+.bars{display:flex;gap:4px;align-items:flex-end;height:52px;flex:1;min-width:240px}
+.bar{flex:1;background:var(--turquesa);min-height:4px}
+.bar.off{background:rgba(240,227,204,.16)}
+
+.nodes{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:3px;margin-top:3px}
+.node{background:var(--petrol);padding:22px 26px}
+.node .nm{font-family:var(--mono);font-size:.78rem;font-weight:700;letter-spacing:.06em}
+.node .role{font-family:var(--mono);font-size:.6rem;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--areia-dim);margin-top:4px}
+.meter{margin-top:16px}
+.meter+.meter{margin-top:10px}
+.meter .top{display:flex;justify-content:space-between;font-family:var(--mono);
+  font-size:.64rem;color:var(--areia-dim);margin-bottom:5px}
+.track{height:9px;background:rgba(240,227,204,.12);overflow:hidden}
+.fill{height:100%;background:var(--amarelo)}
+.fill.hot{background:var(--laranja)}
+
+.stack{margin-top:52px}
+.stack-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:3px}
+.sc{background:var(--petrol);padding:22px 24px}
+.sc h4{font-family:var(--mono);font-size:.64rem;letter-spacing:.2em;
+  text-transform:uppercase;color:var(--amarelo);margin-bottom:12px}
+.sc ul{list-style:none}
+.sc li{font-size:.86rem;padding:5px 0;border-bottom:1px solid rgba(240,227,204,.08)}
+.sc li:last-child{border:0}
+.sc li span{font-family:var(--mono);font-size:.68rem;color:var(--areia-dim);display:block}
+
+.posts{margin-top:3px;display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:3px}
+.post{background:var(--petrol);padding:22px 24px;text-decoration:none;color:var(--areia);
+  transition:background .16s ease}
+.post:hover,.post:focus-visible{background:var(--areia);color:var(--petrol-deep);outline:none}
+.post .k{font-family:var(--mono);font-size:.6rem;letter-spacing:.18em;
+  text-transform:uppercase;opacity:.6}
+.post h4{font-family:var(--display);font-size:1.02rem;line-height:1.15;
+  letter-spacing:-.02em;margin:10px 0 8px}
+.post p{font-size:.82rem;opacity:.78}
+.empty{background:var(--petrol);padding:22px 24px;font-family:var(--mono);
+  font-size:.74rem;color:var(--areia-dim)}
+
+footer{margin-top:52px;padding-top:20px;border-top:2px solid rgba(240,227,204,.14);
+  font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--areia-dim);display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px}
+footer a{color:var(--areia-dim)}
+footer a:hover{color:var(--laranja)}
+
+@media (max-width:640px){
+  header{flex-direction:column;align-items:flex-start}
+  .clocks{gap:22px}.clock{text-align:left}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="context">
+  <span class="tag">Static demo</span>
+  <span><strong>A self-hosted Portuguese learning platform</strong> running on a two-node k3s cluster at home. This page is a snapshot; the live version reads pod status from the Kubernetes API and node metrics from Prometheus.</span>
+  <span>· <a href="/">Write-ups</a> · <a href="https://github.com/CravenCraven/homelab">Repo</a></span>
+</div>
+
+<div class="wave-band" aria-hidden="true">
+  <svg viewBox="0 0 1200 64" preserveAspectRatio="none">
+    <defs>
+      <path id="w" d="M0,32 C50,4 100,60 150,32 C200,4 250,60 300,32 C350,4 400,60 450,32 C500,4 550,60 600,32 C650,4 700,60 750,32 C800,4 850,60 900,32 C950,4 1000,60 1050,32 C1100,4 1150,60 1200,32"/>
+    </defs>
+    <use href="#w" stroke="#F25C05" stroke-width="9" fill="none" transform="translate(0,-16)"/>
+    <use href="#w" stroke="#F2B705" stroke-width="9" fill="none"/>
+    <use href="#w" stroke="#E0166B" stroke-width="9" fill="none" transform="translate(0,16)"/>
+    <use href="#w" stroke="#12A594" stroke-width="9" fill="none" transform="translate(0,32)"/>
+  </svg>
+</div>
+
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <h1>Labora<em>tório</em><br>Brasil</h1>
+      <p>k3s · two nodes · qwen2.5 7b local</p>
+    </div>
+    <div class="clocks">
+      <div class="clock"><div class="t" id="t-local">--:--</div><div class="l">Miami</div></div>
+      <div class="clock rio"><div class="t" id="t-rio">--:--</div><div class="l">Rio</div></div>
+    </div>
+  </header>
+
+  <div class="palavra" id="palavra" role="button" tabindex="0" aria-label="Next word">
+    <span class="eyebrow">Palavra do dia — carioca slang · click for another</span>
+    <span class="word" id="p-word">mermão</span>
+    <span class="gloss" id="p-gloss">Contração de "meu irmão". Tratamento entre amigos, muito carioca.</span>
+    <span class="ex" id="p-ex">Fala, mermão! Cê vai na praia hoje?</span>
+  </div>
+
+  <div class="sec">Aprender <span class="en">— learning tools</span></div>
+  <div class="grid">
+    {section('aprender').map(t => (
+      <a class={`tile ${t.data.color}`} href="/">
+        <div class="num">{t.data.num}</div>
+        <h3>{t.data.title}</h3>
+        <div class="sub">{t.data.sub}</div>
+        <p>{t.data.blurb}</p>
+        <div class="status"><span class={isUp(t.data.status) ? 'dot up' : 'dot'}></span> {t.data.status}</div>
+      </a>
+    ))}
+  </div>
+
+  <div class="sec">Mídia <span class="en">— media libraries</span></div>
+  <div class="grid">
+    {section('midia').map(t => (
+      <a class={`tile ${t.data.color}`} href="/">
+        <div class="num">{t.data.num}</div>
+        <h3>{t.data.title}</h3>
+        <div class="sub">{t.data.sub}</div>
+        <p>{t.data.blurb}</p>
+        <div class="status"><span class={isUp(t.data.status) ? 'dot up' : 'dot'}></span> {t.data.status}</div>
+      </a>
+    ))}
+  </div>
+
+  <div class="sec">Infra <span class="en">— platform</span></div>
+  <div class="grid">
+    {section('infra').map(t => (
+      <a class={`tile ${t.data.color}`} href="/">
+        <div class="num">{t.data.num}</div>
+        <h3>{t.data.title}</h3>
+        <div class="sub">{t.data.sub}</div>
+        <p>{t.data.blurb}</p>
+        <div class="status"><span class={isUp(t.data.status) ? 'dot up' : 'dot'}></span> {t.data.status}</div>
+      </a>
+    ))}
+  </div>
+
+  <div class="streak">
+    <div>
+      <div class="big">9</div>
+      <div class="lab">dias seguidos · study streak</div>
+    </div>
+    <div class="bars" id="bars" aria-label="Last 14 days"></div>
+  </div>
+
+  <div class="sec">Nós <span class="en">— cluster nodes</span></div>
+  <div class="nodes">
+    <div class="node">
+      <div class="nm">control-plane</div>
+      <div class="role">16 GB · workload=light</div>
+      <div class="meter">
+        <div class="top"><span>memory</span><span>7.1 / 16 GB</span></div>
+        <div class="track"><div class="fill" style="width:44%"></div></div>
+      </div>
+      <div class="meter">
+        <div class="top"><span>cpu</span><span>18%</span></div>
+        <div class="track"><div class="fill" style="width:18%"></div></div>
+      </div>
+    </div>
+    <div class="node">
+      <div class="nm">worker</div>
+      <div class="role">32 GB · workload=heavy</div>
+      <div class="meter">
+        <div class="top"><span>memory</span><span>7.4 / 31 GB</span></div>
+        <div class="track"><div class="fill" style="width:24%"></div></div>
+      </div>
+      <div class="meter">
+        <div class="top"><span>cpu</span><span>62%</span></div>
+        <div class="track"><div class="fill hot" style="width:62%"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="sec">Stack</div>
+    <div class="stack-grid">
+      <div class="sc">
+        <h4>Platform</h4>
+        <ul>
+          <li>k3s<span>two nodes, bare metal, flannel VXLAN</span></li>
+          <li>Flux<span>GitOps, whole cluster from one repo</span></li>
+          <li>Traefik<span>ingress, hostname per service</span></li>
+          <li>Sealed Secrets<span>credentials committed safely</span></li>
+        </ul>
+      </div>
+      <div class="sc">
+        <h4>Observability</h4>
+        <ul>
+          <li>Prometheus<span>k3s-specific scrape config</span></li>
+          <li>Grafana<span>node and namespace dashboards</span></li>
+          <li>node-exporter<span>DaemonSet, picks up new nodes</span></li>
+        </ul>
+      </div>
+      <div class="sc">
+        <h4>Built here</h4>
+        <ul>
+          <li>coach<span>Python CLI, typed corrections via Pydantic</span></li>
+          <li>fsi-scraper<span>corpus pipeline, 26 stages, ruff + pytest</span></li>
+          <li>This portal<span>ConfigMap-served, hash-triggered rollouts</span></li>
+        </ul>
+      </div>
+      <div class="sc">
+        <h4>Next</h4>
+        <ul>
+          <li>Terraform + AKS<span>portal to cloud, then torn down</span></li>
+          <li>CloudNativePG<span>backup and a tested restore</span></li>
+          <li>Shared storage<span>local-path pins pods to disks</span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="sec">Write-ups</div>
+  <div class="posts">
+    {posts.length === 0 ? (
+      <p class="empty">No posts published in these categories yet.</p>
+    ) : posts.map(post => (
+      <a class="post" href={postUrl(slugOf(post))}>
+        <div class="k">{post.data.category}</div>
+        <h4>{post.data.title}</h4>
+        <p>{post.data.description}</p>
+      </a>
+    ))}
+  </div>
+
+  <footer>
+    <span>Laboratório Brasil · static demo</span>
+    <span><a href="/">projectpattie.com</a> · <a href="https://github.com/CravenCraven/homelab">github</a></span>
+  </footer>
+
+</div>
+
+<script is:inline>
+function fmt(tz){
+  return new Intl.DateTimeFormat('en-GB',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:tz}).format(new Date());
+}
+function ticks(){
+  document.getElementById('t-local').textContent = fmt('America/New_York');
+  document.getElementById('t-rio').textContent   = fmt('America/Sao_Paulo');
+}
+ticks(); setInterval(ticks,20000);
+
+const girias = [
+  ['mermão','Contração de "meu irmão". Tratamento entre amigos, muito carioca.','Fala, mermão! Cê vai na praia hoje?'],
+  ['caraca','Espanto, surpresa. Serve pra coisa boa e pra coisa ruim.','Caraca, que fila enorme!'],
+  ['da hora','Legal, bacana. Elogio simples e comum.','O show ontem foi da hora demais.'],
+  ['sinistro','Muito bom, impressionante. O sentido é o oposto do literal.','O gol dele foi sinistro.'],
+  ['treta','Confusão, briga, problema.','Rolou a maior treta no jogo.'],
+  ['zoeira','Brincadeira, gozação. Central no humor carioca.','Relaxa, é só zoeira.'],
+  ['partiu','Vamos, bora. Vem de "partiu" no sentido de já saiu.','Partiu praia amanhã cedo?'],
+  ['bolado','Chateado, incomodado com alguma coisa.','Fiquei bolado com o que ele falou.'],
+  ['coé','De "que é". Cumprimento e pergunta ao mesmo tempo.','Coé, sumido! Tudo bem?'],
+  ['maneiro','Legal, bom. Um dos mais usados no Rio.','Teu apê é bem maneiro.'],
+  ['mó','Redução de "maior". Serve como intensificador.','Tô com mó fome.'],
+  ['neura','Preocupação exagerada, paranoia.','Para de neura, vai dar certo.']
+];
+let gi = new Date().getDate() % girias.length;
+function paint(){
+  const [w,g,e]=girias[gi];
+  document.getElementById('p-word').textContent=w;
+  document.getElementById('p-gloss').textContent=g;
+  document.getElementById('p-ex').textContent=e;
+}
+paint();
+const pal=document.getElementById('palavra');
+function next(){gi=(gi+1)%girias.length;paint();}
+pal.addEventListener('click',next);
+pal.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();next();}});
+
+const dias=[3,5,2,6,4,0,7,5,8,3,6,4,7,5];
+const max=Math.max(...dias);
+document.getElementById('bars').innerHTML=dias.map(d=>
+  `<div class="bar${d===0?' off':''}" style="height:${d===0?8:(d/max)*100}%"></div>`
+).join('');
+</script>
+
+</body>
+</html>

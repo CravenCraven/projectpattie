@@ -1,0 +1,50 @@
+/* projectpattie — colour and type tokens
+   Single source of truth. Every page reads from these.
+   Change a value here and it changes site-wide. */
+
+:root{
+  /* surfaces, darkest to lightest */
+  --bg:     #0c0b09;   /* page background */
+  --bg2:    #080706;   /* recessed: terminal bodies, nav second tier */
+  --page:   #100e0b;   /* raised: hero, page headers */
+  --card:   #14120e;   /* cards, panels */
+
+  /* borders */
+  --bd:     #26221a;   /* default hairline */
+  --bd2:    #38311f;   /* emphasis, inputs */
+
+  /* text, brightest to dimmest */
+  --head:   #f5ead2;   /* headings */
+  --tx:     #d4c8b1;   /* body */
+  --dim:    #a08d6c;   /* supporting */
+  --dimmer: #645842;   /* metadata, prompts */
+
+  /* accents */
+  --a1:     #ffb000;   /* primary: links, active nav, $ prompt */
+  --a2:     #5fb3b3;   /* secondary: section labels, scanline */
+  --a3:     #e07a3f;   /* highlight: headline spans */
+  --a4:     #c9a227;   /* attribution, callout rules */
+
+  /* terminal window dots — macOS chrome, fixed by convention */
+  --dot1:   #ff5f57;
+  --dot2:   #febc2e;
+  --dot3:   #28c840;
+
+  --f: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+html{ background: var(--bg); }
+body{
+  background: var(--bg);
+  color: var(--tx);
+  font-family: var(--f);
+  line-height: 1.8;
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+}
+a{ color: var(--a1); text-decoration: none; }
+h1,h2,h3{ color: var(--head); font-weight: 700; line-height: 1.25; }
+
+@media (prefers-reduced-motion: reduce){
+  *{ animation: none !important; transition: none !important; }
+}
