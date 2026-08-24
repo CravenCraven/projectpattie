@@ -1,0 +1,84 @@
+---
+title: "The M2 Air as a homelab node"
+description: "A homelab built from what was lying around. Which meant getting a real Linux onto Apple hardware, and finding out that the hard part is not the install. It is convincing the machine to let you."
+date: 2026-08-24
+category: devops
+readTime: 6
+series: "Fedora Asahi on an M2"
+seriesOrder: 1
+---
+
+<div class="pp-meta"><span>devops</span> · August 24, 2026 · 6 min read</div>
+
+<h1 class="pp-title">The M2 Air.<br/><em>the node I already owned.</em></h1>
+
+<p class="pp-subtitle">A homelab built from what was lying around. Which meant getting a real Linux onto Apple hardware, and finding out that the hard part is not the install. It is convincing the machine to let you.</p>
+
+<div class="pp-tags">
+  <span class="pp-tag">homelab</span>
+  <span class="pp-tag">kubecraft</span>
+  <span class="pp-tag">brasil-homelab</span>
+  <span class="pp-tag">asahi</span>
+  <span class="pp-tag">k3s</span>
+  <span class="pp-tag">apple-silicon</span>
+</div>
+
+<div class="pp-series">
+  <div class="pp-series-label">Fedora Asahi on an M2</div>
+  <ol>
+    <li class="active">Why the M2 Air</li>
+    <li><a href="/blog/fedora-asahi-on-an-m2">The runbook. Install, recovery, and the boot policy wall</a></li>
+  </ol>
+</div>
+
+<h2 class="pp-h2" id="premise">The premise. Build with what you have.</h2>
+
+<p>Most homelab writeups start with a shopping list. A rack, a switch, three mini PCs, a NAS. That is a fine way to build one, and it is not the way this one is getting built.</p>
+
+<p>The rule here is simpler. Use the hardware already in the house. Not because buying is wrong, but because the constraint is more interesting. Idle hardware is the cheapest hardware there is, and working around what it cannot do teaches you more than working with something purpose-built.</p>
+
+<p>Which brings us to a MacBook Air that had stopped being anyone's daily driver.</p>
+
+<h2 class="pp-h2" id="why-air">Why an M2 Air is a good node</h2>
+
+<p>On paper it is an odd choice for a server. No ethernet, a battery, a lid that wants to sleep. But look at what it actually brings:</p>
+
+<ul>
+  <li><strong>arm64, natively.</strong> The same architecture as a Raspberry Pi, with none of the performance apology.</li>
+  <li><strong>Low idle draw.</strong> A machine that sips power is a machine you leave on.</li>
+  <li><strong>Fanless and silent.</strong> It can live somewhere a mini PC cannot.</li>
+  <li><strong>A built-in UPS.</strong> The battery is not a bug for a server. It is an hour of runtime through a power cut.</li>
+  <li><strong>Fast NVMe.</strong> etcd and container image pulls both care about this more than you would think.</li>
+</ul>
+
+<p>That is a genuinely good k3s node. The problem is the operating system on it.</p>
+
+<h2 class="pp-h2" id="not-macos">Concept review. Why macOS will not do.</h2>
+
+<p>You can run containers on macOS. You cannot run them <em>on</em> macOS. Docker Desktop and its relatives spin up a Linux VM and run everything inside that. The kernel doing the work is always a Linux kernel, just a hidden one.</p>
+
+<p>Kubernetes wants the real thing. <span class="c-green">Namespaces, cgroups v2, and systemd</span> are Linux kernel features, and k3s expects to talk to them directly. Wrapping that in a VM means a hypervisor between the scheduler and the hardware, memory carved off in advance, and a networking layer that has to be translated twice.</p>
+
+<p>For a laptop that is fine. For a cluster node that is meant to behave like every other node, it is not. If the goal is bare-metal Kubernetes, the metal has to actually run Linux.</p>
+
+<div class="pp-note"><strong>Worth being honest about:</strong> a VM-based node would have worked well enough to learn on. Choosing the harder path here was partly about the cluster and partly about wanting to know how Apple Silicon boots. Both are valid reasons. Only one of them shows up in the architecture diagram.</div>
+
+<h2 class="pp-h2" id="asahi">Which leaves Asahi</h2>
+
+<p>Asahi Linux is the project reverse-engineering Apple Silicon and writing the drivers nobody else has. Fedora Asahi Remix is its flagship distribution, and for now it is the only realistic way to get a working Linux onto an M-series Mac.</p>
+
+<p>Going in, I expected the install to be the hard part. Partitioning a boot disk, driver gaps, the usual. That was not it.</p>
+
+<p>The hard part is that <span class="c-pink">Apple Silicon cannot boot from external media at all.</span> There is no USB stick. There is no live environment to fall back into. The installer is a shell script you run from inside macOS, against the internal drive, on the machine you are currently sitting at. And the step that actually authorizes a custom bootloader has to happen from a specific recovery mode, entered a specific way, or it fails with an error that tells you the password was wrong.</p>
+
+<p>The password was not wrong. That one cost four attempts and most of an evening.</p>
+
+<h2 class="pp-h2">Where this goes</h2>
+
+<p>The Air is one node. The plan is a small k3s cluster across the Mac hardware in the house, with Flux handling gitops, and the build log going into kubecraft as it happens. Confidence levels included, especially the low ones.</p>
+
+<p>Part 2 is the runbook. Every prompt, every command, and all seven failures with their causes, written so that the next person does not lose the same evening.</p>
+
+<div class="pp-brief">
+  <p>Next: <a href="/blog/fedora-asahi-on-an-m2">Fedora Asahi on an M2. The runbook.</a></p>
+</div>
