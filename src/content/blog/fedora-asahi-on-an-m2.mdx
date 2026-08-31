@@ -1,0 +1,323 @@
+---
+title: "Fedora Asahi Remix on Apple Silicon: A Runbook"
+description: "Installing Fedora Asahi Remix on an M2 MacBook Air, including the 1TR recovery step that everyone gets wrong the first time."
+date: 2026-08-26
+category: devops
+readTime: 12
+tags: ["asahi", "fedora", "apple-silicon", "linux", "homelab"]
+series: "Fedora Asahi on an M2"
+seriesOrder: 2
+draft: false
+---
+
+<div class="pp-meta"><span>devops</span> · August 26, 2026 · 12 min read</div>
+
+<h1 class="pp-title">Fedora Asahi on an M2.<br/><em>the runbook.</em></h1>
+
+<p class="pp-subtitle">Installing Fedora Asahi Remix on an M2 MacBook Air, including the 1TR recovery step that everyone gets wrong the first time.</p>
+
+<div class="pp-tags">
+  <span class="pp-tag">asahi</span>
+  <span class="pp-tag">fedora</span>
+  <span class="pp-tag">apple-silicon</span>
+  <span class="pp-tag">linux</span>
+  <span class="pp-tag">homelab</span>
+</div>
+
+<div class="pp-series">
+  <div class="pp-series-label">Fedora Asahi on an M2</div>
+  <ol>
+    <li><a href="/blog/the-m2-air-as-a-homelab-node">Why the M2 Air</a></li>
+    <li class="active">The runbook. Install, recovery, and the boot policy wall</li>
+  </ol>
+</div>
+
+Target: MacBook Air (M2). Applies to M1/M2 family generally.
+Last verified against Asahi docs: August 2026.
+
+---
+
+## 1. Scope & Prerequisites
+
+**Hardware/software baseline**
+
+- Apple Silicon Mac (M1 or M2 family). All M1/M2 MacBook, Mac Mini, Mac Pro, Mac Studio, and iMac are supported by Fedora Asahi Remix.
+- macOS installed and fully updated. A *pending* macOS update blocks partition resize.
+- An admin account holding a **Secure Token** on the macOS volume. This is required for stage 2; without it the boot policy change cannot be authorized.
+- Network access in both macOS and recovery.
+- No USB media required. Apple Silicon cannot boot from external storage at all, so the installer works entirely against internal NVMe.
+
+**Space planning**
+
+| Item | Value |
+|---|---|
+| Fedora minimum (Plasma image) | ~40 GB |
+| Fedora recommended | 50–60 GB+ |
+| Installer reserve for macOS upgrades | 38 GB left free automatically |
+| macOS floor via `min` | Whatever the installer computes; on a 494 GB disk with ~34 GB used this came out to 71.93 GB |
+
+**Do not wipe macOS.** It is required to install Asahi, to update or repair m1n1, and to resize an existing Asahi install. Firmware updates ship with macOS updates. Recovering a stub-only machine generally means a DFU restore from a second Mac.
+
+**Known hardware gaps** (check the M2 feature-support page before committing):
+
+- Thunderbolt / USB4
+- DisplayPort over USB-C (external displays)
+- Touch ID
+
+---
+
+## 2. Pre-flight (in macOS)
+
+1. **Back up.** You are repartitioning the boot disk.
+2. **Complete all pending macOS updates.** Reboot after.
+3. **Delete APFS local snapshots:**
+   ```
+   tmutil listlocalsnapshots /
+   sudo tmutil deletelocalsnapshots <date>
+   ```
+   Repeat per snapshot. Then disable Time Machine.
+4. **Empty Trash, clear Downloads.**
+5. **Reboot.** This is what makes freed space actually available to the resizer.
+6. **Verify.** In the installer's partition summary, the number that matters is **Available space**, not **Free space**. If Available is 0 or Overhead is large, snapshots are still present, so go back to step 3.
+
+---
+
+## 3. Stage 1: Installer (in macOS)
+
+```
+curl https://alx.sh | sh
+```
+
+If your terminal drops the leading word on paste (see §6.1), type it manually or use `curl -fsSL https://alx.sh | sh`.
+
+**Prompts, in order:**
+
+1. **Action** → `r` (resize an existing partition)
+2. **New size for existing partition**, which is the size *macOS* keeps:
+   - `min` — shrink macOS as far as safely possible; everything else goes to Linux
+   - `80GB` — explicit size (unit required; a bare `80` is rejected)
+   - `30%` — fraction to macOS, remainder to Linux
+3. **Continue? (y/N)** → `y`. Screen may appear frozen during the resize. This is normal.
+4. **Action** → `f` (install an OS into free space)
+5. **OS image** → Fedora Asahi Remix, KDE Plasma or GNOME:
+   - **KDE Plasma** — Asahi's flagship. Best tested on Apple Silicon; hardware fixes land here first. Taskbar/tray model, highly configurable.
+   - **GNOME** — Activities overview, gesture-driven, minimal and opinionated.
+   - **UEFI environment only** — for installing a non-Fedora distro yourself (see §7).
+6. **New OS size** → `max`
+7. **OS name** → Enter for default (`Fedora Linux with KDE Plasma`). This is only the boot-picker label.
+8. **Password** — your macOS admin password, for machine authentication.
+
+The installer then downloads and writes the image, and instructs you to shut down.
+
+> **Note:** the installer sets the *default* startup disk to the new OS. This is required to reach paired recovery in 1TR mode. macOS has not been removed.
+
+---
+
+## 4. Stage 2: 1TR Recovery
+
+Stage 2 must run from **One True Recovery (1TR)**. No other recovery mode can change boot policy.
+
+**Entering 1TR, exact sequence:**
+
+1. Shut down fully. Wait ~10 seconds.
+2. **One** press-and-hold of the power button. Not multiple presses.
+3. Release when "Loading startup options" / "Entering startup options" appears.
+4. Choose **Options**.
+5. If asked "Select a volume to recover," choose your **macOS volume** (`Macintosh HD`), not the Fedora volume.
+6. Authenticate as your macOS admin user.
+7. **Utilities → Terminal.**
+
+**Running step 2:**
+
+The script ships on the new volume. Its location depends on installer version:
+
+```
+ls /Volumes
+ls "/Volumes/<your OS name>"
+```
+
+Then run whichever exists:
+
+```
+"/Volumes/<your OS name>/Finish Installation.app/Contents/Resources/step2.sh"
+```
+
+or, on older installers:
+
+```
+/Volumes/Linux/step2.sh
+```
+
+Glob form, which avoids exact-name issues:
+
+```
+/Volumes/Fedora*/Finish*/Contents/Resources/step2.sh
+```
+
+**What step2 does and why it asks for a password:**
+
+- Sets the new volume's security to **Permissive**, allowing a custom boot object.
+- Installs m1n1 stage 1, signed with a machine-specific key as part of Apple's secure boot policy.
+- Apple only permits boot-policy changes when authenticated by a Secure Token holder on the macOS volume. That is the "Using OS 'Macintosh HD' for machine authentication" line from stage 1.
+
+On success it reboots into Fedora's first-boot setup.
+
+> **There is no `alx.sh/step2` URL.** Step 2 is local. See §6.3.
+
+---
+
+## 5. First Boot & Post-Install
+
+- Fedora initial setup: language, keyboard, user account.
+- **Boot picker:** shut down, then hold the power button until startup options appear. Select `Macintosh HD` or the Fedora entry.
+- **Changing the default boot volume:** from macOS, System Settings → General → Startup Disk. From the startup options screen you can also set it via the gear menu.
+- **Fedora is Wayland-only** out of the box. Asahi does not support Xorg as a primary display server.
+- **Rollback:** from macOS,
+  ```
+  curl -L https://alx.sh/wipe-linux | sudo sh
+  ```
+  Then reclaim the space in Disk Utility.
+
+---
+
+## 6. Troubleshooting Log
+
+### 6.1 Command runs without its first word
+
+**Symptom:**
+
+```
+zsh: no such file or directory: https://alx.sh
+-bash: /Volumes/...: is a directory
+```
+
+**Cause:** the leading word (`curl`, `ls`, `find`) was lost, either paste truncation or a swallowed keystroke.
+
+**Fix:** retype the full line by hand. Confirm the echoed command line starts with the command name before pressing Enter. This recurred three times in one session, so it is worth checking every time.
+
+### 6.2 `curl: (6) Could not resolve host: alx.sh` in recovery
+
+**Cause:** recovery has no network.
+
+**Fix:** connect Wi-Fi from the recovery menu bar (top right), or attach USB-C Ethernet. Then retry.
+
+### 6.3 `sh: line 1: Unhandled: command not found`
+
+**Cause:** `curl -L https://alx.sh/step2 | sh`, and that URL does not exist. It returns a ~21-byte error page, which `sh` then tries to execute.
+
+**Fix:** run the local `step2.sh` per §4. Never construct Asahi URLs by analogy with `alx.sh`; use what the installer printed on screen.
+
+### 6.4 kmutil fails: "not a valid admin user for the volume at `<>`"
+
+**Symptom:**
+
+```
+Error Domain=KMErrorDomain Code=71 "Boot policy error: not a valid admin
+user for the volume at <>" UserInfo... Username: <user>
+kmutil failed. Did you mistype your password?
+```
+
+Security Mode already reads `Permissive`, so the policy downgrade itself succeeded; the failure is at the boot-object install. The empty `<>` means the volume could not be resolved for authentication.
+
+**Causes, in order of likelihood:**
+
+1. Not in a properly paired 1TR session, from multiple power-button presses or recovery entered from a warm boot.
+2. Wrong volume chosen at "Select a volume to recover."
+3. The account used does not hold a Secure Token on the macOS volume.
+
+**Fix:** re-enter 1TR exactly as in §4 and retry. If it recurs after a clean 1TR entry, verify Secure Token status from macOS:
+
+```
+sysadminctl -secureTokenStatus <username>
+```
+
+### 6.5 Path lists with `ls` but won't execute
+
+**Symptom:** `ls "/Volumes/<name>"` shows `Finish Installation.app`, but running the full path, or `ls -R` on it, returns `No such file or directory`.
+
+**Cause:** unresolved. Likely a character in the name that isn't the plain space being typed, or a difference in how the bundle is mounted between recovery sessions.
+
+**Fix:** use a glob instead of a literal name:
+
+```
+/Volumes/Fedora*/Finish*/Contents/Resources/step2.sh
+```
+
+To inspect the real name with escapes shown:
+
+```
+ls -b /Volumes/Fedora*/
+```
+
+### 6.6 "Not enough available space to resize" despite free space
+
+**Cause:** APFS overhead from Time Machine local snapshots, or a pending macOS upgrade.
+
+**Fix:** §2, steps 2–5. The installer prints an "Overhead" figure. If it is large, snapshots remain.
+
+### 6.7 Fedora appears in the boot picker but won't boot
+
+**Cause:** step 2 has not completed. The volume exists and is blessed, but no boot object is installed.
+
+**Fix:** complete §4 before attempting to boot Fedora.
+
+---
+
+## 7. Installing Another Distro (Arch, Debian, Alpine, etc.)
+
+Fedora Asahi Remix is the only distribution the Asahi project supports directly. Everything else is community-contributed with no compatibility or safety guarantee from upstream.
+
+**Two supported mechanisms exist:**
+
+1. **Prebuilt image flash**, which is what the Fedora path above does.
+2. **Minimal UEFI environment**, where the installer sets up a UEFI-only environment (m1n1 → U-Boot → your UEFI bootloader) capable of booting UEFI executables from removable media, and can reserve free space for your future root filesystem.
+
+Asahi explicitly recommends mechanism 2 for third-party distros, and calls the image-flash flow a holdover from early bringup work.
+
+**Procedure:**
+
+1. Run the installer as in §3. At the OS image prompt, select the **UEFI environment only** option.
+2. Direct it to create free space for your future root filesystem. **Do not** shrink or alter APFS containers with the other distro's installer; use the Asahi installer for all partitioning.
+3. Complete stage 2 (§4) as normal. This provisions m1n1 stage 1.
+4. Boot your distro's AArch64 UEFI installation media and install into the reserved free space.
+
+**On Arch specifically:** Asahi's original reference distro was an Arch Linux ARM remix, dropped in favor of Fedora after sustained Arch ARM packaging quality problems. Community Arch images still exist but are not maintained by the project. The Alternative Distros wiki page lists current community efforts and maintainers per distro.
+
+**Critical requirement for any distro:** it needs a kernel with Apple Silicon support, meaning the `asahi` branch, not a stock AArch64 kernel. A stock kernel will not drive the hardware.
+
+---
+
+## 8. Command Reference
+
+```bash
+# Pre-flight
+tmutil listlocalsnapshots /
+sudo tmutil deletelocalsnapshots <date>
+
+# Stage 1 (macOS)
+curl https://alx.sh | sh
+curl -fsSL https://alx.sh | sh          # if paste drops the first word
+
+# Stage 2 (1TR recovery Terminal)
+ls /Volumes
+ls "/Volumes/<os name>"
+/Volumes/Fedora*/Finish*/Contents/Resources/step2.sh
+
+# Diagnostics
+ls -b /Volumes/Fedora*/                 # reveal real filenames
+sysadminctl -secureTokenStatus <user>   # run from macOS
+
+# Rollback (macOS)
+curl -L https://alx.sh/wipe-linux | sudo sh
+```
+
+## 9. Upstream References
+
+- [Fedora Asahi Remix](https://asahilinux.org/fedora/)
+- [Project FAQ](https://asahilinux.org/docs/project/faq/)
+- [M2 feature support](https://asahilinux.org/docs/platform/feature-support/m2/)
+- [Distribution guidelines (UEFI path)](https://asahilinux.org/docs/alt/policy/)
+- [m1n1 user guide](https://asahilinux.org/docs/sw/m1n1-user-guide/)
+- [Boot process guide](https://asahilinux.org/docs/alt/boot-process-guide/)
+- [Alternative distros wiki](https://github.com/AsahiLinux/docs/wiki/SW:Alternative-Distros)
+- [Installer source](https://github.com/AsahiLinux/asahi-installer)
