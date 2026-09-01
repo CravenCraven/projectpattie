@@ -1,0 +1,201 @@
+---
+title: "NotReady: A Love Story"
+description: "My Kubernetes cluster runs on three old laptops. What each node does, what the setup costs me, and why the hardware was already sitting in a drawer."
+date: 2026-09-01
+readTime: 15
+category: "thoughts"
+tags: ["homelab", "kubernetes", "linux", "e-waste", "career"]
+draft: true
+---
+
+<div class="pp-meta"><span>thoughts</span> · September 1, 2026 · 15 min read</div>
+
+<h1 class="pp-title">NotReady.<br/><em>a love story.</em></h1>
+
+<p class="pp-subtitle">My Kubernetes cluster runs on three old laptops. What each node does, what the setup costs me, and why the hardware was already sitting in a drawer.</p>
+
+<div class="pp-tags">
+  <span class="pp-tag">homelab</span>
+  <span class="pp-tag">kubernetes</span>
+  <span class="pp-tag">linux</span>
+  <span class="pp-tag">e-waste</span>
+  <span class="pp-tag">career</span>
+</div>
+
+There is no rack in my apartment. No server chassis, no rails, no row of blinking lights that makes visitors ask what I do for a living. There is a shelf. On the shelf are three laptops, lids shut, humming, running a Kubernetes cluster.
+
+People react to this in two ways. Some of them call it minimalist, which is generous. The rest look at me the way you look at someone who keeps their cereal in the fridge. Both reactions are fine. I have made peace with being the person who does this.
+
+Here is the thing nobody expects when I explain it: none of these machines was broken. Not one. They are all past five years old, which in consumer tech is apparently the age at which a device is supposed to quietly excuse itself from the room. But they boot. They compile. They hold a charge. What actually happened is that life moved on around them. I bought something newer, or a vendor decided this particular model had aged out of their support calendar, and the machine went into a drawer while still being a perfectly good computer.
+
+That is the part that always got me. The drawer. A working machine, in a drawer, doing nothing, because of a decision somebody else made in a boardroom.
+
+Linux is what got them out of the drawer. A DevOps course is what made me go looking.
+
+## Yes, I am one of those Apple people
+
+I should say this up front, because it changes how the rest of this reads.
+
+I have been an Apple user my entire computing life. Not casually, not as a phase. I mean the full ecosystem, the upgrade cycle, the trade-in emails, the whole liturgy. My daily driver is still an Apple Silicon Mac and I have exactly zero interest in defending that. The hardware is beautiful. The trackpad is genuinely the best one made. I like my computer.
+
+Which is precisely why I ended up here. Ten years of being an Apple person means you accumulate Apple hardware that is fast, solid, gorgeous, and no longer invited to the party. A 2018 MacBook Pro is not a slow machine. It is a machine somebody decided to stop shipping updates for. Those are two very different sentences and only one of them is my problem to solve.
+
+I will be honest about the first time I put Linux on a Mac. It felt like vandalism. I sat there with the installer waiting on me and thought, genuinely, that I was about to ruin something. Then it booted. Then it was fast. Then it stayed up for weeks. And I sat there feeling slightly stupid, because it turns out the aluminum never cared what was running on it. That was the whole ceiling, and it was made of my own assumptions.
+
+## The course that sent me to the drawer
+
+The honest origin story is that I am enrolled in KubeCraft, and KubeCraft expects you to build a homelab.
+
+Some background on me. I have about ten years in IT. I started on a help desk, which is where you learn that most problems are people problems wearing a technical costume. I moved into systems administration and got comfortable there, comfortable enough that I could feel myself starting to coast. And the industry kept drifting toward a shape I could describe but could not do. I knew what a pipeline was. I had never built one that mattered. I could explain containers at a whiteboard and I had never debugged a `CrashLoopBackOff` at eleven at night with something real depending on it.
+
+So I signed up for a structured program instead of continuing to bookmark tutorials I would never finish. KubeCraft is mentor-led rather than a pile of videos, and it runs Linux first, then cloud, CI/CD, Docker, Kubernetes, Terraform, in an order that assumes you are actually going to build the thing rather than watch someone else build it. That last part is not optional. The homelab is the coursework. The proof is supposed to be a system you stood up, broke, and fixed, not a certificate.
+
+Which put me in front of the obvious question: what am I going to run it on?
+
+The tempting answer was to buy something. There is a whole genre of content about the perfect starter homelab, and it always ends with a shopping list. Mini PCs, a Raspberry Pi cluster, a used enterprise server off eBay that will heat your apartment and announce itself to the neighbors. I spent an embarrassing number of evenings with a cart open.
+
+To their credit, KubeCraft's own answer to this is that you do not need any of it. An old laptop is a fine place to start, and the hardware matters less than the habit of building, breaking, troubleshooting, and writing it down.
+
+Reader, I had old laptops. I had a drawer of them.
+
+That reframed the whole thing. I had been treating "build a homelab" as a purchase I was procrastinating on, when it was actually a project I already had all the parts for. The cluster started that weekend.
+
+## Meet the cluster
+
+Three nodes. k3s. All bare metal, no hypervisor, nothing nested. If a node goes down it is because an actual computer went down, which is exactly the failure I want to get good at.
+
+### k3s-server, control plane
+
+- 2018 MacBook Pro, Intel, T2 security chip
+- 16 GB RAM
+- Ubuntu Server, bare metal
+- Node label: `workload=light`
+
+The brain, and by a wide margin the hardest node to bring up. That T2 chip is Apple's security processor and it does not want a stranger in the house. Getting Linux onto it means the `linux-t2` kernel, Broadcom WiFi firmware that does not ship by default, and at least one evening spent talking to the machine over USB Ethernet because the wireless card was not awake yet. I remember the moment it finally answered on the network. I said something out loud. Alone. To a laptop.
+
+It boots headless to `multi-user.target`. No desktop, no greeter, nothing burning cycles to draw a screen no one is looking at. Sleep and lid-close are both disabled through logind and masked systemd targets, and I will come back to that, because that lid is the single most consequential line of config in this entire setup.
+
+It carries the light workloads. The control plane has enough to think about.
+
+### dell-node, worker
+
+- Dell Latitude 7490
+- 32 GB RAM
+- Fedora, bare metal
+- Node label: `workload=heavy`
+
+The one machine in the house without a fruit on it, and the only one that behaved itself on day one. Business-class Dells are the easiest Linux install on the planet. No firmware scavenger hunt, no kernel patches, no forum thread from 2021 where the original poster says "nevermind, fixed it" and never comes back. You put the ISO on it and it works, and it is boring, and boring is a feature.
+
+It has the most memory in the cluster, so it does the heavy lifting. It is also where the local LLM lives, which we will get to.
+
+### biggie-smalls, worker
+
+- M2 MacBook Air, arm64
+- 16 GB RAM
+- Fedora Asahi Remix with KDE Plasma, bare metal
+- Node label: `workload=compute`
+
+The newest and the weirdest. Apple Silicon running real Linux is a genuinely remarkable piece of work by the Asahi project, done by volunteers reverse-engineering hardware nobody documented for them. It is also an active project, so you sign up for some rough edges. It is currently on WiFi, which I am not proud of and will fix.
+
+It has the fastest CPU in the cluster and the least room to breathe, so it gets `workload=compute`.
+
+### One thing I got right by accident
+
+My node labels do not say `macbook` or `dell`. They describe what a node is good at, not what brand is stamped on it. So when `dell-node` eventually dies, every workload asking for `workload=heavy` follows the label to whatever replaces it and I change nothing. If I had named them after the hardware I would be editing manifests for a week.
+
+I would love to say I planned that. I picked it because "dell-node" felt ugly in a YAML file.
+
+## What the cluster is actually for
+
+The homelab exists so I can learn DevOps. That is the whole job description.
+
+Most of what runs on it is KubeCraft work. The course gives me the path and the order to walk it in, and the cluster is where the walking happens. Reading about GitOps is one afternoon. Bootstrapping Flux on your own cluster, getting the token scopes wrong, watching the reconciliation fail, and fixing it is a different kind of knowledge that stays in your hands afterward.
+
+The platform is the curriculum:
+
+- **k3s** across bare-metal nodes with flannel VXLAN. Real nodes, real network, real things that go `NotReady`.
+- **Flux** for GitOps. The entire cluster comes out of one Git repo. If it is not committed, it does not exist, and I have proved that to myself the hard way more than once.
+- **Traefik** for ingress, a hostname per service, so I actually understand what an ingress controller does instead of nodding at the word.
+- **Sealed Secrets** so credentials can live in a public repo without me waking up at three in the morning.
+- **kube-prometheus-stack** with a scrape config bent to fit k3s, because the defaults assume a control plane that exposes things k3s does not.
+- **Cloudflare Tunnel** for anything reachable from outside. No open ports on my home connection. Not once.
+
+The skill I am building is not "I can install Flux." Anyone can install Flux, the docs are good. The skill is what you do at eleven at night when the reconciliation is failing and the error message is pointing you at the wrong thing entirely. That only comes from having a cluster you are responsible for.
+
+One lesson that cost me an afternoon: anything backed by a single PVC gets the `Recreate` deployment strategy. A rolling update tries to start the new pod before the old one lets go of the volume, and then the two of them sit there politely waiting on each other until the heat death of the universe. Nobody taught me that. The cluster did, at my expense, which is the only way it seems to stick.
+
+Next up is Terraform standing the whole thing up in the cloud and then tearing it back down, CloudNativePG with a restore I have actually tested rather than assumed, and shared storage so pods stop getting pinned to whichever disk they landed on.
+
+## The side project: Laboratório Brasil
+
+Running alongside the coursework is a project of my own, and it is where I go to stretch the skills a little past where the curriculum has taken me.
+
+I am learning Brazilian Portuguese, carioca specifically, because that is where my ear went and I am not fighting it. **[Laboratório Brasil](https://projectpattie.com/brasil/demo/)** is a self-hosted Portuguese learning platform running on the cluster in my living room. There is a static demo of the portal at that link. The live version reads pod status straight off the Kubernetes API and node metrics from Prometheus, so the numbers on that page are the actual machines on my shelf.
+
+What is in it, or on its way in:
+
+- **Tutor**: Open WebUI in front of Ollama, running qwen2.5 7B quantized, for conversation practice against a model that never leaves the house. CPU inference at a measured 4.6 tokens per second, which is slow enough to be humbling and fast enough to be useful.
+- **Coach**: a Python CLI I wrote that corrects my writing and returns typed error categories instead of vague notes, so I can see which mistake I keep making.
+- **Gíria**: a carioca slang database fed by the coach output, with a *palavra do dia* on the front page. The kind of vocabulary no textbook will hand you.
+- **Media**: Navidrome for samba, MPB and choro. Audiobookshelf for podcasts. Jellyfin for films, with transcript tooling so I can pull a clip apart line by line.
+- **fsi-scraper**: a 26-stage corpus pipeline I built to feed all of it.
+
+The course teaches me the pattern. The side project is where I find out whether I actually understood it, because nobody has written a lesson for "run local LLM inference on a laptop CPU inside a memory limit and make it not fall over." I had to reason that one out from what I had already learned, and getting it working told me more about my own progress than finishing a module ever has.
+
+It also means the cluster is not an exercise I can abandon. It is running something I use every day, in a language I am trying to speak.
+
+## The stuff people leave out of the blog post
+
+I am not going to pretend this is better than real hardware. It is cheaper hardware that has taught me more, and the tuition gets paid in specific, annoying ways.
+
+**The lid.** A laptop's entire firmware personality assumes a closed lid means nobody is home. Every node needed sleep, suspend, and lid-close behavior explicitly killed before it would stay up. Miss one machine and you will find out at two in the morning, when a node goes `NotReady` for no reason you can see and you are standing in the dark opening a laptop like you are checking on a sleeping baby.
+
+**Mixed architectures.** I have amd64 and arm64 in the same cluster. Most mainstream images are multi-arch now. A lot of the genuinely interesting self-hosted software is not, and you learn this at scheduling time. On a three-node cluster, losing a node to architecture means losing a third of everything.
+
+**RAM ceilings.** Laptop memory is soldered. There is no upgrade, there is no path, there is only whatever it shipped with. And 16 GB evaporates faster than you would think once monitoring is running.
+
+**No out-of-band management.** No IPMI, no iDRAC, no remote console. If a node does not come back from a reboot, the only diagnostic tool available is walking over and lifting the lid. There is a reason real servers have this and it costs what it costs.
+
+**Batteries.** Every node here is a lithium cell sitting at 100 percent, warm, twenty four hours a day, which is close to the worst thing you can do to one. Swollen laptop batteries are a real fire risk, not a hypothetical one, and they are sneaky. Sometimes the first symptom is a trackpad that stops clicking properly. I check mine. Please check yours.
+
+**Wireless.** One node is on WiFi and it should not be. Cluster networking over wireless is completely fine right up until it is not, and the failures are intermittent and mean-spirited.
+
+**Thermals.** A closed laptop is a laptop with a blocked vent. Sustained load behind a shut lid means throttling, and no amount of clever YAML fixes physics.
+
+None of that made me stop. All of it made me better at figuring out what is actually wrong, which is most of the job.
+
+## Sixty-two million tonnes
+
+Here are the numbers that turned this from a money-saving trick into something I genuinely care about.
+
+The UN's Global E-waste Monitor 2024 found the world threw away 62 million tonnes of electronics in 2022. That is up 82 percent from 2010, and it is heading toward roughly 82 million tonnes by 2030. Of that 62 million, only 22.3 percent was documented as properly collected and recycled. E-waste is piling up about five times faster than formal recycling is growing.
+
+The rest is largely unaccounted for. Landfilled, informally burned or stripped, or shipped somewhere with looser rules and people who pay for it with their lungs. The report puts the recoverable metals lost in that gap at around 91 billion US dollars a year, which is a number so large it stops meaning anything, so hold on to the smaller one instead: Europe documented a recycling rate near 43 percent. African countries came in under 1 percent.
+
+Then there is carbon, and this is the part that actually changed my behavior. For a laptop, most of the damage is done before you ever open the lid. The estimates vary by methodology and you should be suspicious of any single figure, but the widely cited number from Circular Computing puts manufacturing at roughly 75 to 85 percent of a laptop's lifetime footprint. Even the more conservative lifecycle studies put production and raw material extraction above the use phase.
+
+Sit with that for a second. If the harm is concentrated in the making, then the most effective environmental thing I can do with a working laptop is to keep using the thing. Buying a shiny new mini PC to run workloads a 2018 MacBook Pro handles fine would mean paying that manufacturing bill all over again for capability I already own.
+
+So my cluster is not really a budget story, though it is certainly cheap. It is that these three machines already exist. The mining already happened. The factory already ran. The ocean freight already burned. All of that is sunk, permanently, and the only variable I still control is how many more years I get out of them.
+
+## When it is actually dead
+
+Keeping things alive is the good outcome. But eventually hardware really does die, and that moment is where most of the harm gets done. A few rules I hold myself to:
+
+1. **Wipe the drive first.** Full disk encryption from day one makes this trivial. If it is not encrypted, wipe it before it leaves your hands. A recycler is not your data custodian and was never asked to be.
+2. **Pull the battery out of the general waste stream.** Lithium cells in curbside recycling start fires in trucks and sorting facilities, and it is a documented and growing problem. Batteries go to a battery drop-off. Always.
+3. **Use a certified recycler.** Look for R2 or e-Stewards certification. Those standards exist specifically to stop "recycling" that is really just export to somewhere with no protection for the people doing the dismantling.
+4. **Check manufacturer takeback first.** Apple, Dell, and most major vendors run free takeback whether or not the device has any trade-in value left.
+5. **Donate before you recycle.** A machine too slow for you is a machine that runs a lightweight Linux desktop beautifully for someone who needs a computer and does not have one. Shredding a working laptop is still destroying a working laptop.
+
+## Where this has left me
+
+I am better at this than I was six months ago, and I can point at exactly why.
+
+Not because I watched a module on GitOps. Because Flux would not reconcile and I had to learn what it was actually waiting on. Not because someone explained persistent volumes. Because my own pod would not come up and the reason turned out to be a deployment strategy I had never thought about. Not because a slide said Kubernetes is declarative. Because I broke something at midnight and fixed it by changing a file in Git, and watching the cluster correct itself did more for my understanding than any diagram ever has.
+
+That is the trade. Real hardware would be faster and quieter and would not need its lid taped shut, metaphorically speaking. But every constraint on this shelf has cost me a night and given me something I can now explain to another human being without hedging. That is what getting better feels like from the inside. It is much less glamorous than it looks from outside, and it is mostly just showing up to the same problem three evenings in a row.
+
+Three old laptops running a real platform: GitOps, ingress, monitoring, sealed secrets, and enough of a side project on top to keep me coming back to it. Total hardware spend: nothing. It was all already mine.
+
+If you have a laptop in a drawer, it is not dead. It is unemployed.
