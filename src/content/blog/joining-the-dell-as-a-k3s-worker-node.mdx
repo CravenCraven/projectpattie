@@ -1,0 +1,157 @@
+---
+title: "Joining the Dell as a k3s worker node"
+description: "Adding a second machine to a one-node cluster. The join itself is one command. Fedora needs four things done first, and skipping any of them fails in a way that does not look like the cause."
+date: 2026-08-31
+category: devops
+readTime: 9
+tags: ["k3s", "kubernetes", "fedora", "homelab", "firewalld"]
+draft: false
+---
+
+<div class="pp-meta"><span>devops</span> · August 31, 2026 · 9 min read</div>
+
+<h1 class="pp-title">The Dell.<br/><em>a second node, and the four things Fedora needs first.</em></h1>
+
+<p class="pp-subtitle">Adding a second machine to a one-node cluster. The join itself is one command. Fedora needs four things done first, and skipping any of them fails in a way that does not look like the cause.</p>
+
+<div class="pp-tags">
+  <span class="pp-tag">k3s</span>
+  <span class="pp-tag">kubernetes</span>
+  <span class="pp-tag">fedora</span>
+  <span class="pp-tag">homelab</span>
+  <span class="pp-tag">firewalld</span>
+</div>
+
+<div class="pp-toc">
+  <div class="pp-toc-label">// <span>what we're getting into</span></div>
+  <ol>
+    <li><a href="#why">Why a second node changes anything</a></li>
+    <li><a href="#swap">Prep one: kill swap, including the one you did not know about</a></li>
+    <li><a href="#firewall">Prep two: firewalld and the two CIDRs</a></li>
+    <li><a href="#selinux">Prep three: SELinux</a></li>
+    <li><a href="#lid">Prep four: stop the laptop sleeping</a></li>
+    <li><a href="#join">The join, which is one command</a></li>
+    <li><a href="#labels">Labels by capability, not hardware</a></li>
+    <li><a href="#checklist">Final checklist: confirm everything works</a></li>
+  </ol>
+</div>
+
+<h2 class="pp-h2" id="why">Why a second node changes anything</h2>
+
+<p>A one-node cluster is a real cluster in the same way a one-person team is a real team. Everything technically works, and none of the interesting problems have shown up yet.</p>
+
+<p>The second node is where scheduling stops being theoretical. Pods start landing somewhere other than where you are typing. Networking has to cross a wire. Storage stops being a detail you can ignore, because a local volume on one machine is invisible to the other.</p>
+
+<p>The machine going in is a Dell Latitude with 32 GB of RAM running Fedora, joining a server that has 16 GB. So the Dell is not just another node, it is the node with the memory, and things that were cramped on the server have somewhere to go.</p>
+
+<div class="pp-note"><strong>note:</strong> This assumes a working k3s server already. If the control plane is not up yet, that is the post before this one.</div>
+
+<h2 class="pp-h2" id="swap">Prep one: kill swap, including the one you did not know about</h2>
+
+<p>Kubernetes wants swap off. The kubelet makes memory decisions based on real memory, and swap makes those numbers lie.</p>
+
+<p><span class="c-pink">On Fedora this is not the usual fstab edit.</span> Fedora ships zram, a compressed block device in RAM, and it does not appear in fstab at all. You can comment out every swap line you find and still have swap running.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# what is actually providing swap\nswapon --show\n#    -> /dev/zram0  partition  8G\n\nsudo dnf remove -y zram-generator-defaults\nsudo swapoff -a\n\n# confirm nothing comes back after a reboot\nsudo systemctl reboot\nswapon --show\n#    -> no output`}</pre></div></div>
+
+<p>If <code>swapon &#45;&#45;show</code> also lists a real swapfile, deal with that separately in fstab. A broken fstab can stop a machine from booting, so verify it parses before you reboot.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`grep -i swap /etc/fstab\n#    -> /var/swap/swapfile swap swap sw 0 0\n\nsudo sed -i '/ swap / s/^/#/' /etc/fstab\nsudo findmnt --verify\nsudo systemctl daemon-reload`}</pre></div></div>
+
+<h2 class="pp-h2" id="firewall">Prep two: firewalld and the two CIDRs</h2>
+
+<p>This is the one that fails in a way that does not look like the cause. Get it wrong and the node joins fine, shows <code>Ready</code>, and then pods on it cannot talk to pods anywhere else. It presents as a DNS problem. It is not a DNS problem.</p>
+
+<p>Two networks need to be trusted, not two ports:</p>
+
+<ul>
+  <li><span class="c-green">10.42.0.0/16</span> is the pod network. Every pod in the cluster gets an address here.</li>
+  <li><span class="c-green">10.43.0.0/16</span> is the service network. ClusterIPs live here, which is what a Service name resolves to.</li>
+</ul>
+
+<p>Then two ports on top: <code>10250/tcp</code> for the kubelet, so the control plane can reach logs and exec, and <code>8472/udp</code> for the flannel VXLAN tunnel that actually carries pod traffic between machines.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# pod and service CIDRs, trusted wholesale\nsudo firewall-cmd --permanent --zone=trusted --add-source=10.42.0.0/16\nsudo firewall-cmd --permanent --zone=trusted --add-source=10.43.0.0/16\n\n# kubelet and flannel vxlan\nsudo firewall-cmd --permanent --add-port=10250/tcp\nsudo firewall-cmd --permanent --add-port=8472/udp\n\nsudo firewall-cmd --reload\nsudo firewall-cmd --list-all`}</pre></div></div>
+
+<p><span class="c-cyan">Miss 8472 specifically</span> and you get the worst version of this: the node joins, pods schedule, everything looks healthy, and cross-node traffic silently goes nowhere.</p>
+
+<h2 class="pp-h2" id="selinux">Prep three: SELinux</h2>
+
+<p>Fedora runs SELinux in enforcing mode. k3s needs a policy that lets containerd do what it needs to do, and the install script handles this on its own.</p>
+
+<p>You do not need to do anything here in advance. It is worth knowing it happened, because the installer will pull in <code>k3s-selinux</code> from the Rancher repo mid-install and ask to import a GPG key. That is expected, not a prompt to be suspicious of.</p>
+
+<p>Do not turn SELinux off to make a problem go away. If something is denied, the denial is in the audit log and it will tell you what it wanted.</p>
+
+<h2 class="pp-h2" id="lid">Prep four: stop the laptop sleeping</h2>
+
+<p>The node is a laptop. Laptops sleep when you close them, and a sleeping node is a node the cluster loses.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo mkdir -p /etc/systemd/logind.conf.d\nsudo vim /etc/systemd/logind.conf.d/99-lid.conf`}</pre></div></div>
+
+<p>Put this in it:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">ini</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`[Login]\nHandleLidSwitch=ignore\nHandleLidSwitchExternalPower=ignore\nHandleLidSwitchDocked=ignore`}</pre></div></div>
+
+<p>Then apply it and mask the sleep targets as a backstop:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo systemctl restart systemd-logind\nsudo systemctl mask sleep.target suspend.target hibernate.target hybrid-sleep.target\n\n# see who is holding the lid switch\nsystemd-inhibit --list`}</pre></div></div>
+
+<p><span class="c-pink">Check that last command's output.</span> If a desktop environment appears in the list holding <code>handle-lid-switch</code>, it has taken the lid switch away from logind and your config file is being ignored. The desktop's own power settings have to be changed too, and on a node the cleaner answer is to stop booting into a desktop at all.</p>
+
+<h2 class="pp-h2" id="join">The join, which is one command</h2>
+
+<p>Get the token and the version from the server:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# on the server\nsudo cat /var/lib/rancher/k3s/server/node-token\n#    -> K10<long string>\n\nk3s --version\n#    -> k3s version v1.36.2+k3s1`}</pre></div></div>
+
+<p>Before installing anything, confirm the Dell can actually reach the API:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# from the Dell, before installing anything\ncurl -k https://192.168.1.50:6443\n#    -> {"kind":"Status", ... "reason":"Unauthorized","code":401}`}</pre></div></div>
+
+<p>A <code>401 Unauthorized</code> is the good answer. It means the API server is there and talking. A timeout means the network path is wrong and nothing after this will work.</p>
+
+<p>Then the join itself:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`curl -sfL https://get.k3s.io | \\\n  K3S_URL=https://192.168.1.50:6443 \\\n  K3S_TOKEN=K10<your-token> sh -`}</pre></div></div>
+
+<p>Setting <code>K3S_URL</code> is what makes this an agent rather than a second server. Leave it out and you get a second control plane, which is a different post and a different set of problems.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sudo systemctl status k3s-agent --no-pager\n#    -> Active: active (running)\n#    -> k3s agent is up and running`}</pre></div></div>
+
+<div class="pp-note"><strong>note:</strong> <code>kubectl</code> does not work on the agent. Agents get no kubeconfig, so it tries localhost:8080 and gets connection refused. That is correct behaviour, not a broken install. Run kubectl on the server.</div>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# on the server, not the agent\nkubectl get nodes -o wide`}</pre></div></div>
+
+<p>The agent may install a slightly newer patch version than the server. That is fine in this direction. Agents can be newer than the control plane, never older.</p>
+
+<h2 class="pp-h2" id="labels">Labels by capability, not hardware</h2>
+
+<p>A label is a tag on a node. A <code>nodeSelector</code> on a pod says "only put me somewhere with this tag."</p>
+
+<p>The temptation is to label by machine name. <span class="c-orange">Label by what the machine can do instead.</span> If the Dell gets replaced next year, you move one label and every manifest still works. Label it <code>dell</code> and you are editing YAML for an afternoon.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`kubectl label node dell-node workload=heavy\nkubectl label node k3s-server workload=light\n\nkubectl get nodes -L workload`}</pre></div></div>
+
+<p>The <code>ROLES</code> column showing <code>&lt;none&gt;</code> for a worker is normal. That column reads a different label entirely and is purely cosmetic. Any node without a control-plane taint already runs workloads.</p>
+
+<p>Then prove it actually works, because a selector that matches nothing leaves a pod <code>Pending</code> forever with no obvious complaint:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`kubectl run placement-test --image=busybox --restart=Never \\\n  --overrides='{"spec":{"nodeSelector":{"workload":"heavy"}}}' \\\n  -- sleep 60\n\nkubectl get pod placement-test -o wide\n#    -> NODE column should read dell-node\n\nkubectl delete pod placement-test`}</pre></div></div>
+
+<p>If the pod lands on the Dell, scheduling is working, the label is right, and cross-node networking is up. That one test covers all three.</p>
+
+<div class="pp-note"><strong>worth knowing before you move anything:</strong> local-path storage is node-local. A PVC binds to whichever node the pod first landed on and cannot move. Adding a nodeSelector to an existing stateful workload will leave it Pending forever, because it cannot reach its own volume. Moving it means deleting the PVC and letting it recreate, which means re-downloading whatever was in it.</div>
+
+<h2 class="pp-h2" id="checklist">Final checklist: confirm everything works</h2>
+
+<p>If every check below passes, this post's work is done and verified.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# 1. Swap is off and stays off across a reboot\nswapon --show\n#    -> no output\n\n# 2. The firewall trusts the pod and service networks\nsudo firewall-cmd --list-all | grep -A2 sources\n\n# 3. The agent is running on the worker\nsudo systemctl is-active k3s-agent\n#    -> active\n\n# 4. The server sees the node as Ready\nkubectl get nodes\n#    -> dell-node   Ready   <none>\n\n# 5. The label is applied\nkubectl get nodes -L workload\n\n# 6. A pod with the nodeSelector actually lands there\nkubectl run placement-test --image=busybox --restart=Never \\\n  --overrides='{"spec":{"nodeSelector":{"workload":"heavy"}}}' -- sleep 30\nkubectl get pod placement-test -o wide\nkubectl delete pod placement-test\n\n# 7. Eyeball check: close the laptop lid, wait five minutes,\n#    confirm the node is still Ready from the server`}</pre></div></div>
+
+<p>Two nodes, split by capability, with a test that proves placement rather than assuming it. The next thing that gets interesting is what happens when one of them goes away.</p>
+
+<div class="pp-next">
+  <div class="pp-next-label">next post</div>
+  <div class="pp-next-title">K9s: navigating a cluster without living in kubectl</div>
+</div>

@@ -1,0 +1,208 @@
+---
+title: "Setting Up GitOps with Flux on a Kubernetes Cluster"
+description: "Bootstrapping Flux on a fresh k3s cluster so Git becomes the source of truth, plus the token scopes and pre-flight checks that tripped me up."
+date: 2026-08-31
+category: devops
+readTime: 9
+tags: ["kubernetes", "gitops", "flux", "homelab"]
+draft: false
+---
+
+<div class="pp-meta"><span>devops</span> · August 31, 2026 · 9 min read</div>
+
+<h1 class="pp-title">Setting up GitOps with Flux.<br/><em>the cluster pulls, you commit.</em></h1>
+
+<p class="pp-subtitle">Bootstrapping Flux on a fresh k3s cluster so Git becomes the source of truth, plus the token scopes and pre-flight checks that tripped me up.</p>
+
+<div class="pp-tags">
+  <span class="pp-tag">kubernetes</span>
+  <span class="pp-tag">gitops</span>
+  <span class="pp-tag">flux</span>
+  <span class="pp-tag">homelab</span>
+</div>
+
+Up to this point everything on my cluster got there because I typed `kubectl apply` at it. That works right up until you rebuild the cluster and realize you have no idea what was actually running on it. The manifests lived in my shell history and in my head, which are two places I do not trust.
+
+GitOps fixes that by inverting the direction of control. Instead of me pushing changes into the cluster, a controller runs inside the cluster and pulls changes from a Git repo. The repo is the source of truth. If the cluster drifts, the controller pulls it back. If I want to change something, I commit.
+
+Flux is the controller I picked. Here is the full setup on a fresh cluster.
+
+## What you need first
+
+- A running Kubernetes cluster with a working kubeconfig. Mine is k3s.
+- A GitHub account and a personal access token.
+- The `flux` CLI on your workstation.
+
+That is genuinely it. Flux bootstraps itself, so there is no Helm chart to babysit.
+
+## Create the GitHub personal access token
+
+Flux needs write access to a repo so it can commit its own manifests during bootstrap and read from it forever after.
+
+1. Go to **GitHub Settings > Developer Settings > Personal Access Tokens > Tokens (classic)**.
+2. Generate a new classic token.
+3. Check the full **`repo`** scope. Not a subset, the whole box.
+4. Copy the token immediately. GitHub will not show it again.
+
+Then export it, along with your username:
+
+```bash
+export GITHUB_TOKEN=<your-token>
+export GITHUB_USER=<your-username>
+```
+
+Two notes on this. First, a fine-grained token can work, but it needs Contents read/write plus Administration if you want Flux to create the repo for you, and getting that combination wrong produces a bootstrap failure that does not clearly say "your token is wrong." Classic with `repo` is the boring choice and boring is correct here.
+
+Second, `export` puts the token in your shell history and in the environment of every process you launch from that shell. Use a fresh terminal for the bootstrap and close it when you are done. If you prefix the command with a space, most shells will keep it out of history entirely.
+
+## Install the Flux CLI
+
+Homebrew:
+
+```bash
+brew install fluxcd/tap/flux
+```
+
+Or the install script, if you are on a Linux box without Homebrew:
+
+```bash
+curl -s https://fluxcd.io/install.sh | sudo bash
+```
+
+Confirm it landed:
+
+```bash
+which flux
+flux --version
+```
+
+## Run the pre-flight check
+
+Before bootstrapping, ask Flux whether your cluster is actually suitable:
+
+```bash
+flux check --pre
+```
+
+This checks your Kubernetes version against the minimum Flux supports and confirms the CLI can reach the API server. It is fast and it is the difference between finding out now and finding out halfway through a bootstrap.
+
+If this fails, it is almost always kubeconfig context rather than the cluster itself. Run `kubectl config current-context` and make sure you are pointed where you think you are.
+
+## Bootstrap Flux
+
+```bash
+flux bootstrap github \
+  --owner=$GITHUB_USER \
+  --repository=pi-cluster \
+  --branch=main \
+  --path=./clusters/staging \
+  --personal
+```
+
+Breaking down the flags:
+
+- `--owner` is the GitHub user or org that owns the repo.
+- `--repository` is the repo name. If it does not exist yet, Flux creates it as private.
+- `--branch` is the branch Flux watches. This has to match reality, so `main` unless you have a reason.
+- `--path` is the directory inside the repo that Flux treats as this cluster's desired state. Everything under it gets reconciled.
+- `--personal` tells Flux the repo belongs to a user account rather than an org.
+
+That `--path` value is the one worth thinking about for more than a second. It is what lets one repo hold several clusters. `./clusters/staging` and `./clusters/production` can live side by side, each bootstrapped separately, each ignoring the other's directory. Even with one cluster today, use the nested path. Renaming it later means moving files and rerunning bootstrap, and future you will not thank present you for the flat directory.
+
+The command is also idempotent. Running it again against an existing setup upgrades the controllers instead of breaking anything, which is how you do Flux version bumps later.
+
+## What actually happened
+
+Two things, in two places.
+
+In the repo, Flux committed a `clusters/staging/flux-system/` directory containing `gotk-components.yaml` (the controller manifests), `gotk-sync.yaml` (the GitRepository and Kustomization objects that point Flux back at this repo), and a `kustomization.yaml` tying them together.
+
+On the cluster, a new `flux-system` namespace appeared with four controllers running in it:
+
+```bash
+kubectl get pods -n flux-system
+```
+
+- **source-controller** fetches from Git, Helm repos, and OCI registries.
+- **kustomize-controller** applies the manifests it finds.
+- **helm-controller** manages HelmRelease resources.
+- **notification-controller** handles inbound webhooks and outbound alerts.
+
+The loop is closed. `gotk-sync.yaml` tells Flux to watch this repo, and `gotk-sync.yaml` lives in this repo, so Flux is managing its own configuration. Clone the repo, commit a deployment manifest under `clusters/staging/`, push, and it lands on the cluster within the sync interval without you touching `kubectl` again.
+
+Confirm everything is healthy:
+
+```bash
+flux check
+flux get kustomizations
+```
+
+You want `Applied revision: main@sha1:...` in that second output.
+
+## The part I got wrong
+
+My first bootstrap attempt failed because I had generated a fine-grained token with Contents read/write but no Administration permission, and I was asking Flux to create the repo. The error surfaced as a generic failure during the repo creation step and I lost an afternoon to it, most of that spent assuming my `GITHUB_USER` was misspelled.
+
+If bootstrap fails, check in this order: token scopes, then whether `$GITHUB_TOKEN` is actually set in the shell you are currently in, then the repo name. It has been one of those three every time.
+
+## Putting something in it
+
+A bootstrapped cluster managing only itself is a closed loop with nothing in it. The first real commit is what proves the thing works.
+
+Clone the repo and give it a structure before you fill it:
+
+```
+├── apps
+│   └── staging
+├── infrastructure
+│   └── staging
+└── clusters
+    └── staging
+        └── flux-system
+```
+
+Nothing enforces this layout. It exists so that when infrastructure is broken you know which directory to look in. `infrastructure` holds what workloads depend on, `apps` holds the workloads, `clusters/staging` holds the Flux objects that point at both and set the order between them.
+
+Drop a Deployment, Service, and Namespace into `apps/staging/podinfo/`, then list them in a `kustomization.yaml` in that same directory:
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - deployment.yaml
+  - service.yaml
+```
+
+Flux applies what Kustomize renders, and Kustomize renders what is listed under `resources`. A manifest sitting in the directory but missing from that list is not applied and does not error. It simply does not exist as far as the cluster is concerned. I lost twenty minutes to a Service I had written, committed, pushed, and never listed.
+
+Then tell Flux the directory is worth reconciling, in `clusters/staging/apps.yaml`:
+
+```yaml
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: apps
+  namespace: flux-system
+spec:
+  interval: 10m
+  path: ./apps/staging
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+```
+
+`interval` is the drift correction, how often Flux re-reconciles even when Git has not changed. `prune: true` means resources removed from Git get deleted from the cluster, which is what makes Git the source of truth rather than a suggestion. It is also the flag that deletes your workload the moment you delete a file, so mean it when you set it.
+
+Commit, push, and force a fetch rather than waiting out the interval:
+
+```bash
+flux reconcile source git flux-system
+flux get kustomizations
+kubectl get pods -n podinfo
+```
+
+You want `Applied revision:` matching your latest commit. An older SHA means Flux has not fetched. Your SHA with `Ready: False` means it fetched and the apply failed, and the message column will say why.
+
+That is the loop closed. From here the cluster changes because the repo changed, and `kubectl apply` goes back to being a debugging tool instead of a deployment method.
