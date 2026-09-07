@@ -1,0 +1,338 @@
+---
+title: "Why Won't My LoadBalancer Load Balance Anything?"
+description: "I got tired of port-forwarding to Grafana, so I wrote a Service. It looked perfect and went absolutely nowhere, and then fixing it changed nothing at all."
+tags: ["kubernetes", "services", "loadbalancer", "grafana", "k3s", "troubleshooting", "homelab"]
+date: 2026-09-03
+category: devops
+readTime: 8
+draft: false
+---
+
+<div class="pp-meta"><span>devops</span> · September 3, 2026 · 8 min read</div>
+
+<h1 class="pp-title">Why won't my LoadBalancer.<br/><em>load balance anything?</em></h1>
+
+<p class="pp-subtitle">I got tired of port-forwarding to Grafana, so I wrote a Service. It looked perfect and went absolutely nowhere, and then fixing it changed nothing at all.</p>
+
+<div class="pp-tags">
+  <span class="pp-tag">kubernetes</span>
+  <span class="pp-tag">services</span>
+  <span class="pp-tag">loadbalancer</span>
+  <span class="pp-tag">grafana</span>
+  <span class="pp-tag">k3s</span>
+  <span class="pp-tag">troubleshooting</span>
+  <span class="pp-tag">homelab</span>
+</div>
+
+Every time I wanted to look at Grafana, I ran this:
+
+```bash
+kubectl port-forward -n monitoring svc/monitoring-grafana 3000:80
+```
+
+And then I left a terminal tab open forever, because closing it kills the connection. Shut the laptop, it dies. Reboot, it dies. Run anything else in that tab, it dies. It's a tunnel held open by a process I have to babysit, and every single time I wanted to look at a graph I had to remember the incantation first.
+
+I wanted an address I could bookmark. So I wrote a Service.
+
+That should have been the end of it. It took about an hour, because two separate things were broken and fixing the first one changed absolutely nothing.
+
+## What a Service actually is
+
+Worth getting this straight up front, because my bug came directly out of misunderstanding it.
+
+A Service doesn't contain pods. It has no list of members, no roster. It's a set of matching rules plus a stable address, and Kubernetes watches continuously for pods whose labels match those rules and sends traffic to whatever it finds.
+
+Which has one consequence that turns out to matter enormously: **a Service that matches nothing looks completely healthy.** It has an IP. It has a port. It shows up in every listing. It reports no errors anywhere. It just quietly goes nowhere.
+
+Hold on to that.
+
+## The manifest
+
+I already had a `mealie` service running as a LoadBalancer, so I opened it side by side and copied the shape.
+
+```bash
+vim -O loadbalancer.yaml ../mealie/service.yaml
+```
+
+Which got me this. **Don't copy this one, it's broken.** The working version is further down.
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: grafana
+  name: grafana-loadbalancer
+  namespace: monitoring
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP
+  selector:
+    app.kubernetes.io/instance: prometheus-stack   # <-- here's the bug
+    app.kubernetes.io/name: grafana
+```
+
+Two fields in there are worth understanding before we get to what went wrong.
+
+**`port` and `targetPort` are not the same thing.** `port` is what you browse to. `targetPort` is what the container is actually listening on. They're allowed to differ and that's the entire point of having both. Mealie used 9000 for both, and I very nearly kept 9000 for both out of pure copy-paste momentum, which would have pointed my service at a port Grafana doesn't listen on. Grafana listens on 3000.
+
+You don't have to guess at that:
+
+```bash
+kubectl get pod -n monitoring -l app.kubernetes.io/name=grafana \
+  -o jsonpath='{.items[0].spec.containers[*].ports}' ; echo
+```
+
+**`selector` is the matching rules.** This is the one that got me.
+
+I applied it. k9s showed the service created, typed LoadBalancer, external IP assigned, looking great.
+
+Browser timed out.
+
+## The command that found it
+
+```bash
+kubectl get endpoints -n monitoring grafana-loadbalancer
+```
+
+```
+NAME                   ENDPOINTS   AGE
+grafana-loadbalancer   <none>      5m39s
+```
+
+There it is. `<none>`.
+
+The service existed, had an IP, had a port, and was routing to nothing whatsoever. Exactly the failure I described above. Healthy-looking object, zero pods behind it, no error anywhere telling me so.
+
+This is the command I didn't know I needed. `kubectl get svc` will happily show you a service that does not work. Endpoints is where "does this actually go anywhere" lives, and I hadn't been looking.
+
+So, compare the selector against reality:
+
+```bash
+kubectl get pods -n monitoring --show-labels | grep grafana
+```
+
+```
+app.kubernetes.io/instance=monitoring,app.kubernetes.io/name=grafana,...
+```
+
+`instance=monitoring`. My selector said `instance=prometheus-stack`.
+
+That was the release name from the tutorial I'd been following. Mine was `monitoring`. Pod labels get generated from *your* release name and I'd copied somebody else's, which is the second time in one afternoon I made that exact mistake.
+
+One line:
+
+```yaml
+  selector:
+    app.kubernetes.io/instance: monitoring    # was: prometheus-stack
+    app.kubernetes.io/name: grafana
+```
+
+Reapplied:
+
+```
+NAME                   ENDPOINTS          AGE
+grafana-loadbalancer   10.42.0.179:3000   10m
+```
+
+A real pod IP on the right port. Wired up properly.
+
+## And it still didn't work
+
+Browser timed out. `curl` timed out.
+
+```bash
+curl -m 5 -I http://192.168.1.50:3000
+```
+
+```
+curl: (28) Connection timed out after 5003 milliseconds
+```
+
+This is the genuinely disorienting part, and it's the reason I wanted to write this post instead of the tidy version where everything works after the fix. I'd just proven my selector was correct. The endpoint was right there in the output. And nothing had changed.
+
+The temptation right then is to decide the fix was wrong and start undoing it. That instinct is how you end up two hours deep having broken three things that were fine.
+
+## Testing something that already worked
+
+Instead I tried a service I knew had been running for a month, same external IP, different port.
+
+```bash
+curl -m 5 -I http://192.168.1.50:9000
+```
+
+```
+curl: (28) Connection timed out after 5001 milliseconds
+```
+
+And there's the clue. A service that's worked for thirty days doesn't break because I wrote a new YAML file five minutes ago.
+
+So the problem wasn't my service. It was the address.
+
+## The address had changed
+
+I went back and actually read the resource instead of trusting my scrollback.
+
+```bash
+kubectl get svc -n monitoring grafana-loadbalancer
+```
+
+```
+NAME                   TYPE           EXTERNAL-IP    PORT(S)
+grafana-loadbalancer   LoadBalancer   192.168.1.51   3000:30278/TCP
+```
+
+`192.168.1.51`.
+
+I'd been curling `192.168.1.50` the whole time, because that's what k9s showed me earlier in the session and I'd been copying it forward without ever rechecking. The VM's address had changed underneath me at some point and I hadn't noticed.
+
+```bash
+curl -m 5 -I http://192.168.1.51:3000
+```
+
+```
+HTTP/1.1 302 Found
+Location: /login
+```
+
+Grafana. A 302 to `/login` is exactly what a healthy Grafana gives you when you're not logged in.
+
+So get the address from the resource, every single time:
+
+```bash
+kubectl get svc -n monitoring grafana-loadbalancer \
+  -o jsonpath='{.status.loadBalancer.ingress[0].ip}' ; echo
+```
+
+## Two things about LoadBalancer on k3s
+
+Neither of these is obvious and both shaped how this went.
+
+**Every LoadBalancer gets the same IP.** k3s ships ServiceLB, which implements LoadBalancer by binding the port you asked for directly on the node. So traefik, mealie and Grafana all show the same external IP and are told apart only by port. That's not how a cloud LoadBalancer behaves, where each service gets its own address, and it threw me for a minute.
+
+**Which means port conflicts are a real thing.** Traefik already holds 80 and 443. Ask for port 80 and your service will sit at `<pending>` forever, waiting for a port it's never getting. Mealie holds 9000. 3000 was free, which is the only reason I used it.
+
+If something is stuck pending, that's where to look:
+
+```bash
+kubectl get events -n monitoring --sort-by=.lastTimestamp | tail
+```
+
+---
+
+## Doing it yourself
+
+## The working manifest
+
+Here's the whole thing, corrected. One value in it is specific to my cluster, so read the next bit before you copy it.
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: grafana
+  name: grafana-loadbalancer
+  namespace: monitoring
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 3000
+      targetPort: 3000
+      protocol: TCP
+  selector:
+    app.kubernetes.io/instance: monitoring
+    app.kubernetes.io/name: grafana
+```
+
+**1. Get your own selector.**
+
+`instance: monitoring` is my release name. Yours is whatever you passed to `helm install`. Don't take mine, that's the whole mistake this post is about.
+
+```bash
+kubectl get pods -n monitoring --show-labels | grep grafana
+```
+
+Copy the `app.kubernetes.io/instance=` value out of that and use it.
+
+Or, if you've only got one Grafana in the namespace, drop the instance line entirely and match on the name alone. Fewer things to get wrong:
+
+```yaml
+  selector:
+    app.kubernetes.io/name: grafana
+```
+
+**2. Pick a port nothing else is using.**
+
+Remember every LoadBalancer shares the node IP on k3s. Check what's taken:
+
+```bash
+kubectl get svc -A | grep LoadBalancer
+```
+
+**3. Apply it.**
+
+```bash
+kubectl apply -f loadbalancer.yaml
+```
+
+**4. Check the endpoints before anything else.**
+
+```bash
+kubectl get endpoints -n monitoring grafana-loadbalancer
+```
+
+A pod IP means your selector matched. `<none>` means it didn't, and nothing else is worth investigating until that's sorted.
+
+**5. Get the address from the resource.**
+
+```bash
+kubectl get svc -n monitoring grafana-loadbalancer \
+  -o jsonpath='{.status.loadBalancer.ingress[0].ip}' ; echo
+```
+
+**6. Confirm it answers.**
+
+```bash
+curl -m 5 -I http://<that-ip>:3000
+```
+
+A `302` pointing at `/login` means you're done. A timeout means the Kubernetes side is fine and something below it isn't, which on a laptop VM usually means the host can't route to the VM's network at all.
+
+## The shortcut I skipped on purpose
+
+I could have got the same result with three lines in a values file, without writing a Service at all:
+
+```yaml
+grafana:
+  service:
+    type: LoadBalancer
+    port: 3000
+```
+
+Then `helm upgrade`. The chart already knows the selector, the labels, the target port, all of it.
+
+That would have worked and I'd have learned nothing about selectors, endpoints, or why a healthy-looking Service can route to nowhere. The shortcut hides exactly the part that broke. I'd still say do it the long way once.
+
+## What I'd tell myself at the start
+
+`kubectl get endpoints` is the fastest debugging tool I picked up all day. A Service can look perfect and route to nothing, and endpoints is the only place that shows up.
+
+Anything named after a release is yours to substitute, never to copy. Secret names, service names, label selectors. Every one of them comes from a release name someone chose at install time, and that someone wasn't me.
+
+Fixing one bug doesn't always change the symptom. When two things are broken, correcting the first gives you exactly zero visible improvement, and it's very tempting to conclude you were wrong and revert it. I wasn't wrong. Keep going.
+
+When something that's always worked breaks too, you're looking at the wrong layer. Testing that month-old service is what told me my new YAML was innocent, and it's the cheapest diagnostic I know. I nearly didn't run it.
+
+And read the resource, not your scrollback. The IP in my terminal history was true when it printed and false by the time I used it. The cluster knows what's true now. My scrollback knows what used to be.
+
+## Was it worth it
+
+Yeah, and not for the bookmark.
+
+Port-forward still has its place. It's the right tool for a quick look at something you don't want exposed, and it needs no changes to the cluster at all. But it's a thing you hold open with your hands, and I didn't want to hold it open every time I wanted to see a graph.
+
+The next problem is already obvious: this IP belongs to a VM on my laptop and it changes whenever it feels like it. The real answer is an Ingress with a hostname instead of an address, which is where I'm heading on the homelab anyway. That's the next post.
