@@ -10,19 +10,19 @@
   --card:   #14120e;   /* cards, panels */
 
   /* borders */
-  --bd:     #26221a;   /* default hairline */
-  --bd2:    #38311f;   /* emphasis, inputs */
+  --bd:     #262833;   /* default hairline */
+  --bd2:    #34405a;   /* emphasis, inputs */
 
   /* text, brightest to dimmest */
   --head:   #f5ead2;   /* headings */
   --tx:     #d4c8b1;   /* body */
   --dim:    #a08d6c;   /* supporting */
-  --dimmer: #645842;   /* metadata, prompts */
+  --dimmer: #6b6a70;   /* metadata, prompts */
 
   /* accents */
   --a1:     #ffb000;   /* primary: links, active nav, $ prompt */
-  --a2:     #5fb3b3;   /* secondary: section labels, scanline */
-  --a3:     #e07a3f;   /* highlight: headline spans */
+  --a2:     #5cb8ff;   /* secondary: section labels, scanline */
+  --a3:     #4d8dff;   /* highlight: headline spans */
   --a4:     #c9a227;   /* attribution, callout rules */
 
   /* terminal window dots — macOS chrome, fixed by convention */

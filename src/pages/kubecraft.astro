@@ -1,118 +1,168 @@
 ---
-import { getCollection } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
-import PageHeader from '../components/PageHeader.astro';
+import PostCard from '../components/PostCard.astro';
+import { getCollection } from 'astro:content';
 
-const title = 'kubecraft homelab';
+const slugify = (s: string) =>
+  s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 
-const posts = (await getCollection('blog', ({ data }) =>
+const posts = await getCollection('blog', ({ data }) =>
   data.homelab === 'kubecraft' && !data.draft
-)).sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+);
 
-const fmt = (d) =>
-  d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric', timeZone: 'UTC' });
+// Same grouping as the category pages: series get a card, the rest are standalone.
+type Post = (typeof posts)[number];
+const seriesGroups = new Map<string, Post[]>();
+const standalone: Post[] = [];
+
+for (const post of posts) {
+  const s = post.data.series;
+  if (s) {
+    if (!seriesGroups.has(s)) seriesGroups.set(s, []);
+    seriesGroups.get(s)!.push(post);
+  } else {
+    standalone.push(post);
+  }
+}
+
+for (const list of seriesGroups.values()) {
+  list.sort((a, b) => (a.data.seriesOrder ?? 0) - (b.data.seriesOrder ?? 0));
+}
+
+standalone.sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+
+const seriesEntries = Array.from(seriesGroups.entries())
+  .map(([name, list]) => ({
+    name,
+    list,
+    newestDate: Math.max(...list.map(p => p.data.date.valueOf())),
+  }))
+  .sort((a, b) => b.newestDate - a.newestDate);
+
+const totalPostCount = posts.length;
 ---
 
 <BaseLayout
-  title={`${title} — projectpattie;`}
+  title="kubecraft homelab — projectpattie;"
   description="Kubernetes built from scratch, one YAML file at a time, with the bugs left in."
 >
-  <PageHeader path="/kubecraft" sub="// kubernetes, from scratch">{title}</PageHeader>
+  <div style="max-width:900px; margin:0 auto; padding:60px 24px 100px;">
+    <div style="font-size:12px; color:var(--dimmer); margin-bottom:12px;">// homelab</div>
+    <h1 style="font-size:28px; margin-bottom:14px;">kubecraft homelab</h1>
+    <p class="kc-blurb">The kubecraft homelab is Kubernetes built from scratch, one YAML file at a time, with the bugs left in. What I ran, what melted my brain, and what broke in spectacular fashion.</p>
 
-  <div class="soon">
-    <div class="panel">
-      <div class="panel-h">
-        <div class="panel-dot"></div>
-        <span class="panel-tag">homelab</span>
-        <span class="panel-path">~/kubecraft</span>
+    {totalPostCount === 0 ? (
+      <div style="border:1px solid var(--bd); border-radius:6px; padding:32px; text-align:center; color:var(--dimmer); font-size:13px;">
+        coming soon — check back shortly.
       </div>
-      <div class="panel-b">
-        {posts.length === 0 ? (
-          <>
-            <div class="sh">
-              <span class="pr">$</span> ls ~/kubecraft
-              <span class="ln"><span class="b">›</span> build in progress</span>
-              <span class="ln"><span class="b">›</span> first logs landing soon</span>
-            </div>
-            <p class="lead">Nothing to read here yet.</p>
-            <p>The kubecraft homelab is Kubernetes built from scratch, one YAML file at a time, with the bugs left in. What I ran, what melted my brain, and what broke in spectacular fashion. When there is something worth publishing, it lands
-            here.</p>
-          </>
-        ) : (
-          <>
-            <div class="sh">
-              <span class="pr">$</span> ls ~/kubecraft
-              <span class="ln"><span class="b">›</span> {posts.length} {posts.length === 1 ? 'log' : 'logs'} published</span>
-            </div>
-            <p>The kubecraft homelab is Kubernetes built from scratch, one YAML file at a time, with the bugs left in. What I ran, what melted my brain, and what broke in spectacular fashion.</p>
-            <ul class="posts">
-              {posts.map((post) => (
-                <li>
-                  <a href={`/blog/${post.slug}/`} class="post">
-                    <span class="post-t">{post.data.title}</span>
-                    <span class="post-m">
-                      {fmt(post.data.date)}
-                      {post.data.readTime && <> · {post.data.readTime} min</>}
-                    </span>
-                    <span class="post-d">{post.data.description}</span>
-                  </a>
-                </li>
+    ) : (
+      <div style="display:flex; flex-direction:column; gap:36px;">
+
+        {seriesEntries.map(({ name, list }) => (
+          <a href={`/series/${slugify(name)}`} class="cat-series-card">
+            <div class="cat-section-label">// <span>series</span> {name} <span class="cat-section-count">{list.length} parts</span></div>
+            <div class="cat-series-titles">
+              {list.slice(0, 3).map(post => (
+                <div class="cat-series-line">
+                  <span class="cat-series-order">{String(post.data.seriesOrder ?? 0).padStart(2, '0')}</span>
+                  {post.data.title}
+                </div>
               ))}
-            </ul>
-          </>
+              {list.length > 3 && <div class="cat-series-line cat-series-more">+ {list.length - 3} more</div>}
+            </div>
+            <div class="cat-series-cta">open the series →</div>
+          </a>
+        ))}
+
+        {standalone.length > 0 && (
+          <section>
+            {seriesEntries.length > 0 && (
+              <div class="cat-section-label">// <span>standalone</span> posts</div>
+            )}
+            <div class="cat-cards">
+              {standalone.map(post => (
+                <PostCard
+                  title={post.data.title}
+                  description={post.data.description}
+                  slug={post.slug}
+                  date={post.data.date}
+                  category={post.data.category}
+                  readTime={post.data.readTime}
+                />
+              ))}
+            </div>
+          </section>
         )}
-        <div class="ft">
-          <a href="/brasil/demo" class="lk">the brasil homelab →</a>
-          <a href="/category/devops" class="lk alt">devops writing →</a>
-        </div>
       </div>
-    </div>
+    )}
   </div>
 </BaseLayout>
 
 <style>
-  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
-
-  .ph{background:var(--page);border-bottom:1px solid var(--bd);position:relative;overflow:hidden}
-  .hbg{position:absolute;inset:0;background-image:linear-gradient(color-mix(in srgb,var(--a1) 4%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--a1) 4%,transparent) 1px,transparent 1px);background-size:44px 44px;pointer-events:none}
-  .ph-in{max-width:820px;margin:0 auto;padding:46px 24px 34px;position:relative}
-  .ph-pl{color:var(--dim);font-size:12px;margin-bottom:11px}
-  .ph-pl .u{color:var(--a1)}
-  .ph-pl .p{color:var(--a2)}
-  .ph-t{font-size:clamp(26px,4.5vw,34px);font-weight:700;letter-spacing:-.02em;margin-bottom:6px;color:var(--head)}
-  .ph-s{font-size:12.5px;color:var(--dim);margin-bottom:0}
-
-  .soon{max-width:820px;margin:0 auto;padding:34px 24px 80px}
-  .panel{--ac:var(--a2);background:var(--card);border:1px solid var(--bd);border-radius:7px;overflow:hidden;position:relative}
-  .panel::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--ac)}
-  .panel-h{background:var(--bg2);border-bottom:1px solid var(--bd);padding:8px 15px;display:flex;align-items:center;gap:8px}
-  .panel-dot{width:6px;height:6px;border-radius:50%;background:var(--ac);animation:pulse 2.4s ease-in-out infinite}
-  .panel-tag{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ac)}
-  .panel-path{margin-left:auto;font-size:9px;color:var(--dimmer)}
-  .panel-b{padding:24px}
-
-  .sh{background:var(--bg2);border:1px solid var(--bd);border-radius:5px;padding:13px 15px;margin-bottom:22px;font-size:11.5px;line-height:1.95}
-  .sh .pr{color:var(--ac)}
-  .sh .ln{color:var(--dim);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .sh .ln .b{color:var(--dimmer)}
-
-  .lead{font-size:16px;color:var(--head);margin-bottom:14px}
-  .panel-b p{font-size:14px;line-height:1.9;color:var(--tx);margin-bottom:16px}
-
-  .posts{list-style:none;margin:8px 0 0;padding:0;border-top:1px solid var(--bd)}
-  .posts li{border-bottom:1px solid var(--bd)}
-  .post{display:block;padding:16px 4px;text-decoration:none}
-  .post-t{display:block;font-size:15px;font-weight:600;color:var(--head);margin-bottom:4px}
-  .post-m{display:block;font-size:11px;color:var(--dimmer);margin-bottom:6px}
-  .post-d{display:block;font-size:13px;line-height:1.7;color:var(--dim)}
-  .post:hover .post-t{color:var(--ac)}
-
-  .ft{display:flex;flex-wrap:wrap;gap:10px;margin-top:24px}
-  .lk{display:inline-flex;gap:7px;color:var(--a1);border:1px solid var(--a1);border-radius:4px;padding:9px 15px;font-size:12px;text-decoration:none}
-  .lk.alt{color:var(--dim);border-color:var(--bd2)}
-  .lk.alt:hover{color:var(--head);border-color:var(--dim)}
-
-  @media(max-width:900px){
-    .ph-in,.soon{padding-left:18px;padding-right:18px}
+  .kc-blurb {
+    color: var(--dim);
+    font-size: 14px;
+    line-height: 1.8;
+    max-width: 680px;
+    margin: 0 0 40px;
+  }
+  .cat-section-label {
+    color: var(--a3);
+    font-size: 11px;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    margin: 0 0 16px;
+    font-family: 'Source Code Pro', monospace;
+  }
+  .cat-section-label span { color: var(--dimmer); }
+  .cat-section-count {
+    color: var(--dimmer);
+    margin-left: 8px;
+    font-size: 10px;
+    letter-spacing: .12em;
+  }
+  .cat-cards {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .cat-series-card {
+    display: block;
+    text-decoration: none;
+    border: 1px solid var(--bd);
+    border-left: 3px solid var(--a3);
+    border-radius: 6px;
+    background: var(--card);
+    padding: 18px 20px;
+    transition: border-color .2s, background .2s;
+  }
+  .cat-series-card:hover {
+    border-color: var(--a3);
+    background: var(--bd);
+    text-decoration: none;
+  }
+  .cat-series-card .cat-section-label { margin-bottom: 14px; }
+  .cat-series-titles {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    margin-bottom: 14px;
+  }
+  .cat-series-line {
+    color: var(--tx);
+    font-size: 13px;
+    font-family: 'Source Code Pro', monospace;
+  }
+  .cat-series-order {
+    color: var(--a3);
+    margin-right: 10px;
+    font-size: 12px;
+  }
+  .cat-series-more { color: var(--dimmer); }
+  .cat-series-cta {
+    color: var(--a1);
+    font-size: 12px;
+    letter-spacing: .08em;
+    font-family: 'Source Code Pro', monospace;
   }
 </style>
