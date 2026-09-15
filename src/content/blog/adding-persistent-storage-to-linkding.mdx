@@ -1,0 +1,552 @@
+---
+title: "Why Didn't My PVC Show Up in the Cluster?"
+description: "I added persistent storage to Linkding, pushed it, and got nothing back. The manifest was correct. Something else was quietly blocking the entire thing."
+tags: ["kubernetes", "storage", "pvc", "flux", "gitops", "k3s", "homelab"]
+date: 2026-09-15
+category: devops
+readTime: 19
+draft: false
+---
+
+<div class="pp-meta"><span>devops</span> · September 15, 2026 · 19 min read</div>
+
+<h1 class="pp-title">Why didn't my PVC<br/><em>show up in the cluster?</em></h1>
+
+<p class="pp-subtitle">I added persistent storage to Linkding, pushed it, and got nothing back. The manifest was correct. Something else was quietly blocking the entire thing.</p>
+
+Linkding was running fine in my cluster. Pod healthy, app reachable, bookmarks saving. None of it was real, though, because the container had nothing but its own ephemeral filesystem underneath it. Delete the pod and everything goes with it.
+
+This module fixes that. Attach a PersistentVolumeClaim, mount it where Linkding keeps its database, prove the data survives a pod delete.
+
+The actual work is about fifteen minutes. My evening was, let us say, generous with itself. The reasons why are the useful part, so they are all in here.
+
+## Part 1: What is actually happening with storage
+
+### Pods are disposable on purpose
+
+A pod's filesystem lives and dies with the pod. That is not a bug, it is the design. Kubernetes reserves the right to kill and reschedule your pod whenever it needs to: node pressure, a drain, a rolling update, a config change. If your application state lives inside the container, every one of those events destroys it.
+
+So state has to live somewhere the pod does not control.
+
+### PV, PVC, and StorageClass
+
+Three objects, and the relationship confused me for a while, so here it is plainly.
+
+A **PersistentVolume** (PV) is the actual storage. A directory on a node, an NFS export, a cloud disk. It is a real thing that exists.
+
+A **PersistentVolumeClaim** (PVC) is a request for storage. It says "I want 1Gi, and I want to be able to read and write it from one node." It does not say where that storage comes from. That is the whole point of the split: your application manifest asks for what it needs without knowing anything about the infrastructure underneath.
+
+A **StorageClass** is the thing that turns a claim into a volume. It is the provisioner. When a PVC shows up unfulfilled, the StorageClass sees it and creates a matching PV automatically. That is dynamic provisioning, and without it someone has to sit there hand-creating PVs.
+
+On k3s you get a StorageClass called `local-path` out of the box. It provisions by making a directory on a node, usually under `/var/lib/rancher/k3s/storage/`. Simple and fast, with one real consequence I will come back to.
+
+### What the manifest actually says
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: linkding-data-pvc
+  namespace: linkding
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+```
+
+`accessModes: ReadWriteOnce` is worth reading carefully because the name is misleading. It does not mean one pod. It means **one node** can mount it read-write at a time. Multiple pods on the same node can share an RWO volume. Pods on different nodes cannot. This distinction matters later when we get to deployment strategy.
+
+`storage: 1Gi` is a request, not a hard cap, and with local-path it is closer to a hint than a limit. The provisioner makes a directory on a filesystem that already has whatever size it has. It is not going to stop you at 1Gi. On a cloud provider with real block storage, that number would be enforced.
+
+There is no `storageClassName` field here, which means the cluster uses the default StorageClass. On k3s that is local-path. If you have more than one StorageClass, or you want to be explicit about what you are asking for, name it.
+
+### WaitForFirstConsumer, and why your PVC sits in Pending
+
+The local-path StorageClass uses a binding mode called `WaitForFirstConsumer`. It means the PVC will not bind to a volume until a pod that uses it gets scheduled.
+
+That sounds backwards until you think about what local-path does. The storage is a directory **on a specific node**. If the PVC bound immediately, the provisioner would have to pick a node before knowing where the pod was going to run, and it could easily pick the wrong one. Then the scheduler would be stuck trying to place a pod on a node that cannot reach its own volume.
+
+So the order is: pod gets scheduled to a node, then the volume gets created on that node, then the claim binds.
+
+Practical upshot: a PVC sitting in `Pending` with no pod yet is normal, not broken. Once the pod schedules, it binds in seconds.
+
+Related: after it binds, run `k describe pv <name>` and look at the `Node Affinity` section. The PV is pinned to the node that created it. That pod can now only ever run on that one node. On a multi-node cluster, that is a real constraint and it is the main reason people eventually move to Longhorn or NFS for anything they care about.
+
+### Mounting it
+
+```yaml
+    spec:
+      containers:
+        - name: linkding
+          image: sissbruecker/linkding:1.31.0
+          ports:
+            - containerPort: 9090
+          volumeMounts:
+            - name: linkding-data
+              mountPath: /etc/linkding/data
+      volumes:
+        - name: linkding-data
+          persistentVolumeClaim:
+            claimName: linkding-data-pvc
+```
+
+Two halves that people mix up, including me.
+
+`volumes` sits at the **pod** level. It declares what storage this pod has available and gives it a local nickname (`linkding-data`). Note the indentation: it lines up with `containers`, not inside it. A pod can have several volumes.
+
+`volumeMounts` sits at the **container** level. It takes a volume by that nickname and says where in this specific container's filesystem it appears. Two containers in the same pod can mount the same volume at different paths.
+
+The `name` field is what ties them together. It is arbitrary, it just has to match on both sides. `claimName` is the one that has to match your PVC's actual metadata name.
+
+`/etc/linkding/data` is where Linkding keeps `db.sqlite3`. Different apps, different paths, check the image docs.
+
+One thing worth knowing: mounting a volume at a path **hides whatever was there before** in the image. Empty PVC at that path means Linkding starts with a fresh database. That is why you create your superuser after the mount lands, not before. Anything you set up in the pre-storage pod is gone.
+
+## Part 2: The GitOps side
+
+### Kustomize only sees what you list
+
+My repo has a base and overlay layout, so the files live in `apps/base/linkding/`:
+
+```
+deployment.yaml
+kustomization.yaml
+namespace.yaml
+storage.yaml
+```
+
+And the kustomization has to name the new file:
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - deployment.yaml
+  - storage.yaml
+```
+
+This is the trap that eats people, and the failure mode is nasty because nothing complains. Kustomize does not scan the directory. It builds exactly the list under `resources` and ignores every other file sitting next to them. Write a perfect PVC, commit it, push it, watch Flux report a successful reconcile, and get nothing in the cluster. No error anywhere. The file was simply never read.
+
+Order in that list does not matter, by the way. Kubernetes sorts out dependencies itself.
+
+### Verify the render before you push
+
+```bash
+kubectl kustomize apps/base/linkding
+```
+
+This runs the build locally and prints the exact YAML that would go to the cluster. No cluster contact, no risk. Grep it for the things that should be there:
+
+```bash
+kubectl kustomize apps/base/linkding | grep -E 'kind:|claimName|mountPath|type: Recreate'
+```
+
+Mine came back:
+
+```
+kind: Namespace
+kind: PersistentVolumeClaim
+kind: Deployment
+    type: Recreate
+        - mountPath: /etc/linkding/data
+          claimName: linkding-data-pvc
+```
+
+If the PersistentVolumeClaim line is missing there, it is missing from your deploy, and no amount of pushing or reconciling will change that. Fix the YAML first.
+
+### Two kustomizations, and picking the right one
+
+```
+$ flux get kustomizations
+NAME                     REVISION             SUSPENDED  READY  MESSAGE
+apps                     main@sha1:4853e77c   False      True   Applied revision: main@sha1:4853e77c
+flux-system              main@sha1:e910cb98   False      True   Applied revision: main@sha1:e910cb98
+flux-system-kubecraft    main@sha1:cf41cf29   False      True   Applied revision: main@sha1:cf41cf29
+```
+
+Three entries, and I had to work out which one to reconcile.
+
+`flux-system` is Flux managing its own installation. Different repo, different revision. Leave it alone.
+
+`flux-system-kubecraft` is the entry point. It watches my repo and applies `clusters/dev/`, which contains `apps.yaml`, which defines the next one.
+
+`apps` is the one that actually applies my application manifests. That is where my Linkding change lands.
+
+The way to tell them apart without guessing is the REVISION column. When I pushed, `flux-system-kubecraft` moved to the new hash but `apps` did not. That told me exactly which one was stuck.
+
+Something worth noticing above: `flux-system-kubecraft` says READY True on `cf41cf29`, the new commit, while `apps` is still on the old one. Both are "working." The parent fetched and applied fine. The child is the one that broke. Read the whole table, not just the first row.
+
+### Reconciling
+
+```bash
+flux reconcile kustomization apps --with-source
+```
+
+Flux polls on an interval, usually a minute or ten depending on config. This command says do it now.
+
+`--with-source` is the part people skip. Without it, Flux re-applies whatever it has already fetched from Git. It does not go pull new commits. So you push, run a bare `flux reconcile`, and it cheerfully re-applies the old code. `--with-source` tells it to refresh the GitRepository first, then apply.
+
+You can see it happen in the output:
+
+```
+► annotating GitRepository flux-system-kubecraft in flux-system namespace
+✔ GitRepository annotated
+◎ waiting for GitRepository reconciliation
+✔ fetched revision main@sha1:cf41cf29...
+► annotating Kustomization apps in flux-system namespace
+✔ Kustomization annotated
+◎ waiting for Kustomization reconciliation
+```
+
+Git side finished. Kustomization side hung.
+
+### I closed the terminal mid-reconcile, and it did not matter
+
+It sat on that last line long enough that I closed the window, which felt like a mistake.
+
+It is not. `flux reconcile` does not perform the reconciliation. It writes an annotation onto the Kustomization object, and the Flux controller running **inside the cluster** notices the annotation and does the work. The CLI is just watching and reporting.
+
+Kill the CLI and the controller keeps going. You lose the progress output, nothing else. Reconnect and run `flux get kustomizations` to see where it ended up.
+
+### "No resources found" is not an error
+
+```
+$ k get pvc -n linkding
+No resources found in linkding namespace
+```
+
+This threw me. It is not an error message. It is kubectl saying the query succeeded and returned zero rows. Same as an empty table. A real error would name a problem: connection refused, forbidden, unknown resource type.
+
+The distinction matters because they call for different responses. An error means something is broken between you and the API. Empty means the API answered and the thing you asked about does not exist, which is itself the answer.
+
+### The failure, and why it is interesting
+
+```
+$ flux get kustomizations
+apps   main@sha1:4853e77c   False   False   Deployment/linkding/linkding dry-run failed (Invalid):
+Deployment.apps "linkding" is invalid: spec.strategy.rollingUpdate: Forbidden:
+may not be specified when strategy `type` is 'Recreate'
+```
+
+That MESSAGE column is the whole diagnosis, and I had spent a while poking around before I actually read it. `flux get kustomizations` is the first command to run when a push does not land, not the fifth.
+
+Now, what went wrong.
+
+I had added this to the deployment:
+
+```yaml
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+```
+
+**Why I added it.** The default strategy is RollingUpdate: bring up the new pod, wait for it to be Ready, then kill the old one. Zero downtime, which is what you want in production.
+
+But my volume is ReadWriteOnce, and there is one replica. The old pod holds that volume. The new pod cannot mount it while the old one has it. So the new pod sits in Pending waiting for the volume, and the old pod will not terminate until the new one is Ready. Neither side moves. Your rollout hangs forever and the events say `Multi-Attach error` or the pod just sits there looking fine.
+
+`Recreate` inverts the order: kill the old pod completely, then start the new one. You get a few seconds of downtime. On a single-replica homelab app with one RWO volume, that is exactly the right trade.
+
+**Why it got rejected.** The Deployment already existed in the cluster. When Kubernetes first created it, the strategy was RollingUpdate (the default), so the API server **defaulted in** the sub-fields that go with it:
+
+```yaml
+strategy:
+  type: RollingUpdate
+  rollingUpdate:
+    maxSurge: 25%
+    maxUnavailable: 25%
+```
+
+You never wrote those. Kubernetes filled them in, and they are now part of the stored object.
+
+My new manifest changed `type` to `Recreate` but said nothing about `rollingUpdate`. Under Flux's apply, the fields I did not mention stay as they are. So the resulting object had `type: Recreate` sitting next to leftover `rollingUpdate` values, and that combination is invalid. The API server rejected it at dry-run.
+
+**Why dry-run matters here.** Flux validates the whole set before applying any of it. That is a feature: you do not want half a change landing. But it means one bad resource blocks everything in the same kustomization. My PVC was fine. My namespace was fine. None of it applied, because the Deployment failed validation. That is why `k get pvc` came back empty even though the PVC manifest was correct.
+
+**The fix.**
+
+```bash
+k delete deployment linkding -n linkding
+flux reconcile kustomization apps --with-source
+```
+
+Delete the live object so Flux rebuilds it from Git with no leftover fields.
+
+That felt aggressive to type. It is not, for two reasons. There was no persistent data yet, which is the entire reason I was doing this. And under GitOps, deleting a live resource is a reset button rather than a destructive act. Git is the source of truth. Flux puts it back within seconds.
+
+The alternative is `kubectl apply` with `--force-conflicts`, or patching the stale field out by hand. Delete and rebuild is cleaner and it is a good habit, because if deleting a resource scares you, that usually means your Git repo is not actually the source of truth yet.
+
+### Confirming it landed
+
+```
+$ flux get kustomizations
+apps   main@sha1:cf41cf29   False   True   Applied revision: main@sha1:cf41cf29
+
+$ k get pvc -n linkding
+NAME                STATUS   VOLUME                                     CAPACITY   ACCESS MODES   STORAGECLASS
+linkding-data-pvc   Bound    pvc-e3cc9434-0864-41bb-93d8-76d59d88d796   1Gi        RWO            local-path
+
+$ k get pods -n linkding
+NAME                        READY   STATUS    RESTARTS   AGE
+linkding-7c655c88c7-flf77   1/1     Running   0          59s
+```
+
+Three things to check, in this order.
+
+**The revision moved.** `apps` is on `cf41cf29` and READY is True.
+
+**The PVC is Bound.** Bound means it found a volume. Pending means it is still waiting, which is fine if no pod has scheduled yet and a problem if one has.
+
+**The ReplicaSet hash changed.** This is the one I want to make a bigger deal of.
+
+Pod names look like `linkding-7c655c88c7-flf77`. The middle chunk is the ReplicaSet hash, and it is a hash of the **pod template** in your Deployment. Change the image, the ports, the volumes, anything inside `template:`, and that hash changes, because it is a different template.
+
+Which makes it a fingerprint. My pod had been `5dc786459b` all evening. Seeing `7c655c88c7` is how I know the Deployment actually changed and I am not looking at the same pod I had been looking at the whole time.
+
+If you push a manifest change and the hash is identical, your change did not reach the pod template. Either it did not land, or you edited something outside `template:`.
+
+Confirm the mount while you are here:
+
+```bash
+k describe pod -n linkding -l app=linkding | grep -A3 Mounts
+```
+
+Should show `/etc/linkding/data from linkding-data (rw)`. Before this work, the only entry was the serviceaccount token, which every pod gets automatically.
+
+That last detail tripped me up early. I ran `describe`, saw one mount, and could not tell whether I was looking at a broken state or the starting state. It was the starting state. A pod with no volumes still shows a `kube-api-access-*` mount, because Kubernetes injects a serviceaccount token into every pod. That one is always there and it is not yours.
+
+## Part 3: A time was had
+
+Here is the part actually worth writing down.
+
+Before any of the above, I could not load Linkding in my browser. So I went after that. Restarted port-forwards, tried different ports, built an SSH tunnel, got it working, lost it, got it working again. Tremendous amount of motion. Extremely busy. Zero progress.
+
+The access problem was real. It was also completely beside the point, because while I was off debugging tunnels, the PVC did not exist, the deployment file had never been edited, and the pod was the same one that had been sitting there since I started. I had decided the storage work was done and moved on, without ever running the one command that would have told me otherwise.
+
+```bash
+k get pvc -n linkding
+```
+
+Empty means it did not land. Two seconds.
+
+The lesson is not really about Kubernetes. When something is broken, it is very easy to start fixing whatever is loudest instead of the thing you set out to do. Browser will not load, so fix the browser. Meanwhile the actual work sits untouched and you feel productive the entire time. Verify state before troubleshooting symptoms, because symptoms are loud and state is quiet.
+
+### The port-forward thing, explained properly
+
+`kubectl port-forward` opens a tunnel from a port on **the machine running the command** through the Kubernetes API server to a port on the pod. That first part is where I went wrong.
+
+I am SSHed into a cluster node from my laptop. The port-forward runs on the node. By default it binds to `127.0.0.1` on the node:
+
+```
+Forwarding from 127.0.0.1:8080 -> 9090
+Forwarding from [::1]:8080 -> 9090
+```
+
+`127.0.0.1` means loopback only. The node will accept connections to port 8080 from itself and refuse everything else.
+
+Then I typed `localhost:8080` into the browser on my laptop. `localhost` on my laptop is my laptop. Nothing was listening there. Two different machines, one word, and I kept looking at the wrong one.
+
+I got `ERR_CONNECTION_RESET` rather than refused, which suggests something on my laptop was actually holding 8080 and rejecting the handshake. Probably a container runtime. Either way, wrong machine.
+
+Two ways out.
+
+**Tunnel it.** SSH forwards a port on your laptop to a port on the node:
+
+```bash
+ssh -L 8081:localhost:8080 op@cluster-node
+```
+
+Reads as: listen on 8081 here, forward to `localhost:8080` as resolved **on the far end**. So that `localhost` means the node. Browse `http://localhost:8081` on the laptop. Both the SSH session and the port-forward have to stay open, and if either drops the chain breaks silently.
+
+**Or bind wide.** Tell port-forward to listen on all interfaces:
+
+```bash
+k port-forward -n linkding --address 0.0.0.0 deploy/linkding 8080:9090
+```
+
+Confirm the output says `Forwarding from 0.0.0.0:8080`, not `127.0.0.1`. Then browse `http://192.168.1.50:8080` from anywhere on the LAN. One process instead of two. Fine on a home network, not something to do on an untrusted one.
+
+### Keeping it alive
+
+Port-forward is a foreground process. Ctrl-C kills it, closing the terminal kills it, the SSH session dropping kills it. It also dies when the pod it points at is replaced, which happens every time you push a manifest change.
+
+Three levels of fix.
+
+**tmux**, if you just want it to survive disconnects:
+
+```bash
+tmux new -s linkding
+k port-forward -n linkding --address 0.0.0.0 deploy/linkding 8080:9090
+```
+
+Detach with Ctrl-b then d. Survives SSH drops, dies on reboot.
+
+**A systemd user service**, if you want it back after a reboot. Restart=always also handles the pod-replacement case.
+
+**Or stop using port-forward,** which is what I ended up doing.
+
+Port-forward is a debugging tool. It is a temporary tunnel held open by a process on your machine. I had been using it as infrastructure, which is why it kept falling over, and no amount of tmux or systemd changes what it fundamentally is.
+
+The right object is a Service. A Service is a stable network identity that lives in the cluster, and it keeps working whether or not anyone is logged in. `service.yaml` in the same directory as everything else:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: linkding
+  namespace: linkding
+spec:
+  type: NodePort
+  selector:
+    app: linkding
+  ports:
+    - port: 9090
+      targetPort: 9090
+      nodePort: 30090
+```
+
+The `selector` is the important bit and it is how Services work generally. It does not reference the Deployment by name. It matches **pod labels**, `app: linkding` in this case, which has to match the labels in your deployment's pod template. Delete the pod, get a new one with the same labels, the Service picks it up without noticing anything happened. That is why it survives restarts and port-forward does not.
+
+Three ports in there and they mean different things:
+
+- `targetPort: 9090` is the port on the container, where Linkding actually listens
+- `port: 9090` is the port the Service exposes inside the cluster, for other pods
+- `nodePort: 30090` is the port opened on every node in the cluster, for the outside world
+
+NodePort is restricted to 30000 to 32767 by default. Leave `nodePort` out and Kubernetes picks one for you, which is fine but means the port changes and you have to go look it up. Pinning it is worth it for something you will hit often.
+
+Same drill as everything else: add `service.yaml` to `resources` in `kustomization.yaml`, render it with `kubectl kustomize` to confirm the Service shows up, commit, push, reconcile. Then check it:
+
+```bash
+k get svc -n linkding
+```
+
+Look for `TYPE: NodePort` and `PORT(S): 9090:30090/TCP`.
+
+After that it is reachable at `http://192.168.1.50:30090` from anywhere on the LAN, on **any** node's IP, not just the one running the pod. Every node forwards traffic on that port to wherever the pod actually lives. Nothing to keep running, nothing to restart after a pod cycles, no SSH session in the way.
+
+This is not the end state either. NodePort means memorizing port numbers and using raw IPs, which gets old once you have more than two apps. The next step is an Ingress with Traefik, which k3s ships by default, so you get hostnames and a single entry point instead. That is a separate module and a separate post.
+
+## Part 4: The small stuff that cost real time
+
+### Tab completion does not follow your alias
+
+I have `k` aliased to `kubectl`. Hitting tab after `k` gave me this:
+
+```
+k                 kbd_mode          kill              kubectx
+k3s               kbdrate           killall           kubens
+k3s-killall.sh    kbxutil           killall5          kubectl
+```
+
+Binary names from my PATH, not kubectl subcommands. Bash fell back to its default completion because nothing was registered for `k`.
+
+`kubectl completion bash` generates a completion script that defines a function called `__start_kubectl` and binds it to the word `kubectl`. Your alias is a different word. Bash has no idea they are related. You have to bind it yourself:
+
+```bash
+source <(kubectl completion bash)
+complete -o default -F __start_kubectl k
+```
+
+Put both in `~/.bashrc`. If you use a line editor like ble.sh, these need to load before it attaches or it will clobber them.
+
+Two things to check when it does not work. `declare -F __start_kubectl` should print the function name, and if it does not, the completion script never sourced (usually because the `bash-completion` package is missing, since the generated script depends on helpers from it). And `complete -p k` should show the binding.
+
+Also worth knowing: `deploy/linkding` works anywhere a pod name does, for `exec`, `port-forward`, `logs`. Since the pod name changes on every manifest edit, that saves both typing and failed tab completions.
+
+### Two kubectl errors that are just kubectl being literal
+
+```
+$ k exec -it linkding
+error: you must specify at least one command for the container
+```
+
+`exec` runs a command in a container. I gave it a target and no command. It needs `-- <command>` at the end. Also `linkding` is not a pod name, it is a prefix, which is a separate problem with the same line.
+
+```
+$ k port-forward linkding-5dc786459b-vgbpn
+error: TYPE/NAME and list of ports are required for port-forward
+```
+
+Same shape. A forward needs a local port and a remote port. Without them there is nothing to map.
+
+Neither is a configuration problem or a broken install. They are the tool saying you left out a required argument. Worth internalizing the difference between "you typed an incomplete command" and "something is wrong," because they feel identical at 9pm.
+
+### Following a course while your setup differs
+
+Two things burned time here.
+
+The instructor's file tree shows `/workspaces/pi-cluster`. Mine is a different path with a different repo name and a base/overlay structure his does not use. When you are following along and your screen does not match, the reflex is to assume you did something wrong. Usually you did not, you just have a different layout. `pwd` and `ls` on your own tree, then map his structure onto yours.
+
+Second: his finished `deployment.yaml` and my starting one looked different, and I could not tell what I was missing. The answer was nothing. His was the finished state and mine was the starting state. They are supposed to differ at that point, and the difference is the work you are about to do. Video walkthroughs cut between states without always saying so.
+
+Mine also had a `namespace: linkding` line his did not, which was correct for my layout and not something to strip out to match his.
+
+### k9s, which I was sure I had installed
+
+I was not able to launch it and assumed something was broken. It was never installed.
+
+```bash
+sudo find / -name k9s -type f 2>/dev/null
+```
+
+Empty output. Nothing subtle about it.
+
+Then, installing it, I reached for the arm64 build because most of my nodes are Pis. This particular box is not:
+
+```bash
+$ uname -m
+x86_64
+```
+
+`x86_64` means amd64. `aarch64` means arm64. In a mixed-architecture homelab that is a check worth running every time rather than assuming.
+
+k9s is worth having. For a module like this where you are watching pods cycle, it beats running `kubectl get pods` on a loop. Highlight a pod, press `s`, and you have a shell inside the container.
+
+Which raises the next thing, because that shell looks like this:
+
+```
+root@linkding-7c655c88c7-flf77:/etc/linkding#
+```
+
+Root. Inside the container. I can `apt install` whatever I want, edit application files, poke at anything. I did not have to escalate or do anything clever, that is just the default for this image and plenty of others.
+
+Nothing about a container makes that safe by default. A container is a process with namespaces and cgroups around it, not a VM, and root inside it is a much shorter distance from root on the node than people assume. That is where the next module goes: securityContext, runAsNonRoot, dropping capabilities.
+
+## Part 5: Proving it works
+
+The whole point of the exercise.
+
+```bash
+k exec -it -n linkding deploy/linkding -- python manage.py createsuperuser --username=op --email=op@example.com
+```
+
+It prompts for a password interactively, which is why `-it` is there.
+
+Log in through the port-forward, add a bookmark, then:
+
+```bash
+k delete pod -n linkding -l app=linkding
+```
+
+The Deployment notices it is short a pod and creates a replacement immediately. New pod name, **same ReplicaSet hash**, because the template did not change. Only the random suffix moves.
+
+Restart the port-forward (it died with the old pod), log in again. Same user, same bookmark.
+
+Before the PVC, both would have been gone. That is the difference between an app that runs and an app that exists.
+
+## Takeaways
+
+- Kustomize only applies files listed under `resources`. Missing ones fail silently with no error anywhere.
+- `kubectl kustomize <dir>` renders what the cluster will actually receive. Run it before pushing.
+- `flux get kustomizations` puts the real error in the MESSAGE column. Read the whole table, the parent can be green while the child is broken.
+- `--with-source` on reconcile, or Flux re-applies the commit it already had.
+- Flux dry-runs everything before applying any of it. One invalid resource blocks the whole kustomization.
+- Changing a Deployment's strategy type conflicts with sub-fields Kubernetes defaulted in earlier. Delete and let Flux rebuild.
+- The ReplicaSet hash in a pod name is a fingerprint of the pod template. Unchanged hash means your change never reached the pod.
+- "No resources found" is an empty result, not an error.
+- `port-forward` binds on the machine running it, which is not your laptop when you are SSHed in.
+- Verify state before troubleshooting symptoms.
