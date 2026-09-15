@@ -18,6 +18,7 @@ const blog = defineCollection({
     draft: z.boolean().optional().default(false),
     series: z.string().optional(),
     seriesOrder: z.number().optional(),
+    homelab: z.enum(["kubecraft", "brasil"]).optional(),
   }),
 });
 const demo = defineCollection({

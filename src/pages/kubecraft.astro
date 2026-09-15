@@ -1,13 +1,21 @@
 ---
+import { getCollection } from 'astro:content';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import PageHeader from '../components/PageHeader.astro';
 
 const title = 'kubecraft homelab';
+
+const posts = (await getCollection('blog', ({ data }) =>
+  data.homelab === 'kubecraft' && !data.draft
+)).sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+
+const fmt = (d) =>
+  d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric', timeZone: 'UTC' });
 ---
 
 <BaseLayout
   title={`${title} — projectpattie;`}
-  description="A from-scratch Kubernetes build log. Not published yet."
+  description="Kubernetes built from scratch, one YAML file at a time, with the bugs left in."
 >
   <PageHeader path="/kubecraft" sub="// kubernetes, from scratch">{title}</PageHeader>
 
@@ -19,15 +27,40 @@ const title = 'kubecraft homelab';
         <span class="panel-path">~/kubecraft</span>
       </div>
       <div class="panel-b">
-        <div class="sh">
-          <span class="pr">$</span> ls ~/kubecraft
-          <span class="ln"><span class="b">›</span> build in progress</span>
-          <span class="ln"><span class="b">›</span> first logs landing soon</span>
-        </div>
-        <p class="lead">Nothing to read here yet.</p>
-        <p>The kubecraft homelab is a from-scratch Kubernetes build — what I ran, what
-        confused me, and what broke. When there is something worth publishing, it lands
-        here.</p>
+        {posts.length === 0 ? (
+          <>
+            <div class="sh">
+              <span class="pr">$</span> ls ~/kubecraft
+              <span class="ln"><span class="b">›</span> build in progress</span>
+              <span class="ln"><span class="b">›</span> first logs landing soon</span>
+            </div>
+            <p class="lead">Nothing to read here yet.</p>
+            <p>The kubecraft homelab is Kubernetes built from scratch, one YAML file at a time, with the bugs left in. What I ran, what melted my brain, and what broke in spectacular fashion. When there is something worth publishing, it lands
+            here.</p>
+          </>
+        ) : (
+          <>
+            <div class="sh">
+              <span class="pr">$</span> ls ~/kubecraft
+              <span class="ln"><span class="b">›</span> {posts.length} {posts.length === 1 ? 'log' : 'logs'} published</span>
+            </div>
+            <p>The kubecraft homelab is Kubernetes built from scratch, one YAML file at a time, with the bugs left in. What I ran, what melted my brain, and what broke in spectacular fashion.</p>
+            <ul class="posts">
+              {posts.map((post) => (
+                <li>
+                  <a href={`/blog/${post.slug}/`} class="post">
+                    <span class="post-t">{post.data.title}</span>
+                    <span class="post-m">
+                      {fmt(post.data.date)}
+                      {post.data.readTime && <> · {post.data.readTime} min</>}
+                    </span>
+                    <span class="post-d">{post.data.description}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
         <div class="ft">
           <a href="/brasil/demo" class="lk">the brasil homelab →</a>
           <a href="/category/devops" class="lk alt">devops writing →</a>
@@ -65,6 +98,14 @@ const title = 'kubecraft homelab';
 
   .lead{font-size:16px;color:var(--head);margin-bottom:14px}
   .panel-b p{font-size:14px;line-height:1.9;color:var(--tx);margin-bottom:16px}
+
+  .posts{list-style:none;margin:8px 0 0;padding:0;border-top:1px solid var(--bd)}
+  .posts li{border-bottom:1px solid var(--bd)}
+  .post{display:block;padding:16px 4px;text-decoration:none}
+  .post-t{display:block;font-size:15px;font-weight:600;color:var(--head);margin-bottom:4px}
+  .post-m{display:block;font-size:11px;color:var(--dimmer);margin-bottom:6px}
+  .post-d{display:block;font-size:13px;line-height:1.7;color:var(--dim)}
+  .post:hover .post-t{color:var(--ac)}
 
   .ft{display:flex;flex-wrap:wrap;gap:10px;margin-top:24px}
   .lk{display:inline-flex;gap:7px;color:var(--a1);border:1px solid var(--a1);border-radius:4px;padding:9px 15px;font-size:12px;text-decoration:none}

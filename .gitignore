@@ -6,4 +6,10 @@ dist/
 !.env.example
 
 # Raw HTML drafts kept locally; converted to .mdx via scripts/html_to_mdx.py
-posts-source/CLAUDE.md
+posts-source/
+CLAUDE.md
+
+# editor and tooling noise
+.DS_Store
+*.swp
+*.bak-*
