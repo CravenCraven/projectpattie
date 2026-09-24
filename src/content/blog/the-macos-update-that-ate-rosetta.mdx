@@ -1,0 +1,101 @@
+---
+title: "The macOS update that ate Rosetta"
+description: "A macOS update took Rosetta with it, and every Intel tool on my Mac quit at the same time. How to spot it, the one-line fix, and why that fix is on a timer."
+date: 2026-09-21
+category: devops
+homelab: brasil
+readTime: 5
+tags: ["macos", "rosetta", "homebrew", "apple-silicon", "homelab"]
+draft: false
+---
+
+<div class="pp-meta"><span>devops</span> · September 21, 2026 · 5 min read</div>
+
+<h1 class="pp-title">Rosetta.<br/><em>one update, and every Intel tool on my Mac died at once.</em></h1>
+
+<p class="pp-subtitle">A macOS update took Rosetta with it, and every Intel tool on my Mac quit at the same time. How to spot it, the one-line fix, and why that fix is on a timer.</p>
+
+<div class="pp-tags">
+  <span class="pp-tag">macos</span>
+  <span class="pp-tag">rosetta</span>
+  <span class="pp-tag">homebrew</span>
+  <span class="pp-tag">apple-silicon</span>
+  <span class="pp-tag">homelab</span>
+</div>
+
+<div class="pp-toc">
+  <div class="pp-toc-label">// <span>what we're getting into</span></div>
+  <ol>
+    <li><a href="#broke">Everything broke at once</a></li>
+    <li><a href="#rosetta">The translator I did not know I had</a></li>
+    <li><a href="#check">Check your own Mac</a></li>
+    <li><a href="#fix">The one-line fix</a></li>
+    <li><a href="#expiry">The fix is on a timer</a></li>
+    <li><a href="#native">The real fix</a></li>
+    <li><a href="#checklist">Final checklist: after any big macOS update</a></li>
+  </ol>
+</div>
+
+<h2 class="pp-h2" id="broke">Everything broke at once</h2>
+
+<p>I updated macOS. Then I sat down to work on the Brasil homelab and my Mac forgot how to run anything.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`git remote -v\n#    -> -bash: /usr/local/bin/git: Bad CPU type in executable\n\nbrew install git\n#    -> .../portable-ruby/current/bin/ruby: Bad CPU type in executable\n\nnpm run dev\n#    -> env: node: Bad CPU type in executable`}</pre></div></div>
+
+<p>Three tools, one error.</p>
+
+<p>I spent part of the night fixing them one at a time. New git, new PATH, next problem. It worked. It was also the wrong way to look at it. This was not three problems. It was one.</p>
+
+<h2 class="pp-h2" id="rosetta">The translator I did not know I had</h2>
+
+<p>My Mac is Apple Silicon. Those tools were Intel, left in <code>/usr/local</code> by an old Homebrew install.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`uname -m\n#    -> arm64\n\nfile /usr/local/bin/git\n#    -> /usr/local/bin/git: Mach-O 64-bit executable x86_64`}</pre></div></div>
+
+<p>Apple Silicon cannot run Intel programs on its own. Rosetta translates them in the background. It never asks. It never tells you. So as long as Rosetta was there, my Intel tools just worked, and I never knew they were Intel.</p>
+
+<p><span class="c-pink">"Bad CPU type in executable" means there is nothing left to translate.</span> The update took Rosetta with it, and every Intel tool on the machine went down together.</p>
+
+<h2 class="pp-h2" id="check">Check your own Mac</h2>
+
+<p>Two questions. Is Rosetta running? And what on this Mac needs it?</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# is Rosetta running\n/usr/bin/pgrep oahd || echo "Rosetta not running"\n\n# what architecture is this tool\nfile $(which node)\n\n# every Intel-only binary in the old Homebrew location\nfor f in /usr/local/bin/*; do file "$f" | grep -q x86_64 && echo "$f"; done`}</pre></div></div>
+
+<p>If that loop prints anything, every line is a tool living on borrowed time.</p>
+
+<h2 class="pp-h2" id="fix">The one-line fix</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`softwareupdate --install-rosetta --agree-to-license`}</pre></div></div>
+
+<p>Then open a new terminal window. This part got me. A window that is already open keeps its old environment. I had one window that worked and one that did not, and I spent longer than I want to admit convinced the fix had failed. The fix was fine. The window was old.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`node --version\ngit --version\n#    -> both answer again`}</pre></div></div>
+
+<p>Everything came back.</p>
+
+<h2 class="pp-h2" id="expiry">The fix is on a timer</h2>
+
+<p>Apple is phasing Rosetta out. macOS 27 is the last release with full support. With macOS 28, expected in 2027, most Intel-only apps stop running on Apple Silicon.</p>
+
+<p>Apple's own pages cannot quite agree on the exact version. They all agree on the direction. Reinstalling Rosetta buys time. It does not fix anything.</p>
+
+<div class="pp-note"><strong>worth knowing:</strong> macOS now lists the Intel apps that still need Rosetta under System Settings, General, About, macOS, Details. Apps only. Command-line tools in <code>/usr/local/bin</code> are not on it. Mine were invisible right up until they broke.</div>
+
+<h2 class="pp-h2" id="native">The real fix</h2>
+
+<p>Stop needing Rosetta. For command-line tools, that means the Apple Silicon Homebrew in <code>/opt/homebrew</code>, and reinstalling from there.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# put the Apple Silicon Homebrew first, now and in every new shell\neval "$(/opt/homebrew/bin/brew shellenv)"\necho 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.bash_profile\n\n# reinstall what you actually use\nbrew install git node\n\nwhich node\n#    -> /opt/homebrew/bin/node`}</pre></div></div>
+
+<p>Then run the loop again. Anything still in <code>/usr/local/bin</code> that says <code>x86_64</code> gets reinstalled natively, or deleted if you forgot why you installed it.</p>
+
+<p>Full honesty: I have not done this part yet. Rosetta got me back to work that night. Cleaning out <code>/usr/local</code> is on the list.</p>
+
+<h2 class="pp-h2" id="checklist">Final checklist: after any big macOS update</h2>
+
+<p>Run this before you trust your terminal.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# 1. Is Rosetta running (only matters while Intel tools remain)\n/usr/bin/pgrep oahd || echo "Rosetta not running"\n\n# 2. Your main tools are native\nfile $(which git) $(which node) $(which kubectl)\n#    -> arm64 or universal, not x86_64 only\n\n# 3. The Apple Silicon Homebrew comes first\nwhich brew\n#    -> /opt/homebrew/bin/brew\n\n# 4. Nothing Intel-only left in the old location\nfor f in /usr/local/bin/*; do file "$f" | grep -q x86_64 && echo "$f"; done\n#    -> no output`}</pre></div></div>
+
+<p>When that last command prints nothing, Rosetta can leave whenever it wants.</p>

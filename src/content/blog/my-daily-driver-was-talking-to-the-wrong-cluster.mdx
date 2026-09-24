@@ -1,0 +1,189 @@
+---
+title: "My daily driver was talking to the wrong cluster"
+description: "For weeks every command I ran went through the control plane over SSH. The first time a checklist asked my own laptop to do the work, five problems showed up in a row."
+date: 2026-09-20
+category: devops
+homelab: brasil
+readTime: 8
+tags: ["kubectl", "k3s", "macos", "ssh", "homelab"]
+draft: false
+---
+
+<div class="pp-meta"><span>devops</span> · September 20, 2026 · 8 min read</div>
+
+<h1 class="pp-title">The wrong cluster.<br/><em>five things broken on my daily driver, and none of them said so.</em></h1>
+
+<p class="pp-subtitle">For weeks every command I ran went through the control plane over SSH. The first time a checklist asked my own laptop to do the work, five problems showed up in a row.</p>
+
+<div class="pp-tags">
+  <span class="pp-tag">kubectl</span>
+  <span class="pp-tag">k3s</span>
+  <span class="pp-tag">macos</span>
+  <span class="pp-tag">ssh</span>
+  <span class="pp-tag">homelab</span>
+</div>
+
+<div class="pp-toc">
+  <div class="pp-toc-label">// <span>what we're getting into</span></div>
+  <ol>
+    <li><a href="#start">How this started</a></li>
+    <li><a href="#git">git would not run on my own Mac</a></li>
+    <li><a href="#ssh">Three nodes, three usernames</a></li>
+    <li><a href="#context">kubectl was talking to the wrong cluster</a></li>
+    <li><a href="#kubeconfig">Getting the kubeconfig off the server</a></li>
+    <li><a href="#why">Why none of this showed up sooner</a></li>
+    <li><a href="#checklist">Final checklist: can your daily driver reach the cluster</a></li>
+  </ol>
+</div>
+
+<h2 class="pp-h2" id="start">How this started</h2>
+
+<p>Sunday night I sat down with a checklist for the Brasil homelab. Eight blocks, top to bottom, and each one says which machine to run it on.</p>
+
+<p>Block 1 was all server work. Three nodes Ready, three pods Running, Flux green. It took ten minutes and I felt great about it.</p>
+
+<p>Block 2 started with a grep against the repo:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`grep -n "ingressClassName\\|traefik" clusters/staging/brasil/ingress.yaml\n#    -> grep: clusters/staging/brasil/ingress.yaml: No such file or directory`}</pre></div></div>
+
+<p>My first guess was that the file was missing. It was not. I was still SSHed into the control plane, and the repo does not live there. It lives on my Mac. The checklist said "(Mac)" right in the heading. I read past it.</p>
+
+<div class="pp-note"><strong>a note on names:</strong> every machine in this story is a laptop, so here is how I keep them straight. The three running Kubernetes are the nodes. The control plane is the one I SSH into. The Mac I actually sit at is my daily driver.</div>
+
+<p>That grep was the first sign. Once I switched over to the daily driver, it got worse.</p>
+
+<h2 class="pp-h2" id="git">git would not run on my own Mac</h2>
+
+<p>On the daily driver, in the right folder this time:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`git remote -v\n#    -> -bash: /usr/local/bin/git: Bad CPU type in executable`}</pre></div></div>
+
+<p>I had never seen that one before. It means macOS was asked to run a program built for a different kind of processor.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`uname -m\n#    -> arm64\n\nfile /usr/local/bin/git\n#    -> /usr/local/bin/git: Mach-O 64-bit executable x86_64`}</pre></div></div>
+
+<p>My daily driver is Apple Silicon. That git was built for Intel.</p>
+
+<p>Homebrew installs to different places depending on the chip. Intel Macs get <code>/usr/local</code>, Apple Silicon gets <code>/opt/homebrew</code>. I had an old Intel install sitting in <code>/usr/local</code>, and it was first in my PATH. The strange part is that I also had a working Apple Silicon Homebrew. My shell was running from <code>/opt/homebrew/bin/bash</code> the whole time. Two Homebrews, and the broken one kept getting asked first.</p>
+
+<p>So I tried to reinstall git with Homebrew:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`brew install git\n#    -> .../portable-ruby/current/bin/ruby: Bad CPU type in executable\n#    -> Error: 'git' must be installed and in your PATH!`}</pre></div></div>
+
+<p>Homebrew was the Intel one too, so its own Ruby would not run. And installing a fresh Homebrew needs git. I was stuck in a loop.</p>
+
+<p><span class="c-pink">The fix was to leave Homebrew out of it.</span> Apple ships a git with the Command Line Tools at <code>/usr/bin/git</code>, and it runs on both chips. <code>xcode-select &#45;&#45;install</code> told me the tools were already installed. So a working git had been there the whole time. It was just standing behind the broken one.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# put Apple's directories ahead of the old Intel ones\nexport PATH="/usr/bin:/bin:/usr/sbin:/sbin:$PATH"\n\nwhich git\n#    -> /usr/bin/git`}</pre></div></div>
+
+<p>Now I check the architecture of anything I depend on:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`file $(which kubectl) $(which flux) $(which rsync)`}</pre></div></div>
+
+<p>If it says <code>x86_64</code> on an arm64 Mac, it is going to break at some point.</p>
+
+<h2 class="pp-h2" id="ssh">Three nodes, three usernames</h2>
+
+<p>My README says you can reach the nodes with <code>ssh dell</code> and <code>ssh biggie</code>. When I opened <code>~/.ssh/config</code>, there was one entry in it, for a machine that is not even in this cluster. Neither alias existed.</p>
+
+<p>I added the Dell and gave it the same username as the control plane, because I assumed they matched.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`ssh dell "hostname"\n#    -> Permission denied, please try again.\n#    -> Permission denied, please try again.\n#    -> Permission denied, please try again.`}</pre></div></div>
+
+<p>Then I tried <code>ssh-copy-id</code> to install my key. That needs the password once to get in, so it failed three more times.</p>
+
+<p><code>ssh biggie</code> failed a different way:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`ssh biggie "hostname"\n#    -> ssh: Could not resolve hostname biggie: nodename nor servname provided, or not known`}</pre></div></div>
+
+<p>That one was simple. I had only added the Dell, so the biggie alias did not exist yet.</p>
+
+<p>For the Dell, I started guessing. I tried the username from my other server, and it worked. On the MacBook Air. The Dell had a third username. Three nodes, three different accounts. I knew that at some point. I did not remember it at 9pm.</p>
+
+<p>Once I had the right username for each box, every node got an entry like this:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">ssh config</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`Host dell\n    HostName <dell-ip>\n    User op\n    IdentityFile ~/.ssh/id_ed25519`}</pre></div></div>
+
+<p>Then one <code>ssh-copy-id</code> per node, typing the password one time:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`ssh-copy-id -i ~/.ssh/id_ed25519.pub op@<dell-ip>\n#    -> Number of key(s) added:        1\n\nssh dell "hostname"\n#    -> dell-node\n\nssh biggie "hostname"\n#    -> biggie-smalls`}</pre></div></div>
+
+<p>No password prompts. That matters for the next block, which rsyncs my whole music library to the Dell. I am not typing a password for that.</p>
+
+<div class="pp-note"><strong>worth knowing:</strong> if your docs say <code>ssh dell</code> works, they should also say what it takes to make that true. The per-node usernames are going into my README.</div>
+
+<h2 class="pp-h2" id="context">kubectl was talking to the wrong cluster</h2>
+
+<p>This is the one I learned the most from.</p>
+
+<p>I ran a Flux check from the daily driver:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`kubectl -n flux-system get gitrepository flux-system\n#    -> error: the server doesn't have a resource type "gitrepository"`}</pre></div></div>
+
+<p>My cluster has that resource. Flux made it. Earlier that night, on the server, Flux was green. So I tried the Flux CLI instead:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`flux get sources git -A\n#    -> -bash: flux: command not found`}</pre></div></div>
+
+<p>Two problems. The Flux CLI was not installed, and something was off with kubectl. I checked which cluster it was talking to:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`kubectl config current-context\n#    -> rancher-desktop`}</pre></div></div>
+
+<p>Rancher Desktop. A small local cluster that lives on the laptop itself. The kubeconfig on my daily driver had never pointed at the real cluster.</p>
+
+<p><span class="c-pink">kubectl did not fail.</span> It connected to a real Kubernetes API and gave me a correct answer about a different cluster. If I had asked for my pods, I would have gotten <code>No resources found</code> and could have spent a long time looking for pods that were perfectly fine.</p>
+
+<p><code>kubectl config current-context</code> is now the first thing I run when something looks wrong.</p>
+
+<h2 class="pp-h2" id="kubeconfig">Getting the kubeconfig off the server</h2>
+
+<p>k3s keeps its admin kubeconfig at <code>/etc/rancher/k3s/k3s.yaml</code>, and only root can read it. I tried to pull it over in one line:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`ssh op@<server-ip> "sudo cat /etc/rancher/k3s/k3s.yaml" > ~/.kube/k3s-config\n#    -> sudo: a terminal is required to read the password`}</pre></div></div>
+
+<p>sudo wants a terminal to ask for a password, and a command sent over SSH does not get one by default. Adding <code>-t</code> gives it one.</p>
+
+<p>With <code>-t</code>, it asked for my SSH password and then just sat there. Nothing moved. I thought it had frozen.</p>
+
+<p>It had not. It was waiting for my sudo password, but the prompt was going into the file because of the <code>&gt;</code> redirect, so I never saw it.</p>
+
+<p>I opened the file in vim to see what landed. This was the whole file:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">text</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`[sudo] password for op:\nsudo: a password is required`}</pre></div></div>
+
+<p>My own redirect had replaced the kubeconfig with an error message. I went to quit without saving and typed <code>:q1</code>. That is a one, not an exclamation mark. Vim had no idea what I meant. <code>:q!</code> on the second try.</p>
+
+<p>Next I copied the kubeconfig text out of another window and pasted it in. YAML depends on indentation, and the paste lost all of it. Every <code>-</code> list marker came through as a bullet point too. kubectl was never going to read that.</p>
+
+<p><span class="c-pink">What worked was doing it in plain steps.</span></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# on the server: make a copy your user can read\nsudo cp /etc/rancher/k3s/k3s.yaml ~/k3s.yaml\nsudo chown op ~/k3s.yaml\n\n# on the daily driver: copy it across, then delete the copy\nscp op@<server-ip>:k3s.yaml ~/.kube/k3s-config\nssh op@<server-ip> "rm ~/k3s.yaml"`}</pre></div></div>
+
+<div class="pp-note"><strong>worth knowing:</strong> that file is a cluster-admin credential. Do not leave the copy sitting in a home directory, and keep it out of every repo.</div>
+
+<p>Two edits after that. The file says <code>server: https://127.0.0.1:6443</code>, which only works when you are on the server itself, so it gets the server's real address. k3s also names everything <code>default</code>, and I renamed that to <code>brasil</code> so I always know which context I am on.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`sed -i '' 's|https://127.0.0.1:6443|https://<server-ip>:6443|' ~/.kube/k3s-config\nsed -i '' 's|: default|: brasil|g; s|name: default|name: brasil|g' ~/.kube/k3s-config\nchmod 600 ~/.kube/k3s-config\n\nexport KUBECONFIG=~/.kube/config:~/.kube/k3s-config\nkubectl config use-context brasil\n#    -> Switched to context "brasil".\n\nkubectl get nodes\n#    -> biggie-smalls    Ready    worker\n#    -> craventhegreat   Ready    control-plane\n#    -> dell-node        Ready    worker`}</pre></div></div>
+
+<p>Three nodes, all Ready. The same thing the server showed me at the start of the night, but from my daily driver this time. I added the <code>KUBECONFIG</code> line to my shell profile so a new terminal does not drift back to Rancher Desktop.</p>
+
+<p>Last, the missing Flux CLI:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`curl -s https://fluxcd.io/install.sh | sudo bash\n#    -> Downloading binary .../flux_2.9.5_darwin_arm64.tar.gz\n\nflux version --client\n#    -> flux: v2.9.5`}</pre></div></div>
+
+<p>It picked the Apple Silicon build on its own. After the rest of that night, I appreciated it.</p>
+
+<h2 class="pp-h2" id="why">Why none of this showed up sooner</h2>
+
+<p>For weeks I ran every command on the control plane over SSH. On the server, kubectl reads the right kubeconfig and every binary matches the CPU. My daily driver was only a way to get a terminal on the server, so none of its own tools ever had to work.</p>
+
+<p>The first time the checklist asked the daily driver to do the work itself, five problems showed up one after another. None of them were new.</p>
+
+<p>And almost none of them failed in a way that pointed at the cause. kubectl answered. The SSH config was valid. The redirect did what I told it to do. Every time, the fix started with checking where I actually was: which machine, which cluster, which user.</p>
+
+<h2 class="pp-h2" id="checklist">Final checklist: can your daily driver reach the cluster</h2>
+
+<p>If all of these pass, your daily driver can do the work on its own.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# 1. The tools match your CPU\nuname -m\nfile $(which kubectl) $(which flux)\n#    -> arm64 for both, not x86_64\n\n# 2. kubectl is pointed at the right cluster\nkubectl config current-context\n#    -> brasil\n\n# 3. The nodes answer from here\nkubectl get nodes\n#    -> three nodes, all Ready\n\n# 4. SSH uses the right account and your key\nssh -G dell | grep -E '^(user|hostname) '\nssh dell "hostname"\n#    -> dell-node, no password prompt\n\n# 5. Flux is installed\nflux version --client`}</pre></div></div>
+
+<p>Next is back on the checklist: two Navidrome settings that have been quietly doing nothing, and finally getting my music onto the Dell.</p>
