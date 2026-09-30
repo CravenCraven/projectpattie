@@ -1,0 +1,181 @@
+---
+title: "Five ways I broke port-forward in one night"
+description: "One command, two numbers, and every one of them wrong at some point while I tested Navidrome and Open WebUI."
+date: 2026-09-24
+category: devops
+homelab: brasil
+readTime: 7
+tags: ["kubectl", "port-forward", "k3s", "homelab", "brasil"]
+draft: false
+---
+
+<div class="pp-meta"><span>devops</span> · September 24, 2026 · 7 min read</div>
+
+<h1 class="pp-title">Port-forward.<br/><em>five ways I broke one command in one night.</em></h1>
+
+<p class="pp-subtitle">One command, two numbers, and every one of them wrong at some point while I tested Navidrome and Open WebUI.</p>
+
+<div class="pp-tags">
+  <span class="pp-tag">kubectl</span>
+  <span class="pp-tag">port-forward</span>
+  <span class="pp-tag">k3s</span>
+  <span class="pp-tag">homelab</span>
+  <span class="pp-tag">brasil</span>
+</div>
+
+<div class="pp-toc">
+  <div class="pp-toc-label">// <span>what we're getting into</span></div>
+  <ol>
+    <li><a href="#start">How this started</a></li>
+    <li><a href="#port">The checklist had the wrong port</a></li>
+    <li><a href="#pod">The forward died when the pod did</a></li>
+    <li><a href="#pipes">A terminal full of broken pipes</a></li>
+    <li><a href="#name">Three tries at a service name</a></li>
+    <li><a href="#machine">Right command, wrong machine</a></li>
+    <li><a href="#password">Bonus: the forward worked and the password did not</a></li>
+    <li><a href="#checklist">Final checklist: before you blame the cluster</a></li>
+  </ol>
+</div>
+
+<h2 class="pp-h2" id="start">How this started</h2>
+
+<p>Thursday night I tested two tiles in the Brasil homelab: Música, which is Navidrome, and the Tutor, which is Open WebUI in front of Ollama. Neither one is on the internet yet, so the way I reach them is <code>kubectl port-forward</code>.</p>
+
+<p>It is one line with two numbers in it. I got it wrong five different ways before the night was over.</p>
+
+<p>Every error told me what was wrong. I just had to read it instead of retyping the command.</p>
+
+<h2 class="pp-h2" id="port">The checklist had the wrong port</h2>
+
+<p>My checklist said to test Navidrome with this:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`kubectl -n brasil port-forward svc/navidrome 4533:4533`}</pre></div></div>
+
+<p>I caught this one before running it, because I had just looked at the service:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`kubectl -n brasil get svc | grep navidrome\n#    -> service/navidrome   ClusterIP   ...   80/TCP   37d`}</pre></div></div>
+
+<p>The format is <code>LOCAL:REMOTE</code>. When you forward to a service, the remote number has to be a port the service exposes. Navidrome listens on 4533 inside the pod, but the service in front of it is on 80. I had written the pod's port where the service's port goes.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`kubectl -n brasil port-forward svc/navidrome 4533:80\n#    -> Forwarding from 127.0.0.1:4533 -> 4533`}</pre></div></div>
+
+<p>The output says <code>-&gt; 4533</code> even though I typed 80. kubectl looked up the service, saw that 80 points to 4533, and went straight to the pod.</p>
+
+<h2 class="pp-h2" id="pod">The forward died when the pod did</h2>
+
+<p>This one got me twice.</p>
+
+<p>The first time, I pushed a fix to the Navidrome manifest and Flux rolled out a new pod. My port-forward in the other tab stopped working. I did not think much of it.</p>
+
+<p>The second time, I did it on purpose. I restarted Navidrome to prove my library would survive:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`kubectl -n brasil rollout restart deploy/navidrome\nkubectl -n brasil get pods | grep navidrome\n#    -> navidrome-7c4d684dd9-5jfnv   1/1   Running   0   10s`}</pre></div></div>
+
+<p>I refreshed the browser:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">text</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`localhost refused to connect.\nERR_CONNECTION_REFUSED`}</pre></div></div>
+
+<p>For a second I thought the library was gone. It was not. Port-forward picks one pod when it starts and stays attached to that pod. Even if you point it at a service, it is not load balancing. The old pod was deleted, the forward went with it, and nothing was listening on 4533 on my Mac anymore.</p>
+
+<p>Refused means there is nothing on the other end. I stopped the forward, started it again, and it attached to the new pod.</p>
+
+<div class="pp-note"><strong>worth knowing:</strong> this is why port-forward is for testing. A real service or ingress follows the pods through restarts. Port-forward does not.</div>
+
+<h2 class="pp-h2" id="pipes">A terminal full of broken pipes</h2>
+
+<p>With the forward running and Navidrome open, the terminal filled up with this:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">text</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`E0924 20:40:10.820561   87651 portforward.go:489] "Unhandled Error" err="error copying from remote stream to local connection: readfrom tcp6 [::1]:4533->[::1]:59846: write tcp6 [::1]:4533->[::1]:59846: write: broken pipe"\nE0924 20:41:32.837013   87651 portforward.go:489] "Unhandled Error" err="... write: connection reset by peer"`}</pre></div></div>
+
+<p>"Unhandled Error" in red, over and over. Meanwhile, in the browser, my albums were loading and the music was playing.</p>
+
+<p>These come from the browser closing a connection before the forward is done sending. Click to another page, and the browser drops the requests it no longer needs. Port-forward logs every one of them like something broke.</p>
+
+<p>If the app is working, this is noise. I only worry about it if the page stops loading.</p>
+
+<h2 class="pp-h2" id="name">Three tries at a service name</h2>
+
+<p>Next was the Tutor. My first draft of the command was:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`kubectl -n brasil port-forwarding svc/ollama`}</pre></div></div>
+
+<p>Three things wrong with that. The verb is <code>port-forward</code>, not <code>port-forwarding</code>, which I had actually typed. There are no ports. And Ollama is the wrong service. It is the model backend, an API with no web page. The thing I open in a browser is Open WebUI.</p>
+
+<p>So I checked the service list:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`kubectl -n brasil get pods,svc | grep -i -e ollama -e webui\n#    -> service/ollama       ClusterIP   ...   11434/TCP   38d\n#    -> service/open-webui   ClusterIP   ...   80/TCP      38d`}</pre></div></div>
+
+<p>Port 80, same as Navidrome. I had the ports right on the first try. The name took three.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`kubectl -n brasil port-forward svc/service/open-webui 8080:80\n#    -> error: arguments in resource/name form may not have more than one slash`}</pre></div></div>
+
+<p>The output shows <code>service/open-webui</code>. I copied that and put <code>svc/</code> in front of it. But <code>service/open-webui</code> is already a type and a name. <code>svc</code> and <code>service</code> are the same type, so I had written it twice.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`kubectl -n brasil port-forward svc/service-open-webui 8080:80\n#    -> Error from server (NotFound): services "service-open-webui" not found\n\nkubectl -n brasil port-forward svc/open-webui-service 8080:80\n#    -> Error from server (NotFound): services "open-webui-service" not found`}</pre></div></div>
+
+<p>These two are a different kind of error. <code>Error from server</code> means kubectl understood the command fine and sent it to the cluster. The cluster just did not have a service by that name. At this point I was guessing.</p>
+
+<p>The name is whatever comes after the slash. Nothing added.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`kubectl -n brasil port-forward svc/open-webui 8080:80\n#    -> Forwarding from 127.0.0.1:8080 -> 8080`}</pre></div></div>
+
+<h2 class="pp-h2" id="machine">Right command, wrong machine</h2>
+
+<p>The forward was running. I opened <code>localhost:8080</code> on my Mac.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">text</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`This site can't be reached\nThe connection was reset.\nERR_CONNECTION_RESET`}</pre></div></div>
+
+<p>Then I looked at the prompt on the terminal where the forward was running.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">text</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`op@server:~$ kubectl -n brasil port-forward svc/open-webui 8080:80`}</pre></div></div>
+
+<p>I was on the control plane. I had run every Tutor command on the server over SSH, and then I kept going and ran the forward there too.</p>
+
+<p>Port-forward listens on <code>127.0.0.1</code>, which means this machine only. The forward was waiting on the server's localhost. My browser was asking my Mac's localhost. Those are two different machines.</p>
+
+<p>I wrote <a href="/blog/my-daily-driver-was-talking-to-the-wrong-cluster/">a whole post four days ago</a> about checking where I am before blaming the cluster. And here I was.</p>
+
+<p>I stopped it on the server and ran the same command on my daily driver:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">text</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`op@mac:~$ kubectl -n brasil port-forward svc/open-webui 8080:80`}</pre></div></div>
+
+<p>The Open WebUI login page came up.</p>
+
+<div class="pp-note"><strong>a note on reset versus refused:</strong> refused means nothing is listening. Reset means something answered and hung up. On my Mac nothing from kubectl was listening on 8080, so I expected refused. I got reset, which makes me think something else on the Mac was already on 8080. I have not tracked down what yet.</div>
+
+<h2 class="pp-h2" id="password">Bonus: the forward worked and the password did not</h2>
+
+<p>The login page loaded. My password did not work.</p>
+
+<p>I did not want to reset anything before I knew which account existed. Open WebUI keeps its users in a SQLite database inside the pod, and the image has Python but not the <code>sqlite3</code> command. So I asked Python, read only:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`kubectl -n brasil exec deploy/open-webui -- python3 -c "import sqlite3; c=sqlite3.connect('/app/backend/data/webui.db'); print(c.execute('select email, role from user').fetchall())"\n#    -> [('<my-email>', 'admin')]`}</pre></div></div>
+
+<p>Right email, admin account. Only the password was wrong. I backed up the database before writing to it:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`kubectl -n brasil exec deploy/open-webui -- cp /app/backend/data/webui.db /app/backend/data/webui.db.bak`}</pre></div></div>
+
+<p>Then set a new password. Open WebUI stores a bcrypt hash, not the password, so the new one has to be hashed the same way. <code>getpass</code> keeps the password out of my shell history:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`kubectl -n brasil exec -it deploy/open-webui -- python3 -c "import sqlite3,getpass,bcrypt; p=getpass.getpass('New password: '); h=bcrypt.hashpw(p.encode(),bcrypt.gensalt()).decode(); c=sqlite3.connect('/app/backend/data/webui.db'); n=c.execute('update auth set password=? where email=?',(h,'<my-email>')).rowcount; c.commit(); print('rows updated:',n)"\n#    -> rows updated: 1`}</pre></div></div>
+
+<p>I logged in, picked qwen2.5, and asked it how you say good morning in Rio. It answered in Portuguese. The slang was a little off, but that is a problem for another post.</p>
+
+<div class="pp-note"><strong>worth knowing:</strong> writing straight to an app's database is a last resort. Look first, back up second, change one row, and check that exactly one row changed.</div>
+
+<h2 class="pp-h2" id="checklist">Final checklist: before you blame the cluster</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# 1. Which machine am I on? Run the forward where the browser is.\nhostname\n\n# 2. What is the service actually called, and what port does it expose?\nkubectl -n <namespace> get svc\n#    -> use the name after the slash, and the port shown here\n\n# 3. The command\nkubectl -n <namespace> port-forward svc/<name> <local-port>:<service-port>\n\n# 4. Did the pod restart? Restart the forward too.\nkubectl -n <namespace> get pods`}</pre></div></div>
+
+<p>And what the errors meant, all in one place:</p>
+
+| What I saw | What it meant |
+|---|---|
+| Wrong remote port | I used the pod's port where the service's port goes |
+| `may not have more than one slash` | I wrote the type twice |
+| `services "..." not found` | Wrong name. kubectl was fine, the cluster said no |
+| `ERR_CONNECTION_REFUSED` | Nothing listening. The forward died with the pod |
+| `ERR_CONNECTION_RESET` | The forward was on the server, not my Mac |
+| `broken pipe` in the terminal | The browser closing connections early. Harmless |
+
+<p>Next up, both of these tiles stop needing port-forward at all. They go behind a Cloudflare Tunnel with a login in front, Música first.</p>
