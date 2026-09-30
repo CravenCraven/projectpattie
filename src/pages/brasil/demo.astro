@@ -244,7 +244,7 @@ footer a:hover{color:var(--laranja)}
   <div class="sec">Aprender <span class="en">— learning tools</span></div>
   <div class="grid">
     {section('aprender').map(t => (
-      <a class={`tile ${t.data.color}`} href="/">
+      <a class={`tile ${t.data.color}`} href={`/brasil/${slugOf(t)}`}>
         <div class="num">{t.data.num}</div>
         <h3>{t.data.title}</h3>
         <div class="sub">{t.data.sub}</div>
@@ -257,7 +257,7 @@ footer a:hover{color:var(--laranja)}
   <div class="sec">Mídia <span class="en">— media libraries</span></div>
   <div class="grid">
     {section('midia').map(t => (
-      <a class={`tile ${t.data.color}`} href="/">
+      <a class={`tile ${t.data.color}`} href={`/brasil/${slugOf(t)}`}>
         <div class="num">{t.data.num}</div>
         <h3>{t.data.title}</h3>
         <div class="sub">{t.data.sub}</div>
@@ -270,7 +270,7 @@ footer a:hover{color:var(--laranja)}
   <div class="sec">Infra <span class="en">— platform</span></div>
   <div class="grid">
     {section('infra').map(t => (
-      <a class={`tile ${t.data.color}`} href="/">
+      <a class={`tile ${t.data.color}`} href={`/brasil/${slugOf(t)}`}>
         <div class="num">{t.data.num}</div>
         <h3>{t.data.title}</h3>
         <div class="sub">{t.data.sub}</div>

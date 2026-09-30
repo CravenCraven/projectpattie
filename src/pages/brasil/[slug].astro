@@ -1,0 +1,74 @@
+---
+import { getCollection } from 'astro:content';
+
+export async function getStaticPaths() {
+  const tiles = await getCollection('demo');
+  return tiles.map((t) => ({ params: { slug: t.slug }, props: { tile: t } }));
+}
+
+const { tile } = Astro.props;
+const d = tile.data;
+const { Content } = await tile.render();
+const hasBody = tile.body.trim().length > 0;
+const isUp = d.status === 'running' || d.status === 'cli';
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{d.title} — Laboratório Brasil</title>
+<meta name="description" content={`${d.title} (${d.sub}): ${d.blurb}`}>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Archivo:wght@400;500;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0A1519;--fg:#F0E3CC;--dim:rgba(240,227,204,.55);--panel:#12232B;
+  --c1:#F25C05;--c2:#E0166B;--c3:#12A594;--c4:#F2B705;--c5:#E9DCC3;--down:#1F4E5A}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--fg);font-family:'Archivo',sans-serif;line-height:1.6}
+.wrap{max-width:760px;margin:0 auto;padding:40px 22px 80px}
+.back{font-family:'JetBrains Mono',monospace;font-size:.7rem;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--dim);text-decoration:none}
+.back:hover{color:var(--fg)}
+.hero{margin-top:28px;padding:28px 26px;color:#0A1519}
+.hero.c1{background:var(--c1)} .hero.c2{background:var(--c2);color:var(--fg)}
+.hero.c3{background:var(--c3)} .hero.c4{background:var(--c4)}
+.hero.c5{background:var(--c5)} .hero.down{background:var(--down);color:var(--fg)}
+.num,.sub,.status{font-family:'JetBrains Mono',monospace;font-size:.66rem;
+  letter-spacing:.16em;text-transform:uppercase;opacity:.75}
+h1{font-family:'Archivo Black',sans-serif;font-size:clamp(2.2rem,7vw,3.6rem);
+  line-height:.9;letter-spacing:-.04em;text-transform:uppercase;margin:12px 0 10px}
+.blurb{margin:12px 0 18px;font-size:1rem}
+.status{display:flex;align-items:center;gap:8px}
+.dot{width:8px;height:8px;border-radius:50%;background:currentColor;opacity:.45}
+.dot.up{opacity:1}
+.try{display:inline-block;margin-top:24px;padding:12px 20px;background:var(--fg);
+  color:var(--bg);font-family:'JetBrains Mono',monospace;font-size:.75rem;
+  letter-spacing:.12em;text-transform:uppercase;text-decoration:none}
+.body{margin-top:32px}
+.body h2{font-family:'Archivo Black',sans-serif;font-size:1.3rem;margin:28px 0 10px}
+.body p+p{margin-top:12px}
+.body a{color:var(--c4)}
+.body code{font-family:'JetBrains Mono',monospace;font-size:.85em}
+.body pre{background:var(--panel);padding:16px;overflow-x:auto;margin:14px 0}
+.placeholder{margin-top:32px;padding:22px 24px;background:var(--panel);color:var(--dim)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="/brasil/demo">← Laboratório Brasil</a>
+  <div class={`hero ${d.color}`}>
+    <div class="num">{d.num} · {d.section}</div>
+    <h1>{d.title}</h1>
+    <div class="sub">{d.sub}</div>
+    <p class="blurb">{d.blurb}</p>
+    <div class="status"><span class={isUp ? 'dot up' : 'dot'}></span> {d.status}</div>
+  </div>
+  {d.demoUrl && <a class="try" href={d.demoUrl}>Try it →</a>}
+  {hasBody
+    ? <div class="body"><Content /></div>
+    : <div class="placeholder">Write-up coming soon. This tile is {d.status}.</div>}
+</div>
+</body>
+</html>
