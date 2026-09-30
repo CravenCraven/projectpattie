@@ -32,6 +32,7 @@ const demo = defineCollection({
     status: z.string(),
     color: z.enum(['c1', 'c2', 'c3', 'c4', 'c5', 'down']),
     order: z.number(),
+    demoUrl: z.string().url().optional(),
   }),
 });
 
