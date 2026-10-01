@@ -1,0 +1,180 @@
+{
+  "source": "FSI Brazilian Portuguese FAST (public domain)",
+  "course": "brazilian-portuguese-fast",
+  "totals": {
+    "files": 36,
+    "lessons": 30,
+    "dialog_lines": 351
+  },
+  "lessons": [
+    {
+      "number": 1,
+      "location": "AT THE HOTEL",
+      "title": "Checkingln",
+      "lines": [
+        {
+          "speaker": "B",
+          "text": "Bom dia, às suas ordens!"
+        },
+        {
+          "speaker": "A",
+          "text": "Bom dia, o senhor tem uma reserva no nome de Anne Covington?"
+        },
+        {
+          "speaker": "B",
+          "text": "Um momento, vou ver ... Covington ... Ah, aqui está. A senhora é do Consulado Americano?"
+        },
+        {
+          "speaker": "A",
+          "text": "Sou, sim."
+        },
+        {
+          "speaker": "B",
+          "text": "Nós temos um ótimo apartamento de frente no quinto andar e temos outro com vista para o mar no sétimo andar. Qual dos dois a senhora prefere?"
+        },
+        {
+          "speaker": "A",
+          "text": "Com vista para o mar, por favor. Quanto é a diária?"
+        },
+        {
+          "speaker": "B",
+          "text": "Bem, com o desconto do consulado fica em Cr$ ...."
+        },
+        {
+          "speaker": "A",
+          "text": "O senhor disse Cr$ ... com o desconto?"
+        },
+        {
+          "speaker": "B",
+          "text": "Isso mesmo. A senhora quer fazer o favor de preencher esta ficha?"
+        },
+        {
+          "speaker": "A",
+          "text": "Pois não, só que eu não sei quantos dias vou ficar."
+        },
+        {
+          "speaker": "B",
+          "text": "Não tem importância, deixe isso em branco. Seu passaporte, por favor. Está tudo em ordem. O rapaz vai subir com as malas."
+        },
+        {
+          "speaker": "A",
+          "text": "Obrigada."
+        }
+      ]
+    },
+    {
+      "number": 2,
+      "location": "AT THE HOTEL",
+      "title": "o rdering B reakfast",
+      "lines": [
+        {
+          "speaker": "B",
+          "text": "Portaria' Às suas ordensf"
+        },
+        {
+          "speaker": "A",
+          "text": "A senhora quer ligar para a copa, por favor?"
+        },
+        {
+          "speaker": "B",
+          "text": "Pois não, um momento."
+        },
+        {
+          "speaker": "B",
+          "text": "Alô! Copa!"
+        },
+        {
+          "speaker": "A",
+          "text": "O senhor quer mandar o café da manhã para o quarto 318, por favor?"
+        },
+        {
+          "speaker": "B",
+          "text": "A senhora quer café completo?"
+        },
+        {
+          "speaker": "A",
+          "text": "Quero, sim."
+        },
+        {
+          "speaker": "B",
+          "text": "Para quantas pessoas?"
+        },
+        {
+          "speaker": "A",
+          "text": "Para uma."
+        },
+        {
+          "speaker": "B",
+          "text": "Oual é mesmo o número do quarto?"
+        },
+        {
+          "speaker": "A",
+          "text": "318."
+        },
+        {
+          "speaker": "B",
+          "text": "Mais alguma coisa?"
+        },
+        {
+          "speaker": "A",
+          "text": "Não, só isso."
+        },
+        {
+          "speaker": "B",
+          "text": "Vou mandar já."
+        },
+        {
+          "speaker": "A",
+          "text": "Obrigada."
+        }
+      ]
+    },
+    {
+      "number": 3,
+      "location": "AT THE HOTEL",
+      "title": "Making a Long-Distance Call",
+      "lines": [
+        {
+          "speaker": "B",
+          "text": "Alô! Telefonista!"
+        },
+        {
+          "speaker": "A",
+          "text": "Telefonista, boa tarde, eu gostaria de fazer uma chamada interurbana para Brasília."
+        },
+        {
+          "speaker": "B",
+          "text": "Pois não, para que número a senhora quer ligar?"
+        },
+        {
+          "speaker": "A",
+          "text": "Para o número 216-8079, pessoa a pessoa, por favor."
+        },
+        {
+          "speaker": "B",
+          "text": "Com quem a senhora deseja falar?"
+        },
+        {
+          "speaker": "A",
+          "text": "Eu quero falar com o Sr. Jack Whitney."
+        },
+        {
+          "speaker": "B",
+          "text": "Seu nome e núme~o do quarto, por favor?"
+        },
+        {
+          "speaker": "A",
+          "text": "Meu nome é Anne Covington e o número do quarto é 621."
+        },
+        {
+          "speaker": "B",
+          "text": "Vou ligar. Aguarde um momentinho."
+        },
+        {
+          "speaker": "A",
+          "text": "Pois não, obrigada."
+        }
+      ]
+    }
+  ]
+}
