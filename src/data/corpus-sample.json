@@ -1,178 +1,1075 @@
 {
-  "source": "FSI Brazilian Portuguese FAST (public domain)",
-  "course": "brazilian-portuguese-fast",
+  "courses": [
+    {
+      "slug": "brazilian-portuguese-fast",
+      "title": "FSI Brazilian Portuguese FAST",
+      "license": "public domain",
+      "credit": "FSI Brazilian Portuguese FAST, US Foreign Service Institute (public domain)",
+      "files": 36,
+      "lessons": 30,
+      "dialog_lines": 351
+    },
+    {
+      "slug": "conversa-brasileira",
+      "title": "Conversa Brasileira",
+      "license": "CC BY",
+      "credit": "Conversa Brasileira, COERLL, The University of Texas at Austin (CC BY)",
+      "files": 35,
+      "lessons": 35,
+      "dialog_lines": 1790
+    }
+  ],
   "totals": {
-    "files": 36,
-    "lessons": 30,
-    "dialog_lines": 351
+    "files": 71,
+    "lessons": 65,
+    "dialog_lines": 2141
   },
   "lessons": [
     {
+      "course": "brazilian-portuguese-fast",
       "number": 1,
       "location": "AT THE HOTEL",
       "title": "Checking In",
       "lines": [
         {
           "speaker": "B",
-          "text": "Bom dia, às suas ordens!"
+          "text": "Bom dia, às suas ordens!",
+          "translation": null
         },
         {
           "speaker": "A",
-          "text": "Bom dia, o senhor tem uma reserva no nome de Anne Covington?"
+          "text": "Bom dia, o senhor tem uma reserva no nome de Anne Covington?",
+          "translation": null
         },
         {
           "speaker": "B",
-          "text": "Um momento, vou ver ... Covington ... Ah, aqui está. A senhora é do Consulado Americano?"
+          "text": "Um momento, vou ver ... Covington ... Ah, aqui está. A senhora é do Consulado Americano?",
+          "translation": null
         },
         {
           "speaker": "A",
-          "text": "Sou, sim."
+          "text": "Sou, sim.",
+          "translation": null
         },
         {
           "speaker": "B",
-          "text": "Nós temos um ótimo apartamento de frente no quinto andar e temos outro com vista para o mar no sétimo andar. Qual dos dois a senhora prefere?"
+          "text": "Nós temos um ótimo apartamento de frente no quinto andar e temos outro com vista para o mar no sétimo andar. Qual dos dois a senhora prefere?",
+          "translation": null
         },
         {
           "speaker": "A",
-          "text": "Com vista para o mar, por favor. Quanto é a diária?"
+          "text": "Com vista para o mar, por favor. Quanto é a diária?",
+          "translation": null
         },
         {
           "speaker": "B",
-          "text": "Bem, com o desconto do consulado fica em Cr$ ...."
+          "text": "Bem, com o desconto do consulado fica em Cr$ ....",
+          "translation": null
         },
         {
           "speaker": "A",
-          "text": "O senhor disse Cr$ ... com o desconto?"
+          "text": "O senhor disse Cr$ ... com o desconto?",
+          "translation": null
         },
         {
           "speaker": "B",
-          "text": "Isso mesmo. A senhora quer fazer o favor de preencher esta ficha?"
+          "text": "Isso mesmo. A senhora quer fazer o favor de preencher esta ficha?",
+          "translation": null
         },
         {
           "speaker": "A",
-          "text": "Pois não, só que eu não sei quantos dias vou ficar."
+          "text": "Pois não, só que eu não sei quantos dias vou ficar.",
+          "translation": null
         },
         {
           "speaker": "B",
-          "text": "Não tem importância, deixe isso em branco. Seu passaporte, por favor. Está tudo em ordem. O rapaz vai subir com as malas."
+          "text": "Não tem importância, deixe isso em branco. Seu passaporte, por favor. Está tudo em ordem. O rapaz vai subir com as malas.",
+          "translation": null
         },
         {
           "speaker": "A",
-          "text": "Obrigada."
+          "text": "Obrigada.",
+          "translation": null
         }
       ]
     },
     {
+      "course": "brazilian-portuguese-fast",
       "number": 2,
       "location": "AT THE HOTEL",
       "title": "Ordering Breakfast",
       "lines": [
         {
           "speaker": "B",
-          "text": "Portaria' Às suas ordensf"
+          "text": "Portaria' Às suas ordensf",
+          "translation": null
         },
         {
           "speaker": "A",
-          "text": "A senhora quer ligar para a copa, por favor?"
+          "text": "A senhora quer ligar para a copa, por favor?",
+          "translation": null
         },
         {
           "speaker": "B",
-          "text": "Pois não, um momento."
+          "text": "Pois não, um momento.",
+          "translation": null
         },
         {
           "speaker": "B",
-          "text": "Alô! Copa!"
+          "text": "Alô! Copa!",
+          "translation": null
         },
         {
           "speaker": "A",
-          "text": "O senhor quer mandar o café da manhã para o quarto 318, por favor?"
+          "text": "O senhor quer mandar o café da manhã para o quarto 318, por favor?",
+          "translation": null
         },
         {
           "speaker": "B",
-          "text": "A senhora quer café completo?"
+          "text": "A senhora quer café completo?",
+          "translation": null
         },
         {
           "speaker": "A",
-          "text": "Quero, sim."
+          "text": "Quero, sim.",
+          "translation": null
         },
         {
           "speaker": "B",
-          "text": "Para quantas pessoas?"
+          "text": "Para quantas pessoas?",
+          "translation": null
         },
         {
           "speaker": "A",
-          "text": "Para uma."
+          "text": "Para uma.",
+          "translation": null
         },
         {
           "speaker": "B",
-          "text": "Oual é mesmo o número do quarto?"
+          "text": "Oual é mesmo o número do quarto?",
+          "translation": null
         },
         {
           "speaker": "A",
-          "text": "318."
+          "text": "318.",
+          "translation": null
         },
         {
           "speaker": "B",
-          "text": "Mais alguma coisa?"
+          "text": "Mais alguma coisa?",
+          "translation": null
         },
         {
           "speaker": "A",
-          "text": "Não, só isso."
+          "text": "Não, só isso.",
+          "translation": null
         },
         {
           "speaker": "B",
-          "text": "Vou mandar já."
+          "text": "Vou mandar já.",
+          "translation": null
         },
         {
           "speaker": "A",
-          "text": "Obrigada."
+          "text": "Obrigada.",
+          "translation": null
         }
       ]
     },
     {
+      "course": "brazilian-portuguese-fast",
       "number": 3,
       "location": "AT THE HOTEL",
       "title": "Making a Long-Distance Call",
       "lines": [
         {
           "speaker": "B",
-          "text": "Alô! Telefonista!"
+          "text": "Alô! Telefonista!",
+          "translation": null
         },
         {
           "speaker": "A",
-          "text": "Telefonista, boa tarde, eu gostaria de fazer uma chamada interurbana para Brasília."
+          "text": "Telefonista, boa tarde, eu gostaria de fazer uma chamada interurbana para Brasília.",
+          "translation": null
         },
         {
           "speaker": "B",
-          "text": "Pois não, para que número a senhora quer ligar?"
+          "text": "Pois não, para que número a senhora quer ligar?",
+          "translation": null
         },
         {
           "speaker": "A",
-          "text": "Para o número 216-8079, pessoa a pessoa, por favor."
+          "text": "Para o número 216-8079, pessoa a pessoa, por favor.",
+          "translation": null
         },
         {
           "speaker": "B",
-          "text": "Com quem a senhora deseja falar?"
+          "text": "Com quem a senhora deseja falar?",
+          "translation": null
         },
         {
           "speaker": "A",
-          "text": "Eu quero falar com o Sr. Jack Whitney."
+          "text": "Eu quero falar com o Sr. Jack Whitney.",
+          "translation": null
         },
         {
           "speaker": "B",
-          "text": "Seu nome e núme~o do quarto, por favor?"
+          "text": "Seu nome e núme~o do quarto, por favor?",
+          "translation": null
         },
         {
           "speaker": "A",
-          "text": "Meu nome é Anne Covington e o número do quarto é 621."
+          "text": "Meu nome é Anne Covington e o número do quarto é 621.",
+          "translation": null
         },
         {
           "speaker": "B",
-          "text": "Vou ligar. Aguarde um momentinho."
+          "text": "Vou ligar. Aguarde um momentinho.",
+          "translation": null
         },
         {
           "speaker": "A",
-          "text": "Pois não, obrigada."
+          "text": "Pois não, obrigada.",
+          "translation": null
+        }
+      ]
+    },
+    {
+      "course": "conversa-brasileira",
+      "number": 1,
+      "location": "Animals 1",
+      "title": "Dog lovers 1",
+      "lines": [
+        {
+          "speaker": "Michelle",
+          "text": "Oi...",
+          "translation": "Hello..."
+        },
+        {
+          "speaker": "Denise",
+          "text": "Oi, “menina”...",
+          "translation": "Hey, “girl”..."
+        },
+        {
+          "speaker": "Michelle",
+          "text": "Ai, que amor! Que coisa mais linda! Posso sentar um pouquinho?",
+          "translation": "Oh, how cute! What a pretty puppy! Can I sit here for a little bit?"
+        },
+        {
+          "speaker": "Denise",
+          "text": "Claro! Fica à vontade!",
+          "translation": "Sure! Please, have a seat."
+        },
+        {
+          "speaker": "Michelle",
+          "text": "Ai, que lindo!",
+          "translation": "It is so pretty!"
+        },
+        {
+          "speaker": "Denise",
+          "text": "Vem, Sandy, vem, vem, aqui...",
+          "translation": "Come on Sandy, come here..."
+        },
+        {
+          "speaker": "Michelle",
+          "text": "Qual é o nome dela?",
+          "translation": "What's her name?"
+        },
+        {
+          "speaker": "Denise",
+          "text": "... “garota”? Aqui, aqui... é Sandy!",
+          "translation": "... “little girl”? Here, here... it's Sandy!"
+        },
+        {
+          "speaker": "Michelle",
+          "text": "É ele ou ela?",
+          "translation": "Is your puppy a boy or a girl?"
+        },
+        {
+          "speaker": "Denise",
+          "text": "Ela!",
+          "translation": "A girl."
+        },
+        {
+          "speaker": "Michelle",
+          "text": "Ah, ela... então tá bom!",
+          "translation": "Oh, it's a girl... that's cool!"
+        },
+        {
+          "speaker": "Denise",
+          "text": "É Sandy!",
+          "translation": "It's Sandy!"
+        },
+        {
+          "speaker": "Michelle",
+          "text": "Sandy?",
+          "translation": "Sandy?"
+        },
+        {
+          "speaker": "Denise",
+          "text": "É...",
+          "translation": "Yeah..."
+        },
+        {
+          "speaker": "Michelle",
+          "text": "E cadê o Júnior?",
+          "translation": "Where is Junior?"
+        },
+        {
+          "speaker": "Denise",
+          "text": "Pois é, eu tenho duas meninas em casa, aí elas que escolheram o nome, né?",
+          "translation": "Well, I have two girls at home, so they chose her name..."
+        },
+        {
+          "speaker": "Michelle",
+          "text": "Ah!",
+          "translation": "I see!"
+        },
+        {
+          "speaker": "Denise",
+          "text": "Se fosse um “menino”, ia ser Júnior...",
+          "translation": "If it was a “boy”, it would be Junior..."
+        },
+        {
+          "speaker": "Michelle",
+          "text": "Provavelmente...",
+          "translation": "Probably..."
+        },
+        {
+          "speaker": "Denise",
+          "text": "... mas aí com a “garotona” aqui ficou Sandy.",
+          "translation": "... but with this “big girl”, we chose Sandy."
+        },
+        {
+          "speaker": "Michelle",
+          "text": "Ah! E quantos anos têm suas meninas?",
+          "translation": "Oh, yeah! How old are your girls?"
+        },
+        {
+          "speaker": "Denise",
+          "text": "Dez e seis.",
+          "translation": "Ten and six."
+        },
+        {
+          "speaker": "Michelle",
+          "text": "E essa daqui?",
+          "translation": "How about this one?"
+        },
+        {
+          "speaker": "Denise",
+          "text": "Essa tem três.",
+          "translation": "This one is three."
+        },
+        {
+          "speaker": "Michelle",
+          "text": "Três anos!",
+          "translation": "Three years old!"
+        },
+        {
+          "speaker": "Denise",
+          "text": "É, mas é uma...",
+          "translation": "Yeah, but she is a..."
+        },
+        {
+          "speaker": "Michelle",
+          "text": "Ai, que linda!",
+          "translation": "She's adorable!"
+        },
+        {
+          "speaker": "Denise",
+          "text": "... é uma garotona aí, uma boa garotona.",
+          "translation": "... she's a big girl, a good girl."
+        },
+        {
+          "speaker": "Michelle",
+          "text": "E parece não ser brava... não é brava?",
+          "translation": "She doesn't seem like an agitated puppy... is she a difficult puppy?"
+        },
+        {
+          "speaker": "Denise",
+          "text": "Não, não é, não é... esta é uma cachorra bem tranquila, dócil, eh, calma com as crianças, boa pra passear, entendeu, não vai te carregando assim...",
+          "translation": "No, no, she isn't... she's a very tranquil, docile puppy, she's easygoing with children, a good dog to walk with, you know, she doesn't pull you..."
+        },
+        {
+          "speaker": "Michelle",
+          "text": "Ah, isso é bom, né? Isso é bom...",
+          "translation": "Oh, this is good! That's good..."
+        },
+        {
+          "speaker": "Denise",
+          "text": "... na coleira, eh, ela é tranquilona...",
+          "translation": "... with her collar, she's very calm..."
+        },
+        {
+          "speaker": "Michelle",
+          "text": "Ai, que bonita! Você sabe a raça, eh, que raça que é?",
+          "translation": "She's precious! Do you know her breed, I mean, what's her breed?"
+        },
+        {
+          "speaker": "Denise",
+          "text": "Eh, é uma mistura: mãe é...",
+          "translation": "It's a mixture: her mother is..."
+        },
+        {
+          "speaker": "Michelle",
+          "text": "Porque eu não entendo nada de cachorro...",
+          "translation": "Because I don't understand anything about dogs..."
+        },
+        {
+          "speaker": "Denise",
+          "text": "... eh, não, eu também não muito, mas a mãe era labrador e o pai setter.",
+          "translation": "I don't understand very much either, but her mother was a labrador e her father an Irish setter."
+        },
+        {
+          "speaker": "Michelle",
+          "text": "Ah, tá.",
+          "translation": "Oh, I see."
+        },
+        {
+          "speaker": "Denise",
+          "text": "Então é uma, uma mistura aí dos dois...",
+          "translation": "So, it's a mixture of the two..."
+        },
+        {
+          "speaker": "Michelle",
+          "text": "Deu uma mistura aí dos dois...",
+          "translation": "It is a mixture of the two..."
+        },
+        {
+          "speaker": "Denise",
+          "text": "... mas deu uma mistura boa, porque ela...",
+          "translation": "... but it was a good mixture, because she..."
+        },
+        {
+          "speaker": "Michelle",
+          "text": "... mas ela ficou muito boazinha...",
+          "translation": "... she's so easygoing..."
+        },
+        {
+          "speaker": "Denise",
+          "text": "... eh, eu acho ela bonitona, né?",
+          "translation": "... I think she's very beautiful..."
+        },
+        {
+          "speaker": "Michelle",
+          "text": "Ela, ela é treinada? Porque ela fica quietinha...",
+          "translation": "Is she trained? She's so quiet..."
+        },
+        {
+          "speaker": "Denise",
+          "text": "É, a gente contratou um treinador quando ela era bebê, né, assim, com seis meses e... mas pra falar bem a verdade, ele nem teve muito trabalho não, porque ela é muito inteligente, assim, pega muito rápido, eh...",
+          "translation": "Yeah, we hired a dog trainer when she was a baby, I mean, when she was six months old and... but to tell you the truth, he didn't have a lot of work, because she's very smart, I mean, she learns things very fast..."
+        },
+        {
+          "speaker": "Michelle",
+          "text": "Olha!",
+          "translation": "Wow!"
+        },
+        {
+          "speaker": "Denise",
+          "text": "... e por ela ser tranquila, assim, a índole dócil do cachorro, eh, não foi muito difícil; ela atende bem as ordens, eh...",
+          "translation": "... and because she's calm, I mean, because of her docile nature, it wasn't so difficult to train her; she obeys our commands..."
+        },
+        {
+          "speaker": "Michelle",
+          "text": "Que bom!",
+          "translation": "How nice!"
+        },
+        {
+          "speaker": "Denise",
+          "text": "... uma boa cachorra...",
+          "translation": "... she's a good puppy..."
+        },
+        {
+          "speaker": "Michelle",
+          "text": "Eu tinha... o meu irmão, na verdade, tem, tem um cachorro parecido com ela, por isso que quando eu olhei eu vim pra cá conversar com você; eu sempre tive muito medo de cachorro, mas depois convivendo com o cachorro dele eu fui perdendo o medo, me acostumando, e ela lembra muito ele, por isso que...",
+          "translation": "I had... actually, my brother has a dog that looks like her. Because of this, I came to speak with you when I saw her. I always had so much fear of dogs, but living with his dog I started getting over my fear, you know, becoming accustomed, and she reminds me of my brother's dog a lot. Because of this..."
+        },
+        {
+          "speaker": "Denise",
+          "text": "Huh...",
+          "translation": "Huh..."
+        },
+        {
+          "speaker": "Michelle",
+          "text": "Muito boazinha! Mas então tá bom. Prazer em conhecê-la.",
+          "translation": "She's so easygoing! OK, that's it. Nice to meet you."
+        },
+        {
+          "speaker": "Denise",
+          "text": "Igualmente.",
+          "translation": "Nice to meet you, too."
+        },
+        {
+          "speaker": "Michelle",
+          "text": "E adorei a cachorra...",
+          "translation": "I loved your puppy..."
+        },
+        {
+          "speaker": "Denise",
+          "text": "Tá joia.",
+          "translation": "OK."
+        },
+        {
+          "speaker": "Michelle",
+          "text": "Até mais.",
+          "translation": "See you"
+        },
+        {
+          "speaker": "Denise",
+          "text": "A gente se vê.",
+          "translation": "See you around."
+        },
+        {
+          "speaker": "Michelle",
+          "text": "Tchau, tchau.",
+          "translation": "Bye-bye."
+        }
+      ]
+    },
+    {
+      "course": "conversa-brasileira",
+      "number": 2,
+      "location": "Animals 2",
+      "title": "Dog lovers 2",
+      "lines": [
+        {
+          "speaker": "Simone",
+          "text": "Que lindo! É seu?",
+          "translation": "It is so cute! Is it yours?"
+        },
+        {
+          "speaker": "Sandra",
+          "text": "É, é minha.",
+          "translation": "Yes, it is."
+        },
+        {
+          "speaker": "Simone",
+          "text": "É sua?",
+          "translation": "Is it yours?"
+        },
+        {
+          "speaker": "Sandra",
+          "text": "É.",
+          "translation": "Yes."
+        },
+        {
+          "speaker": "Simone",
+          "text": "É mulher?",
+          "translation": "Is it a girl?"
+        },
+        {
+          "speaker": "Sandra",
+          "text": "É...",
+          "translation": "Yeah..."
+        },
+        {
+          "speaker": "Simone",
+          "text": "Ela é fêmea? Eu posso pegar?",
+          "translation": "Is it female? Can I touch her?"
+        },
+        {
+          "speaker": "Sandra",
+          "text": "Pode, pode, à vontade...",
+          "translation": "Sure, sure, go ahead..."
+        },
+        {
+          "speaker": "Simone",
+          "text": "Não é brava?",
+          "translation": "Isn’t she agitated?"
+        },
+        {
+          "speaker": "Sandra",
+          "text": "Não, não, é super mansinha...",
+          "translation": "No, no, she’s very tame..."
+        },
+        {
+          "speaker": "Simone",
+          "text": "Qual é o nome dela?",
+          "translation": "Oh, it’s a girl... that’s cool!"
+        },
+        {
+          "speaker": "Sandra",
+          "text": "É Belinha.",
+          "translation": "It’s Belinha."
+        },
+        {
+          "speaker": "Simone",
+          "text": "Oi, Belinha. Tudo bem, Belinha? Como você tá, Belinha?",
+          "translation": "Hi, Belinha. Are you fine, Belinha? How are you, Belinha?"
+        },
+        {
+          "speaker": "Sandra",
+          "text": "Vê, super mansa...",
+          "translation": "Look at how tame she is..."
+        },
+        {
+          "speaker": "Simone",
+          "text": "Quantos anos ela tem?",
+          "translation": "How old is she?"
+        },
+        {
+          "speaker": "Sandra",
+          "text": "Tem cinco.",
+          "translation": "She’s five."
+        },
+        {
+          "speaker": "Simone",
+          "text": "Cinco anos? Ah, Belinha... você tá um pouco velhinha, hein Belinha?",
+          "translation": "Five years old? Oh, Belinha... you’re a little old, Belinha."
+        },
+        {
+          "speaker": "Sandra",
+          "text": "Ah, não fala assim porque ela é tão boa...",
+          "translation": "Don’t say that because she’s so nice..."
+        },
+        {
+          "speaker": "Simone",
+          "text": "É mesmo?",
+          "translation": "Really?"
+        },
+        {
+          "speaker": "Sandra",
+          "text": "É... apesar de já ter cinco anos é super companheira...",
+          "translation": "In spite of being five years old, she’s a very good companion..."
+        },
+        {
+          "speaker": "Simone",
+          "text": "É mesmo?",
+          "translation": "Really?"
+        },
+        {
+          "speaker": "Sandra",
+          "text": "... tem muita energia ainda...",
+          "translation": "... she still has lots of energy..."
+        },
+        {
+          "speaker": "Simone",
+          "text": "E qual a raça dela?",
+          "translation": "What’s her breed?"
+        },
+        {
+          "speaker": "Sandra",
+          "text": "Olha, ah, é meio vira-lata, viu?",
+          "translation": "Well, she’s sort of a mutt..."
+        },
+        {
+          "speaker": "Sandra",
+          "text": "O pai era labrador, mas a mãe eu não sei...",
+          "translation": "Her father was a labrador, but her mother I don’t know..."
+        },
+        {
+          "speaker": "Simone",
+          "text": "Não sabe? Ah, então ela...",
+          "translation": "You don’t know? So, she..."
+        },
+        {
+          "speaker": "Sandra",
+          "text": "... e ela não tem pedigree, então é meio que...",
+          "translation": "... and she isn’t a pedigree, so she’s sort of..."
+        },
+        {
+          "speaker": "Simone",
+          "text": "Ah, então é vira-lata...",
+          "translation": "So, she’s a mutt..."
+        },
+        {
+          "speaker": "Sandra",
+          "text": "... meio que vira-lata...",
+          "translation": "... sort of a mutt..."
+        },
+        {
+          "speaker": "Simone",
+          "text": "Mas não tem importância, né Belinha? A gente é carinhosa do mesmo jeito, né Belinha?",
+          "translation": "But this is not important, right Belinha? Either way we are affectionate, right Belinha?"
+        },
+        {
+          "speaker": "Sandra",
+          "text": "Você tem cachorro?",
+          "translation": "Do you have a dog?"
+        },
+        {
+          "speaker": "Simone",
+          "text": "Eu tenho, tenho quatro cachorros em casa...",
+          "translation": "Yes, I have four dogs at home..."
+        },
+        {
+          "speaker": "Sandra",
+          "text": "Quatro?",
+          "translation": "Four?"
+        },
+        {
+          "speaker": "Simone",
+          "text": "Quatro... são todos vira-lata também. A gente pegou na rua, doentes e a gente cuida muito deles...",
+          "translation": "Four... they’re all mutts, too. We got them off the street; they were sick, but we took care of them..."
+        },
+        {
+          "speaker": "Sandra",
+          "text": "Uau!",
+          "translation": "Wow!"
+        },
+        {
+          "speaker": "Simone",
+          "text": "A gente pegou... leva ao veterinário pra poder cuidar e tudo e a gente castra também pra eles não terem mais filhos, senão não cabe dentro de casa...",
+          "translation": "We got them... we take them to the veterinarian to take care of them and we also castrate them, so that they don’t have more babies; otherwise our house would be full of them..."
+        },
+        {
+          "speaker": "Simone",
+          "text": "... mas a gente, eu amo muito, minha família toda gosta muito deles...",
+          "translation": "... but we... I do love them, my whole family likes them a lot..."
+        },
+        {
+          "speaker": "Sandra",
+          "text": "Então você tá sempre no veterinário?",
+          "translation": "So, you’re always at the veterinarian, right?"
+        },
+        {
+          "speaker": "Simone",
+          "text": "Sempre no veterinário!",
+          "translation": "Always at the veterinarian!"
+        },
+        {
+          "speaker": "Sandra",
+          "text": "Meu Deus!",
+          "translation": "Oh my!"
+        },
+        {
+          "speaker": "Simone",
+          "text": "Mas a gente não importa não, porque a gente gosta muito...",
+          "translation": "But we don’t mind, because we like it so much..."
+        },
+        {
+          "speaker": "Sandra",
+          "text": "E só tem cachorro em casa ou tem outros...",
+          "translation": "Do you have only dogs at home or any other..."
+        },
+        {
+          "speaker": "Simone",
+          "text": "Tem oito gatos também...",
+          "translation": "There are eight cats, too..."
+        },
+        {
+          "speaker": "Sandra",
+          "text": "Oito?",
+          "translation": "Eight?"
+        },
+        {
+          "speaker": "Simone",
+          "text": "Vira-latas também...",
+          "translation": "Stray cats..."
+        },
+        {
+          "speaker": "Sandra",
+          "text": "Todos de rua também?",
+          "translation": "Did you take them off the street, too?"
+        },
+        {
+          "speaker": "Simone",
+          "text": "Pegamos pra cuidar também, do mesmo jeito...",
+          "translation": "Yeah, we also took them off the street to take care of them, the same way as before..."
+        },
+        {
+          "speaker": "Sandra",
+          "text": "Uau!",
+          "translation": "Wow!"
+        },
+        {
+          "speaker": "Simone",
+          "text": "A gente gosta muito deles, são muito amigos...",
+          "translation": "We like them a lot, they’re very friendly..."
+        },
+        {
+          "speaker": "Sandra",
+          "text": "Meu Deus!",
+          "translation": "Oh my!"
+        },
+        {
+          "speaker": "Simone",
+          "text": "Eh, né Belinha?",
+          "translation": "Yeah... right Belinha?"
+        },
+        {
+          "speaker": "Sandra",
+          "text": "Eu prefiro cachorro do que gato.",
+          "translation": "I prefer dogs over cats."
+        },
+        {
+          "speaker": "Simone",
+          "text": "Eu gosto de qualquer um. Gato é bom pra dormir junto...",
+          "translation": "I like either one. Cats are good to sleep with..."
+        },
+        {
+          "speaker": "Sandra",
+          "text": "Ah, é?",
+          "translation": "Oh, really?"
+        },
+        {
+          "speaker": "Simone",
+          "text": "Oh Belinha, foi um prazer te conhecer, viu Belinha? Prazer conhecê-la.",
+          "translation": "Oh Belinha... it was nice to meet you, Belinha. Nice to meet you."
+        },
+        {
+          "speaker": "Sandra",
+          "text": "Igualmente.",
+          "translation": "Nice to meet you, too."
+        },
+        {
+          "speaker": "Simone",
+          "text": "Tchau, Belinha.",
+          "translation": "Bye, Belinha."
+        },
+        {
+          "speaker": "Sandra",
+          "text": "Tá, tchau.",
+          "translation": "OK, bye."
+        }
+      ]
+    },
+    {
+      "course": "conversa-brasileira",
+      "number": 3,
+      "location": "Travel 1",
+      "title": "Hanging out at Breakfast 1",
+      "lines": [
+        {
+          "speaker": "Denise",
+          "text": "Uh, olha só que absurdo aqui... tá desencorajando as pessoas a viajarem pro Rio por conta da violência..",
+          "translation": "Uh, look at how absurd this is... it’s discouraging people from traveling to Rio because of the crime..."
+        },
+        {
+          "speaker": "Valentino",
+          "text": "Ah não, outra vez essa história....",
+          "translation": "Oh, no! Not that same story again..."
+        },
+        {
+          "speaker": "Denise",
+          "text": "De novo...",
+          "translation": "Again..."
+        },
+        {
+          "speaker": "Valentino",
+          "text": "... que o Rio é violento...",
+          "translation": "... that Rio is unsafe..."
+        },
+        {
+          "speaker": "Denise",
+          "text": "É, que droga... toda hora!",
+          "translation": "Oh, man ... every time!"
+        },
+        {
+          "speaker": "Valentino",
+          "text": "Essa é uma grande confusão, porque o Rio de Janeiro é uma cidade completamente turística, tem...",
+          "translation": "This is a big misconception, because Rio de Janeiro is a tourist’s city, it has..."
+        },
+        {
+          "speaker": "Denise",
+          "text": "Olha que... puh...",
+          "translation": "Look how... puh..."
+        },
+        {
+          "speaker": "Valentino",
+          "text": "... excelentes pontos, é uma cidade bonita...",
+          "translation": "... there are excellent tourist spots, it’s a beautiful city..."
+        },
+        {
+          "speaker": "Denise",
+          "text": "É lógico! E essa coisa de que o crime tá no Rio, o crime tá no Rio... o crime tá, infelizmente, em quase todas as cidades, mas principalmente as cidades grandes do Brasil...",
+          "translation": "Clearly! And that idea that all the crime is in Rio, that all the crime is in Rio... the crime is, unfortunately, in basically all cities, but mainly in the big cities of Brazil..."
+        },
+        {
+          "speaker": "Valentino",
+          "text": "Claro!",
+          "translation": "Of course!"
+        },
+        {
+          "speaker": "Denise",
+          "text": "Mas... e também não é assim, né? Quer dizer, você vê a... a Zona Sul...",
+          "translation": "But... it’s not really like that! I mean, you see the Southern region, for example..."
+        },
+        {
+          "speaker": "Valentino",
+          "text": "É verdade...",
+          "translation": "It’s true..."
+        },
+        {
+          "speaker": "Denise",
+          "text": "... é muito bem policiada...",
+          "translation": "... is under police control..."
+        },
+        {
+          "speaker": "Valentino",
+          "text": "Você pode andar tranquilamente por lá à noite, de dia...",
+          "translation": "You can walk around safely at night, in the day..."
+        },
+        {
+          "speaker": "Denise",
+          "text": "Uh, uh...",
+          "translation": "Uh, uh..."
+        },
+        {
+          "speaker": "Valentino",
+          "text": "... qualquer hora que não tem, não tem problema...",
+          "translation": "... anytime of the day, they don’t have a problem..."
+        },
+        {
+          "speaker": "Denise",
+          "text": "Uh, uh...",
+          "translation": "Uh, uh..."
+        },
+        {
+          "speaker": "Valentino",
+          "text": "... com violência na Zona Sul...",
+          "translation": "... with crime in the Southern region..."
+        },
+        {
+          "speaker": "Denise",
+          "text": "Claro! Lembra da última vez que a gente foi?",
+          "translation": "Clearly! Do you remember the last time we went?"
+        },
+        {
+          "speaker": "Valentino",
+          "text": "Sim...",
+          "translation": "Yes..."
+        },
+        {
+          "speaker": "Denise",
+          "text": "A gente levou as crianças e... puxa, a gente teve um tempo...",
+          "translation": "We took the children and... my goodness, we had..."
+        },
+        {
+          "speaker": "Valentino",
+          "text": "... caminhamos pela praia sem nenhum problema.",
+          "translation": "... we walked on the beach without any problems."
+        },
+        {
+          "speaker": "Denise",
+          "text": "... super legal... é verdade!",
+          "translation": "... a great time... it’s true!"
+        },
+        {
+          "speaker": "Valentino",
+          "text": "Eh, mas essa é uma tradição já da imprensa, né? Eh... o Rio de Janeiro é violento, tome cuidado, e nós sabemos que isso acontece em São Paulo, Campinas – que você conhece –, outras cidades...",
+          "translation": "Yeah, that’s a habit the media has, huh? Rio is dangerous, you have to be careful, and we know that that happens in São Paulo, Campinas – as you are aware –, other cities..."
+        },
+        {
+          "speaker": "Denise",
+          "text": "Ah, você lembra daquela pesquisa que a gente viu? Ah... na proporção número de habitantes/número de crime, que Campinas tá na frente...",
+          "translation": "Ah, do you remember that survey that we saw? Campinas has the highest per capita crime rate..."
+        },
+        {
+          "speaker": "Valentino",
+          "text": "Pois é...",
+          "translation": "True..."
+        },
+        {
+          "speaker": "Denise",
+          "text": "... do Rio, de São Paulo...",
+          "translation": "... more than Rio, more than São Paulo..."
+        },
+        {
+          "speaker": "Valentino",
+          "text": "... mais, mais violenta que Rio, São Paulo...",
+          "translation": "... it’s more dangerous than Rio or São Paulo..."
+        },
+        {
+          "speaker": "Denise",
+          "text": "... e isso não tá na mídia...",
+          "translation": "... and this is not in the media..."
+        },
+        {
+          "speaker": "Valentino",
+          "text": "E não é uma cidade...",
+          "translation": "And Campinas is not a city..."
+        },
+        {
+          "speaker": "Denise",
+          "text": "... que droga!",
+          "translation": "... my goodness!"
+        },
+        {
+          "speaker": "Valentino",
+          "text": "... tão grande como o Rio...",
+          "translation": "... as big as Rio..."
+        },
+        {
+          "speaker": "Denise",
+          "text": "Uh, uh...",
+          "translation": "Uh, uh..."
+        },
+        {
+          "speaker": "Valentino",
+          "text": "Agora... o Rio de Janeiro compensa, né? Aqueles pontos maravilhosos, o centro da cidade, Corcovado, Pão de Açúcar, quer dizer...",
+          "translation": "Oh, but Rio is worth it, is it not? All those wonderful sites, downtown, Corcovado , Sugar Loaf Mountain, I mean..."
+        },
+        {
+          "speaker": "Denise",
+          "text": "Ah... aquilo é bárbaro...",
+          "translation": "Ah... that city is amazing..."
+        },
+        {
+          "speaker": "Valentino",
+          "text": "... eu adoro o Maracanã...",
+          "translation": "... I love Maracanã ..."
+        },
+        {
+          "speaker": "Denise",
+          "text": "... aquela vista do Cristo Redentor... ah, não tem coisa mais linda...",
+          "translation": "... that view of Christ the Redeemer... ah, there’s nothing more beautiful..."
+        },
+        {
+          "speaker": "Valentino",
+          "text": "Sem dúvida! E depois, excelentes restaurantes, teatros ...",
+          "translation": "Without a doubt! And then, there are excellent restaurants, theaters..."
+        },
+        {
+          "speaker": "Denise",
+          "text": "Uh, uh...",
+          "translation": "Uh, uh..."
+        },
+        {
+          "speaker": "Valentino",
+          "text": "... uma vida cultural fantástica...",
+          "translation": "... a rich culture..."
+        },
+        {
+          "speaker": "Denise",
+          "text": "Os botecos todos...",
+          "translation": "All the bars..."
+        },
+        {
+          "speaker": "Valentino",
+          "text": "Olha...",
+          "translation": "Look..."
+        },
+        {
+          "speaker": "Denise",
+          "text": "Uh, uh...",
+          "translation": "Uh, uh..."
+        },
+        {
+          "speaker": "Valentino",
+          "text": "Faz quanto tempo que a gente não vai pro Rio, hein?",
+          "translation": "How long has it been since we’ve gone to Rio, huh?"
+        },
+        {
+          "speaker": "Denise",
+          "text": "Pois é... eu acho que...",
+          "translation": "It’s... I think that..."
+        },
+        {
+          "speaker": "Valentino",
+          "text": "Próximo fim de semana?",
+          "translation": "Should we go next weekend?"
+        },
+        {
+          "speaker": "Denise",
+          "text": "Oh! Muito bom!",
+          "translation": "Oh, perfect!"
+        },
+        {
+          "speaker": "Valentino",
+          "text": "OK, combinado.",
+          "translation": "OK, it’s done."
         }
       ]
     }

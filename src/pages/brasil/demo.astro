@@ -26,6 +26,8 @@ const featured = corpus.lessons[Math.floor(Math.random() * corpus.lessons.length
 const SHOWN = 4;
 const shownLines = featured.lines.slice(0, SHOWN);
 const moreLines = featured.lines.length - shownLines.length;
+// COERLL is CC BY: the credit shown must be the featured lesson's own course.
+const featuredCourse = corpus.courses.find(c => c.slug === featured.course);
 ---
 
 <!DOCTYPE html>
@@ -204,6 +206,7 @@ header{
 .corpus .who{font-family:var(--mono);font-size:.72rem;font-weight:700;color:var(--amarelo);padding-top:.15rem}
 .corpus .who.a{color:var(--laranja)}
 .corpus .dir{font-style:italic;color:var(--areia-dim)}
+.corpus .tr{display:block;font-size:.8rem;color:var(--areia-dim)}
 .corpus .more{font-family:var(--mono);font-size:.68rem;color:var(--areia-dim);margin-top:10px}
 .corpus .meta{font-family:var(--mono);font-size:.62rem;letter-spacing:.06em;color:var(--areia-dim);
   border-top:2px solid rgba(240,227,204,.1);margin-top:14px;padding-top:10px}
@@ -302,20 +305,24 @@ footer a:hover{color:var(--laranja)}
 
   <div class="sec">Corpus <span class="en">— from fsi-scraper</span></div>
   <div class="corpus">
-    <div class="k">Lesson {featured.number} · {featured.location}</div>
+    <div class="k">{featuredCourse?.title} · Lesson {featured.number} · {featured.location}</div>
     <h4>{featured.title}</h4>
     <div class="lines">
       {shownLines.map(l => (
         <>
           <span class={l.speaker === 'A' ? 'who a' : 'who'}>{l.speaker ?? ''}</span>
-          <span class={l.speaker ? '' : 'dir'}>{l.text}</span>
+          <span class={l.speaker ? '' : 'dir'}>
+            {l.text}
+            {l.translation && <span class="tr">{l.translation}</span>}
+          </span>
         </>
       ))}
     </div>
     {moreLines > 0 && <div class="more">+ {moreLines} more lines in this dialog</div>}
     <div class="meta">
       {corpus.totals.lessons} lessons · {corpus.totals.dialog_lines} dialog lines · {corpus.totals.files} files ·
-      exported from Postgres by fsi-scraper · FSI, public domain
+      {corpus.courses.length} sources · exported from Postgres by fsi-scraper
+      <br />{featuredCourse?.credit}
     </div>
   </div>
 
