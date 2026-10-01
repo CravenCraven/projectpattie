@@ -1,0 +1,207 @@
+---
+title: "Navidrome was running and doing nothing"
+description: "Two settings that had been quietly ignored for 37 days, a root-owned volume on the Dell, and the restart test that almost scared me."
+date: 2026-09-24
+category: devops
+homelab: brasil
+readTime: 9
+tags: ["navidrome", "kubectl", "k3s", "rsync", "homelab", "brasil"]
+draft: false
+---
+
+<div class="pp-meta"><span>devops</span> · September 24, 2026 · 9 min read</div>
+
+<h1 class="pp-title">Música.<br/><em>running, healthy, and doing nothing.</em></h1>
+
+<p class="pp-subtitle">Two settings that had been quietly ignored for 37 days, a root-owned volume on the Dell, and the restart test that almost scared me.</p>
+
+<div class="pp-tags">
+  <span class="pp-tag">navidrome</span>
+  <span class="pp-tag">kubectl</span>
+  <span class="pp-tag">k3s</span>
+  <span class="pp-tag">rsync</span>
+  <span class="pp-tag">homelab</span>
+  <span class="pp-tag">brasil</span>
+</div>
+
+<div class="pp-toc">
+  <div class="pp-toc-label">// <span>what we're getting into</span></div>
+  <ol>
+    <li><a href="#start">How this started</a></li>
+    <li><a href="#look">Look before touching anything</a></li>
+    <li><a href="#settings">Two settings that did nothing</a></li>
+    <li><a href="#port">The checklist had the wrong port</a></li>
+    <li><a href="#git">The fix goes through Git</a></li>
+    <li><a href="#music">Getting the music onto the Dell</a></li>
+    <li><a href="#testing">Testing it</a></li>
+    <li><a href="#checklist">Final checklist: is Música actually working</a></li>
+  </ol>
+</div>
+
+<h2 class="pp-h2" id="start">How this started</h2>
+
+<p><a href="/blog/my-daily-driver-was-talking-to-the-wrong-cluster/">The last post</a> ended with two Navidrome settings that had been quietly doing nothing, and my music still sitting on my Mac instead of the Dell. Thursday night I opened the checklist to block 4 and gave it 45 minutes.</p>
+
+<p>Música is the music library tile in Laboratório Brasil. It is also the first tile I want to put on the internet, so before anyone else touches it I wanted to know it works. Not that the pod is green. That I can press play on a bossa nova album and hear the whole song.</p>
+
+<p>It took a lot longer than 45 minutes.</p>
+
+<h2 class="pp-h2" id="look">Look before touching anything</h2>
+
+<p>My notes already said the two settings were broken. I did not want to fix something because a note told me to. I wanted to see it.</p>
+
+<p>On the control plane:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`kubectl -n brasil get pods,svc,ingress | grep -i navidrome\n#    -> pod/navidrome-88b88cff6-l4mk7   1/1   Running   0   2d14h\n#    -> service/navidrome   ClusterIP   ...   80/TCP   37d\n#    -> ingress.networking.k8s.io/navidrome   traefik   musica.brasil.local   ...   80   37d`}</pre></div></div>
+
+<p>Running, zero restarts, up for two days. As far as Kubernetes was concerned, everything was fine.</p>
+
+<p>Then the logs:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`kubectl -n brasil logs deploy/navidrome --tail=30\n#    -> level=info msg="Periodic scan is DISABLED"\n#    -> ...\n#    -> level=info msg="Executing initial scan"\n#    -> level=warning msg="Playlists will not be imported, as there are no admin users yet..."\n#    -> level=info msg="Scanner: Finished scanning all libraries" duration=2.8ms`}</pre></div></div>
+
+<p><code>get</code> tells you what Kubernetes thinks. <code>logs</code> tells you what the app thinks. Kubernetes thought Navidrome was fine. Navidrome was telling me three things were not.</p>
+
+<ul>
+  <li><code>Periodic scan is DISABLED</code>. I had set a 3am daily scan in the manifest. Navidrome did not know about it.</li>
+  <li>The scan finished in 2.8 milliseconds. Nothing scans a real music library that fast. The library was empty.</li>
+  <li><code>no admin users yet</code>. In Navidrome, whoever logs in first becomes the admin. The ingress was already live on my home network. That is a race I wanted to win.</li>
+</ul>
+
+<h2 class="pp-h2" id="settings">Two settings that did nothing</h2>
+
+<p>Here is what was in <code>clusters/staging/brasil/navidrome.yaml</code>:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">yaml</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`- name: ND_SCANSCHEDULE\n  value: "0 3 * * *"\n- name: ND_ENABLESTARTUPSCAN\n  value: "true"`}</pre></div></div>
+
+<p>Navidrome renamed these at some point. The current names are <code>ND_SCANNER_SCHEDULE</code> and <code>ND_SCANNER_SCANONSTARTUP</code>. An app does not throw an error on an environment variable it does not recognize. It just skips it. The manifest looked right. The pod was healthy. The scan schedule did not exist.</p>
+
+<p>The startup scan was sneakier. It did run. But only because it is on by default. My setting was being ignored the same way, and the default happened to match what I wanted. I fixed it anyway. I would rather the config say what it means than get lucky.</p>
+
+<h2 class="pp-h2" id="port">The checklist had the wrong port</h2>
+
+<p>Before the fix, I wanted to open Navidrome in a browser. My checklist said:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`kubectl -n brasil port-forward svc/navidrome 4533:4533`}</pre></div></div>
+
+<p>The service line above says <code>80/TCP</code>. When you port-forward to a service, the number on the right has to be a port the service exposes, and mine only exposes 80. Navidrome itself listens on 4533 inside the pod. So there are three ports in a row:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">text</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`my Mac          service        pod\nlocalhost:4533  -->  port 80  -->  port 4533`}</pre></div></div>
+
+<p>The fixed command, on my Mac this time since that is where the browser is:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`kubectl -n brasil port-forward svc/navidrome 4533:80\n#    -> Forwarding from 127.0.0.1:4533 -> 4533\n#    -> Forwarding from [::1]:4533 -> 4533`}</pre></div></div>
+
+<p>That <code>-&gt; 4533</code> confused me for a second. kubectl looks up the service, sees that 80 points to 4533, and connects straight to the pod.</p>
+
+<p>I went to <code>localhost:4533</code> and made the admin account before anyone else on the network could.</p>
+
+<h2 class="pp-h2" id="git">The fix goes through Git</h2>
+
+<p>On this cluster Flux owns the manifests. If I changed the deployment with <code>kubectl edit</code>, Flux would put it back. So the fix goes in the repo.</p>
+
+<p>I opened the file in vim and ran one substitute for both names. The first try:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">text</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`E486: Pattern not found: NDND_SCANSCHEDULE`}</pre></div></div>
+
+<p>I typed ND twice. Nothing changed, which is the nice thing about a pattern that does not match. I retyped it and it went through. <code>:set number</code> helped too. I had been counting lines by eye.</p>
+
+<p>Before committing I checked exactly what changed:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`git diff\n#    -> -            - name: ND_SCANSCHEDULE\n#    -> +            - name: ND_SCANNER_SCHEDULE\n#    -> ...\n#    -> -            - name: ND_ENABLESTARTUPSCAN\n#    -> +            - name: ND_SCANNER_SCANONSTARTUP`}</pre></div></div>
+
+<p>Two lines out, two lines in, comments and indentation untouched. Then:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`git add clusters/staging/brasil/navidrome.yaml\ngit commit -m "fix(navidrome): correct scanner env var names"\ngit push origin main`}</pre></div></div>
+
+<p>And on the control plane, so I did not have to wait for Flux's next sync:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`flux reconcile kustomization flux-system --with-source\n#    -> ✔ applied revision main@sha1:1ef2abf...\n\nkubectl -n brasil get pods | grep navidrome\n#    -> navidrome-cb8fb96c7-lszdz   1/1   Running   0   29s`}</pre></div></div>
+
+<p>The pod name changed. The middle part, <code>88b88cff6</code> before and <code>cb8fb96c7</code> now, is a hash of the pod template. Changing an env var changes the template, so Kubernetes made a new ReplicaSet and replaced the pod.</p>
+
+<p>The logs, one more time:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`kubectl -n brasil logs deploy/navidrome | grep -i scan\n#    -> level=info msg="Scheduling periodic scan" schedule="0 3 * * *"\n#    -> level=info msg="Executing initial scan"`}</pre></div></div>
+
+<p><code>DISABLED</code> became <code>Scheduling periodic scan</code>. Fixed, and I can point at the line that proves it.</p>
+
+<p>Two things came with it.</p>
+
+<p>My port-forward died. It was attached to the old pod, and the old pod was gone. Port-forward picks one pod when it starts and stays with it. Hold onto that, it comes back later.</p>
+
+<p>And 3am is not 3am. The log timestamps end in <code>Z</code>, which means UTC. The container runs on UTC, so <code>0 3 * * *</code> is 11pm in Miami. A library scan at 11pm does not bother me. A backup job would.</p>
+
+<h2 class="pp-h2" id="music">Getting the music onto the Dell</h2>
+
+<p>I did not have a folder for this. My Brazilian music was mixed in with everything else. So I made one on the daily driver:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`mkdir -p ~/Music/brasil`}</pre></div></div>
+
+<p>That folder is the only place I add music. The copy on the Dell is what Navidrome serves, and I never touch it by hand. One album first to test with, 96M. Then I got impatient and added three more.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`du -sh ~/Music/brasil\n#    -> 701M	/Users/op/Music/brasil`}</pre></div></div>
+
+<h3 id="volume">Which volume, and where does it live</h3>
+
+<p>Navidrome has two volumes:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`kubectl -n brasil get pvc | grep -i navidrome\n#    -> navidrome-data    Bound   pvc-a4be8a71-...   5Gi     RWO   local-path   37d\n#    -> navidrome-music   Bound   pvc-20f6e03d-...   100Gi   RWO   local-path   37d`}</pre></div></div>
+
+<p><code>navidrome-data</code> is the database. <code>navidrome-music</code> is the files. Music in the data volume would not show up, and I would have wondered why for a while.</p>
+
+<p>With <code>local-path</code>, the volume is a regular folder on whichever node first ran the pod. I thought it was the Dell. I checked anyway:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`kubectl get pv pvc-20f6e03d-... -o jsonpath='{.spec.hostPath.path}{.spec.local.path}{"\\n"}'\n#    -> /var/lib/rancher/k3s/storage/pvc-20f6e03d-..._brasil_navidrome-music\n\nkubectl get pv pvc-20f6e03d-... -o jsonpath='{.spec.nodeAffinity.required.nodeSelectorTerms[0].matchExpressions[0].values[0]}{"\\n"}'\n#    -> dell-node`}</pre></div></div>
+
+<p>The Dell, under <code>/var/lib/rancher</code>. Which is owned by root.</p>
+
+<h3 id="rsync">rsync and sudo</h3>
+
+<p>My user on the Dell cannot write there. So I tried a dry run that runs rsync with sudo on the far end:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`rsync -avhn --rsync-path="sudo rsync" ~/Music/brasil/ dell:/var/lib/rancher/k3s/storage/<pv-folder>/\n#    -> sudo: a terminal is required to read the password; either use ssh's -t option or configure an askpass helper\n#    -> sudo: a password is required\n#    -> rsync error: unexpected end of file`}</pre></div></div>
+
+<p>I have seen this exact error before. It is the same one from getting the kubeconfig off the server. rsync runs over SSH with no terminal, so sudo has nowhere to ask for my password.</p>
+
+<p>One fix is a sudoers rule that lets my user run rsync with no password. That is a real security decision and I did not want to make it at 8:30 at night. So I went with two hops.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# daily driver to my home folder on the Dell, which I own\nrsync -avh ~/Music/brasil/ dell:~/navidrome-upload/\n#    -> sent 735M bytes  received 1276 bytes  33584k bytes/sec\n\n# then on the Dell, where sudo has a terminal\nssh dell\nsudo rsync -avh ~/navidrome-upload/ /var/lib/rancher/k3s/storage/<pv-folder>/\nsudo ls /var/lib/rancher/k3s/storage/<pv-folder>/\nrm -rf ~/navidrome-upload\nexit`}</pre></div></div>
+
+<div class="pp-note"><strong>worth knowing:</strong> the slash at the end of <code>~/Music/brasil/</code> matters. With it, rsync copies what is inside the folder. Without it, rsync copies the folder itself, and the library ends up at <code>/music/brasil/Artist/...</code>. That is how you end up with folders inside folders you did not ask for.</div>
+
+<h2 class="pp-h2" id="testing">Testing it</h2>
+
+<p>Four checks. Each one proves something the one before it does not.</p>
+
+<p><strong>Can I reach it.</strong> I started the port-forward again on my Mac and opened <code>localhost:4533</code>. The terminal immediately filled up with this:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">text</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`E0924 20:40:10.820561   87651 portforward.go:489] "Unhandled Error" err="error copying from remote stream to local connection: ... write: broken pipe"`}</pre></div></div>
+
+<p>It looked bad. It was not. The browser closes connections early all the time, when you click away or it cancels an image it does not need anymore. Port-forward logs every one of them. The page was working fine.</p>
+
+<p><strong>Did it find the music.</strong> Astrud Gilberto, <em>The Bossa Nova Queen</em>, 12 songs, cover art and all. All four albums were there. The files were in the right volume and the scanner found them.</p>
+
+<p><strong>Does it play.</strong> I played a song all the way through. A library that lists albums and cannot stream them is a catalog. Playback proves the whole path works, from the browser through the forward to the pod to the disk on the Dell and back.</p>
+
+<p><strong>Does it survive a restart.</strong> This is the one I care about most. If the music or the database lived inside the container, a restart would wipe them. I ran this from my daily driver, which after last week can actually talk to the cluster:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`kubectl -n brasil rollout restart deploy/navidrome\n#    -> deployment.apps/navidrome restarted\n\nkubectl -n brasil get pods | grep navidrome\n#    -> navidrome-7c4d684dd9-5jfnv   1/1   Running   0   10s`}</pre></div></div>
+
+<p>New pod, 10 seconds old. I refreshed the browser.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">text</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`This site can't be reached\nlocalhost refused to connect.\nERR_CONNECTION_REFUSED`}</pre></div></div>
+
+<p>For a second I thought the library was gone. Then I remembered what happened an hour earlier. The port-forward was attached to the old pod. The old pod was gone, so nothing was listening on 4533 anymore. I stopped the forward, started it again, and refreshed.</p>
+
+<p>Everything was there. The albums, my login, all of it.</p>
+
+<p>That is the whole point of the test. The music lives on <code>navidrome-music</code>, the database lives on <code>navidrome-data</code>, and the container can die whenever it wants.</p>
+
+<p>I hit enough port-forward errors that night to fill a post of their own, so <a href="/blog/five-ways-i-broke-port-forward/">they got one</a>.</p>
+
+<h2 class="pp-h2" id="checklist">Final checklist: is Música actually working</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# 1. The pod is up\nkubectl -n brasil get pods | grep navidrome\n#    -> 1/1 Running\n\n# 2. The scan settings are being read, not ignored\nkubectl -n brasil logs deploy/navidrome | grep -i "periodic scan"\n#    -> Scheduling periodic scan, not DISABLED\n\n# 3. The scan found files\nkubectl -n brasil logs deploy/navidrome | grep -i "finished scanning"\n#    -> longer than a few milliseconds\n\n# 4. You can reach it, from the machine with the browser\nkubectl -n brasil port-forward svc/navidrome 4533:80\n\n# 5. It survives a restart\nkubectl -n brasil rollout restart deploy/navidrome\n#    -> restart the port-forward, refresh, library is still there`}</pre></div></div>
+
+<p>Música is ready for the next step. Right now it only works on my home network. Next it goes behind a Cloudflare Tunnel with a login in front of it, so it can be the first tile anyone else gets to use.</p>
