@@ -1,5 +1,6 @@
 ---
 import { getCollection } from 'astro:content';
+import corpus from '../../data/corpus-sample.json';
 
 const BLOG_COLLECTION = 'blog';
 const postUrl = (slug) => `/blog/${slug}`;
@@ -19,6 +20,12 @@ try {
 const tiles = (await getCollection("demo")).sort((a,b) => a.data.order - b.data.order);
 const section = (s) => tiles.filter(t => t.data.section === s);
 const isUp = (s) => s === 'running' || s === 'cli';
+
+// Picked once per build: the page is static, so each deploy shows one lesson.
+const featured = corpus.lessons[Math.floor(Math.random() * corpus.lessons.length)];
+const SHOWN = 4;
+const shownLines = featured.lines.slice(0, SHOWN);
+const moreLines = featured.lines.length - shownLines.length;
 ---
 
 <!DOCTYPE html>
@@ -188,6 +195,19 @@ header{
 .empty{background:var(--petrol);padding:22px 24px;font-family:var(--mono);
   font-size:.74rem;color:var(--areia-dim)}
 
+.corpus{background:var(--petrol);padding:20px 24px;border-left:4px solid var(--turquesa)}
+.corpus .k{font-family:var(--mono);font-size:.6rem;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--turquesa)}
+.corpus h4{font-family:var(--display);font-size:1.3rem;line-height:1.1;
+  letter-spacing:-.02em;margin:8px 0 14px}
+.corpus .lines{display:grid;grid-template-columns:2.4rem 1fr;row-gap:6px;font-size:.92rem}
+.corpus .who{font-family:var(--mono);font-size:.72rem;font-weight:700;color:var(--amarelo);padding-top:.15rem}
+.corpus .who.a{color:var(--laranja)}
+.corpus .dir{font-style:italic;color:var(--areia-dim)}
+.corpus .more{font-family:var(--mono);font-size:.68rem;color:var(--areia-dim);margin-top:10px}
+.corpus .meta{font-family:var(--mono);font-size:.62rem;letter-spacing:.06em;color:var(--areia-dim);
+  border-top:2px solid rgba(240,227,204,.1);margin-top:14px;padding-top:10px}
+
 footer{margin-top:52px;padding-top:20px;border-top:2px solid rgba(240,227,204,.14);
   font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;
   color:var(--areia-dim);display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px}
@@ -278,6 +298,25 @@ footer a:hover{color:var(--laranja)}
         <div class="status"><span class={isUp(t.data.status) ? 'dot up' : 'dot'}></span> {t.data.status}</div>
       </a>
     ))}
+  </div>
+
+  <div class="sec">Corpus <span class="en">— from fsi-scraper</span></div>
+  <div class="corpus">
+    <div class="k">Lesson {featured.number} · {featured.location}</div>
+    <h4>{featured.title}</h4>
+    <div class="lines">
+      {shownLines.map(l => (
+        <>
+          <span class={l.speaker === 'A' ? 'who a' : 'who'}>{l.speaker ?? ''}</span>
+          <span class={l.speaker ? '' : 'dir'}>{l.text}</span>
+        </>
+      ))}
+    </div>
+    {moreLines > 0 && <div class="more">+ {moreLines} more lines in this dialog</div>}
+    <div class="meta">
+      {corpus.totals.lessons} lessons · {corpus.totals.dialog_lines} dialog lines · {corpus.totals.files} files ·
+      exported from Postgres by fsi-scraper · FSI, public domain
+    </div>
   </div>
 
   <div class="streak">
