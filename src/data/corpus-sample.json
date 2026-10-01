@@ -10,7 +10,7 @@
     {
       "number": 1,
       "location": "AT THE HOTEL",
-      "title": "Checkingln",
+      "title": "Checking In",
       "lines": [
         {
           "speaker": "B",
@@ -65,7 +65,7 @@
     {
       "number": 2,
       "location": "AT THE HOTEL",
-      "title": "o rdering B reakfast",
+      "title": "Ordering Breakfast",
       "lines": [
         {
           "speaker": "B",
