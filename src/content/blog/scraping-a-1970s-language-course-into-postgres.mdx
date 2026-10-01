@@ -1,0 +1,423 @@
+---
+title: "Scraping a 1970s language course into Postgres"
+description: "A free FSI course, an OCR text layer that is mostly right, and a five stage pipeline you can run twice without breaking anything."
+date: 2026-10-02
+category: devops
+homelab: brasil
+readTime: 18
+tags: ["python", "postgres", "ocr", "fsi-scraper", "homelab", "brasil"]
+draft: false
+---
+
+<div class="pp-meta"><span>devops</span> · October 2, 2026 · 18 min read</div>
+
+<h1 class="pp-title">fsi-scraper.<br/><em>a 1970s course, an OCR layer, and 351 lines of dialog.</em></h1>
+
+<p class="pp-subtitle">A free FSI course, an OCR text layer that is mostly right, and a five stage pipeline you can run twice without breaking anything.</p>
+
+<div class="pp-tags">
+  <span class="pp-tag">python</span>
+  <span class="pp-tag">postgres</span>
+  <span class="pp-tag">ocr</span>
+  <span class="pp-tag">fsi-scraper</span>
+  <span class="pp-tag">homelab</span>
+  <span class="pp-tag">brasil</span>
+</div>
+
+<div class="pp-toc">
+  <div class="pp-toc-label">// <span>what we're getting into</span></div>
+  <ol>
+    <li><a href="#start">How this started</a></li>
+    <li><a href="#where">First, where was the code</a></li>
+    <li><a href="#mac">Getting the Mac ready</a></li>
+    <li><a href="#discover">Discover: how the first stage already worked</a></li>
+    <li><a href="#fetch">Fetch: downloading without trusting the network</a></li>
+    <li><a href="#ocr">The text was already there, mostly</a></li>
+    <li><a href="#parse">Parse: every lesson broke a different rule</a></li>
+    <li><a href="#postgres">Why Postgres and not SQLite</a></li>
+    <li><a href="#schema">The schema, one decision at a time</a></li>
+    <li><a href="#load">Load: run it twice, get the same database</a></li>
+    <li><a href="#export">Export: the website never touches the database</a></li>
+    <li><a href="#audio">Where the audio goes</a></li>
+    <li><a href="#notdone">What is not done yet</a></li>
+    <li><a href="#checklist">Final checklist: is the pipeline actually working</a></li>
+  </ol>
+</div>
+
+<h2 class="pp-h2" id="start">How this started</h2>
+
+<p>fsi-scraper is the project on my resume. It takes a free 1970s Portuguese course from the US Foreign Service Institute and turns it into data the rest of the Brasil homelab can use. Flashcards, the demo page, and later the slang database.</p>
+
+<p>Until this week it had one stage. It could find the files. It could not download them, read them, or store anything. On a resume that is a list of URLs.</p>
+
+<p>This post is the rest of the pipeline. Five stages, each one small, each one with one job:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">text</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`discover   read the course page        ->  list of 36 files\nfetch      download the files          ->  data/raw/  (2 PDFs, 34 mp3s)\nparse      read the PDFs               ->  30 lessons, 351 dialog lines\nload       write it all to Postgres    ->  3 tables\nexport     read a sample back out      ->  corpus-sample.json for the website`}</pre></div></div>
+
+<p>Every stage can be run again without breaking anything. That turned out to be the theme of the whole afternoon, so it comes up a lot below.</p>
+
+<h2 class="pp-h2" id="where">First, where was the code</h2>
+
+<p>My checklist said to create the project on my Mac. Before running <code>git init</code> I checked if it already existed. Not on the Mac.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`ls ~/Developer/fsi-scraper\n#    -> No such file or directory`}</pre></div></div>
+
+<p>It was on the control plane, and it was already on GitHub:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`find ~ -type d -name "fsi-scraper" 2>/dev/null\n#    -> /home/op/fsi-scraper\n\ngit remote -v\n#    -> origin  git@github.com:CravenCraven/fsi-scraper.git (push)\n\ngit log --oneline\n#    -> 04957c1 (HEAD -> main, origin/main) Add discover for FSI Brazilian Portuguese FAST and Programmatic`}</pre></div></div>
+
+<p><code>HEAD -&gt; main, origin/main</code> on the same line means the server and GitHub were at the same commit. Nothing was waiting to be pushed, so the code was safe even if the server died.</p>
+
+<p>So I cloned it instead of starting over. A fresh <code>git init</code> would have made a second repo with no history, and the first push would have fought the real one.</p>
+
+<p>The clone came down without a <code>tests</code> folder. On the server there was one, and it was empty. Git tracks files, not folders. An empty folder has nothing in it to save, so git never recorded it. That answered a question I had been avoiding. The tests in my notes were never committed. They were not lost, they never existed in this repo.</p>
+
+<div class="pp-note"><strong>worth knowing:</strong> GitHub is the copy that matters. The Mac and the server are both clones of it. I clone from GitHub, not from the server, so neither machine is special.</div>
+
+<h2 class="pp-h2" id="mac">Getting the Mac ready</h2>
+
+<h3 class="pp-h3">The Python version was wrong</h3>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`python3 --version\n#    -> Python 3.9.10`}</pre></div></div>
+
+<p><code>pyproject.toml</code> says <code>requires-python = "&gt;=3.11"</code>. That is not a suggestion. The code uses <code>str | None</code> in type hints and <code>datetime.UTC</code>, and neither exists in 3.9. It would not even import.</p>
+
+<p>My Mac has two Homebrews. The old Intel one in <code>/usr/local</code> is broken on Apple Silicon, which I wrote about in <a href="/blog/my-daily-driver-was-talking-to-the-wrong-cluster/">the wrong cluster post</a>. So I called the working one by its full path and built the virtual environment from that exact Python:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`/opt/homebrew/bin/brew install python@3.12\n/opt/homebrew/bin/python3.12 -m venv .venv\nsource .venv/bin/activate\npython --version\n#    -> Python 3.12.15`}</pre></div></div>
+
+<p>A venv is a private Python for one project. Packages installed in it stay in the <code>.venv</code> folder and cannot break anything else on the machine. Building it from a full path means I know exactly which Python it is, instead of trusting whatever <code>python3</code> happens to point at today.</p>
+
+<h3 class="pp-h3">Lint rules belong in the repo</h3>
+
+<p>When I ran ruff on the server it flagged 8 warnings, but the rules were not written down anywhere in the repo. That means another machine could check different things. So the rules went into <code>pyproject.toml</code>:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">toml</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`[project.optional-dependencies]\ndev = ["pytest>=8.0", "ruff>=0.6"]\n\n[tool.ruff]\ntarget-version = "py311"\n\n[tool.ruff.lint]\nselect = ["E", "F", "I", "UP"]`}</pre></div></div>
+
+<ul>
+  <li><code>E</code>: style errors.</li>
+  <li><code>F</code>: real bugs, like an import that is never used or a name that does not exist.</li>
+  <li><code>I</code>: imports sorted and grouped.</li>
+  <li><code>UP</code>: old syntax that has a newer form. <code>Optional[str]</code> becomes <code>str | None</code>.</li>
+</ul>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`pip install -e '.[dev]'\nruff check . --fix\n#    -> Found 11 errors (11 fixed, 0 remaining).`}</pre></div></div>
+
+<p>Eleven, not eight, because turning on <code>I</code> caught three import blocks that were out of order. None of the fixes changed what the code does. They change how it is written. <code>-e</code> installs the project in editable mode, so Python runs the code straight from <code>src/</code> and every edit is live.</p>
+
+<h2 class="pp-h2" id="discover">Discover: how the first stage already worked</h2>
+
+<p>I wrote discover weeks ago. Before adding stages on top of it, I went back and read it properly.</p>
+
+<h3 class="pp-h3">One interface for every source</h3>
+
+<p>Every course gets a parser that implements two methods:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">python</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`class CourseParser(ABC):\n    @abstractmethod\n    def parse(self, html: str, page_url: str) -> Iterator[Resource]:\n        """Yield one Resource per downloadable asset found in \`html\`."""\n\n    def follow(self, html: str, page_url: str) -> Iterable[str]:\n        """Yield further page URLs to crawl. Default: single-page course."""\n        return ()`}</pre></div></div>
+
+<p><code>parse</code> finds files on a page. <code>follow</code> finds more pages worth visiting. The FAST course is a single page, so it only needs <code>parse</code>. Another course might be an index page plus a page per unit, so it would also implement <code>follow</code>. The crawl loop does not care which. It keeps a queue of pages and a set of pages it has already visited, so nothing gets fetched twice even if two pages link to each other.</p>
+
+<h3 class="pp-h3">Polite by default</h3>
+
+<ul>
+  <li><strong>A 1 second delay between requests.</strong> This is a free site run by volunteers. It does not need me hammering it while I debug.</li>
+  <li><strong>A User-Agent that says who I am</strong>, with a link to the repo. If my scraper ever caused a problem, the site owner can see what it is and how to reach me.</li>
+  <li><strong>A page cache.</strong> With <code>--cache .cache</code>, every page I fetch gets saved. Rerunning discover a hundred times while I work makes one request, not a hundred.</li>
+</ul>
+
+<h3 class="pp-h3">Read the URL, not the page</h3>
+
+<p>The obvious way to scrape a course page is to read its HTML table: this row is lesson 1, this cell is the download link. The problem is the table is the part of the page most likely to change when the site gets redesigned.</p>
+
+<p>So discover ignores the layout and reads the download URLs themselves. The files live on a CDN, and the lesson number and volume are right there in the path:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">python</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`VOLUME_IN_PATH = re.compile(r"/FAST/Volume\\s+(\\d+)/", re.IGNORECASE)\nAUDIO_FILE = re.compile(r"Lesson\\s+(\\d{1,2})\\s*([AB])?\\.mp3$", re.IGNORECASE)\nPDF_FILE = re.compile(r"Volume\\s+(\\d+)\\.pdf$", re.IGNORECASE)`}</pre></div></div>
+
+<p>One catch. A URL cannot contain a space, so <code>Volume 1</code> travels as <code>Volume%201</code>. A pattern looking for a space will never match that. Discover decodes the path with <code>unquote</code> first, so both forms come out as <code>Volume 1</code> before any pattern sees them.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`fsi-scraper discover --course brazilian-portuguese-fast --cache .cache\n#    -> pdf    Volume 1   Student Text, Volume 1  FSI - Portuguese FAST - Volume 1.pdf\n#    -> audio  Volume 1   Lesson 01 (Tape A)      FSI - Brazilian Portuguese FAST - Lesson 01A.mp3\n#    -> audio  Volume 1   Lesson 01 (Tape B)      FSI - Brazilian Portuguese FAST - Lesson 01B.mp3\n#    -> ...\n#    -> 36 assets: 34 audio, 2 pdf; units 1-30`}</pre></div></div>
+
+<p>30 lessons. 34 mp3s, because lessons 1, 6, 15 and 19 are split across two tapes. And two PDFs, the student books. All the text is in those two PDFs. The audio is the same lessons, spoken.</p>
+
+<h2 class="pp-h2" id="fetch">Fetch: downloading without trusting the network</h2>
+
+<p>Downloading a file sounds like one line. It is, until the connection drops halfway through a 16 MB PDF and you are left with a file that has the right name, the right extension, and half the pages. Fetch is built around not letting that happen.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">python</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`def download(fetcher: Fetcher, resource: Resource, root: Path) -> Fetched:\n    dest = target_path(root, resource)\n    if dest.exists():\n        return Fetched(resource, dest, dest.stat().st_size, sha256_of(dest),\n                       downloaded=False)\n\n    dest.parent.mkdir(parents=True, exist_ok=True)\n    part = dest.with_name(dest.name + ".part")\n    digest = hashlib.sha256()\n    size = 0\n\n    with fetcher.stream(resource.url) as response:\n        expected = response.headers.get("Content-Length")\n        if response.headers.get("Content-Encoding"):\n            expected = None  # compressed on the wire; length won't match\n        with part.open("wb") as out:\n            for chunk in response.iter_content(CHUNK):\n                out.write(chunk)\n                digest.update(chunk)\n                size += len(chunk)\n\n    if expected is not None and int(expected) != size:\n        part.unlink()\n        raise OSError(f"incomplete download: got {size} of {expected} bytes")\n\n    part.replace(dest)\n    return Fetched(resource, dest, size, digest.hexdigest(), downloaded=True)`}</pre></div></div>
+
+<h3 class="pp-h3">Stream it, 64 KB at a time</h3>
+
+<p><code>stream=True</code> tells requests not to pull the whole file into memory. The loop reads 64 KB, writes it, reads the next 64 KB. A 16 MB PDF would fit in memory fine. 330 MB of audio on a laptop that is also a Kubernetes node is a worse idea. Same code either way.</p>
+
+<h3 class="pp-h3">Write to .part, then rename</h3>
+
+<p>The download goes to <code>Volume 1.pdf.part</code>. Only when every byte has arrived does it get renamed to <code>Volume 1.pdf</code>. A rename within one disk is a single step. There is no moment where the real filename points at half a file.</p>
+
+<p>If the connection dies, what is left is a <code>.part</code> file. That name says exactly what it is. And because the check at the top looks for the real filename, the next run starts that file over instead of skipping it.</p>
+
+<h3 class="pp-h3">Check the size</h3>
+
+<p>The server sends a <code>Content-Length</code> header: how many bytes it is about to send. Fetch counts what actually arrived. If they do not match, it deletes the <code>.part</code> and reports a failure.</p>
+
+<p>There is one exception in the code. If the server compresses the file on the way (<code>Content-Encoding</code>), <code>Content-Length</code> is the compressed size, and requests hands back the uncompressed bytes. They would never match. So in that case the check is skipped instead of failing every time.</p>
+
+<h3 class="pp-h3">Fingerprint it while it downloads</h3>
+
+<p>Each chunk also goes into a SHA-256 hash. By the time the download finishes, the fingerprint is done too, without reading the file a second time. That fingerprint is how I will tell, months from now, whether the file on the site changed or whether my copy got damaged.</p>
+
+<h3 class="pp-h3">Run it twice</h3>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`fsi-scraper fetch --kind pdf --cache .cache\n#    -> [1/2] got     16.3 MB  data/raw/brazilian-portuguese-fast/pdf/FSI - Portuguese FAST - Volume 1.pdf\n#    -> [2/2] got     10.1 MB  data/raw/brazilian-portuguese-fast/pdf/FSI - Portuguese FAST - Volume 2.pdf\n#    -> 2 downloaded, 0 already on disk, 0 failed; 26.4 MB in data/raw\n\nfsi-scraper fetch --kind pdf --cache .cache\n#    -> [1/2] have    16.3 MB  ...\n#    -> [2/2] have    10.1 MB  ...\n#    -> 0 downloaded, 2 already on disk, 0 failed; 26.4 MB in data/raw`}</pre></div></div>
+
+<p><code>got</code> the first time, <code>have</code> the second. <code>--kind pdf</code> because the parser only needs the books. Everything lands under <code>data/raw/&lt;course&gt;/&lt;kind&gt;/</code>, and <code>data/</code> is in <code>.gitignore</code>, so 300 MB of course files can never end up in git by accident.</p>
+
+<h2 class="pp-h2" id="ocr">The text was already there, mostly</h2>
+
+<p>These are books from the 1970s. Before writing a parser, I needed to know if there was actually text in the PDF, or just pictures of typed pages. If it was only pictures, the parser would need OCR first, which is a much bigger project.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`python -c "from pypdf import PdfReader; r = PdfReader('Volume 1.pdf'); print(len(r.pages)); print(r.pages[20].extract_text()[:400])"\n#    -> 329\n#    -> I. Setting the Scene\n#    -> BRAZILlAN PORTUGUESE FAST\n#    -> LESSON 1\n#    -> AT THE HOTEL\n#    -> Checkingln\n#    -> ...The driver moves quickly ta open the trunk...`}</pre></div></div>
+
+<p>There was text. Somebody already scanned the books and ran OCR on them. A PDF like this is two layers: the scanned picture you see, and an invisible text layer underneath it, lined up with the picture so you can select and search. <code>extract_text</code> reads the invisible layer. It never looks at the picture.</p>
+
+<p>That text layer is software's best guess at each letter, and the guesses go wrong in a pattern. Letters that look alike get swapped:</p>
+
+<table class="pp-table">
+  <thead><tr><th>In the PDF</th><th>Should be</th><th>What it confused</th></tr></thead>
+  <tbody>
+    <tr><td><code>BRAZILlAN</code>, <code>Checkingln</code></td><td>BRAZILIAN, Checking In</td><td>capital I and lowercase l</td></tr>
+    <tr><td><code>ta open</code>, <code>onta</code></td><td>to open, onto</td><td>o and a</td></tr>
+    <tr><td><code>111. Seeing It</code></td><td>III. Seeing It</td><td>Roman numeral I and the digit 1</td></tr>
+    <tr><td><code>Filling in the 81anks</code></td><td>Filling in the Blanks</td><td>B and 8</td></tr>
+    <tr><td><code>wai t</code>, <code>A merican</code></td><td>wait, American</td><td>a space that is not there</td></tr>
+  </tbody>
+</table>
+
+<p>The part I actually cared about was the Portuguese. OCR software trained on English loves to throw away accents. If <code>não</code> came out as <code>nao</code>, the dialogs would be useless for flashcards. So I checked a dialog page:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">text</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`B. Bom dia, às suas ordens!\nA. Bom dia, o senhor tem uma reserva no nome de Anne Covington?\nB. Nós temos um ótimo apartamento de frente no quinto andar e temos\noutro com vista para o mar no sétimo andar.`}</pre></div></div>
+
+<p>às, ótimo, sétimo. All there. The English instructions are messy and the Portuguese dialogs are clean. That is the right way around.</p>
+
+<div class="pp-note"><strong>worth knowing:</strong> look at the data before you design anything. Ten minutes with two pages told me the parser was possible, what it should anchor on, and what it could ignore.</div>
+
+<h2 class="pp-h2" id="parse">Parse: every lesson broke a different rule</h2>
+
+<h3 class="pp-h3">The shape of a lesson</h3>
+
+<p>Every lesson in the book follows the same layout:</p>
+
+<ul>
+  <li>A scene page: <code>I. Setting the Scene</code>, then <code>LESSON 1</code>, the location (<code>AT THE HOTEL</code>) and the title (<code>Checking In</code>).</li>
+  <li>A dialog page under <code>III. Seeing It</code>. One line per speaker. <code>A.</code> is the American, <code>B.</code> is the Brazilian.</li>
+  <li>The dialog ends at the page footer, a lesson and page number like <code>2.2</code>.</li>
+  <li>Then exercise pages like Filling in the Blanks, which are mostly underscores. Those get skipped.</li>
+</ul>
+
+<h3 class="pp-h3">The patterns</h3>
+
+<p>Here is every pattern the parser uses, and the OCR mistake each one was written for:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">python</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`LESSON = re.compile(r"\\bLESSON\\s*(\\d{1,2})\\b")\nHEADER = re.compile(r"^BRAZI\\w*\\s+PORTUGUESE\\s+FAST$")\nSEEING_IT = re.compile(r"Seeing\\s+It\\b")\nNEXT_SECTION = re.compile(r"^[IVX1l]+\\s*\\.\\s+[A-Z][a-z]")  # "IV. Taking It Apart"\nFOOTER = re.compile(r"^\\d{1,2}\\s*[.\\-]\\s*\\S{1,3}$")  # "2.2", "5.t", "13 -4"\nSPEAKER = re.compile(r"^(A|B|[B8]\\s?[12])\\s?\\.\\s+(.*)$")\nDIRECTION = re.compile(r"^\\(.*\\)$")  # "(A few minutes later)"`}</pre></div></div>
+
+<ul>
+  <li><code>LESSON\s*</code> with a star, not a plus. Star means zero or more spaces, so <code>LESSON3</code> still matches.</li>
+  <li><code>BRAZI\w*</code> matches the page header however the OCR spelled it: BRAZILlAN, BRAZIUAN. Those lines get stripped before anything else looks at the page.</li>
+  <li><code>Seeing It</code> matches the words, never the number. The number is <code>111</code> or <code>III</code> depending on the page.</li>
+  <li><code>NEXT_SECTION</code> allows <code>1</code> and <code>l</code> alongside real Roman numerals, for the same reason.</li>
+  <li><code>FOOTER</code> is loose on purpose. The page number came out as <code>2.2</code>, <code>5.t</code> and <code>13 -4</code>.</li>
+  <li><code>SPEAKER</code> accepts <code>A</code>, <code>B</code>, and B1 or B2 written with an 8 and an optional space. More on that one below.</li>
+</ul>
+
+<h3 class="pp-h3">What broke when I ran it against all 681 pages</h3>
+
+<p>The first version worked on lesson 1. Then I ran it against both books and every assumption broke at least once.</p>
+
+<ul>
+  <li><strong>Lesson 3 was missing.</strong> The OCR wrote <code>LESSON3</code> with no space, and the first pattern needed one.</li>
+  <li><strong>Lesson 13 has three people.</strong> It is a party, with two Brazilians, B1 and B2. OCR reads B as 8, so they came out as <code>81.</code> and <code>82.</code>, and once as <code>B 1.</code> The parser turns all of those into <code>B1</code> and <code>B2</code>. Without that, lesson 13 looked like a monologue.</li>
+  <li><strong>Lesson 30 has no Sample Dialog heading.</strong> Every other lesson does. If the parser had anchored on that heading, lesson 30 would have come back empty. It anchors on the section instead, <code>Seeing It</code>, which every lesson has.</li>
+  <li><strong>Stage directions.</strong> <code>(A few minutes later)</code> sits between two lines in lesson 30. I kept it, with no speaker, because it is part of the scene.</li>
+  <li><strong>Long lines wrap.</strong> A sentence that runs past the edge of the page continues on the next line with no speaker. The parser glues it back onto the line before.</li>
+</ul>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`fsi-scraper parse > /dev/null\n#    -> 30 lessons, 351 dialog lines`}</pre></div></div>
+
+<p>The command also exits with an error if any lesson comes back with zero lines. If a future change silently drops lesson 30 again, I find out right away instead of finding out from an empty flashcard deck.</p>
+
+<h3 class="pp-h3">Keeping the PDF out of the parser</h3>
+
+<p>The parser never opens a PDF. One small function turns a PDF into a list of page strings, and everything else works on that list:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">python</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`def pdf_pages(path: Path) -> list[str]:\n    """Text of every page. Kept separate so the parser itself needs no PDF."""\n    from pypdf import PdfReader\n\n    return [page.extract_text() or "" for page in PdfReader(str(path)).pages]`}</pre></div></div>
+
+<p>That split is what makes the tests possible. A test can hand the parser three pages of text typed into the test file. No 16 MB PDF in the repo, no download, no waiting.</p>
+
+<h3 class="pp-h3">Tests built from the real mistakes</h3>
+
+<p>Every test uses text copied from what the OCR really produced, typos and all:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">python</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`def test_ocr_8_for_b_gives_b1_and_b2():\n    page = """111. Seeing It\nSample Dialog\nB 1. Oi Paul, como vai?\nA. Eu acabei de chegar.\n81. Ela é prima do Carlinhos.\n82. Tudo ótimo, Fernando, e você?\n13 -4"""\n    lines = parse_dialog(page, lesson=13, page_no=9)\n    assert [line.speaker for line in lines] == ["B1", "A", "B1", "B2"]`}</pre></div></div>
+
+<p>There is one for <code>LESSON3</code>, one for the missing heading in lesson 30, one that checks the accents survive, one for wrapped lines, one that makes sure the instructions are not mistaken for dialog. Each one is a case that broke once. If I ever change a pattern and break it again, a test fails before the bad data gets anywhere.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`pytest -q\n#    -> ...........\n#    -> 11 passed in 0.02s`}</pre></div></div>
+
+<p>Two hundredths of a second, because none of them touch the network or a real PDF.</p>
+
+<h3 class="pp-h3">Titles: a table, not rules</h3>
+
+<p>The lesson titles had the same OCR noise. 14 of the 30 were wrong: <code>Checkingln</code>, <code>o rdering B reakfast</code>, <code>Ordenng Lunch</code>, <code>HANOLING EMERGENCIES</code>, <code>AT A PARTV</code>.</p>
+
+<p>The clever fix is rules. A lowercase l in front of a capital letter becomes an I. A single letter followed by a space gets joined to the next word. The problem is rules are blind. The rule that fixes <code>Checkingln</code> would also turn a real word like <em>kiln</em> into <em>kiIn</em>.</p>
+
+<p>This is 30 titles from a book that was printed once and will never change. So I typed the 14 broken ones into a table, keyed by lesson number:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">python</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`TITLE_FIXES: dict[int, tuple[str, str]] = {\n    1: ("AT THE HOTEL", "Checking In"),\n    2: ("AT THE HOTEL", "Ordering Breakfast"),\n    13: ("AT A PARTY", "Being Introduced to Someone"),\n    29: ("HANDLING EMERGENCIES", "Reporting an Assault to the Police"),\n    # ...\n}`}</pre></div></div>
+
+<p>Rules are for data that keeps changing. A table is for data that does not. The dialog text stays exactly as the OCR gave it, because it was already clean.</p>
+
+<h2 class="pp-h2" id="postgres">Why Postgres and not SQLite</h2>
+
+<p>For one person and 351 lines, SQLite would be fine. It is one file and needs nothing running. I went with Postgres for two reasons.</p>
+
+<p><strong>One setting switches where it runs.</strong> The code reads a single environment variable, <code>DATABASE_URL</code>. On my Mac it falls back to a local Postgres in Docker. On the cluster it will point at CloudNativePG. Same code, one variable, nothing else changes.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">python</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`DEFAULT_URL = "postgresql://postgres:postgres@localhost:5432/corpus"\n\ndef database_url() -> str:\n    return os.environ.get("DATABASE_URL", DEFAULT_URL)`}</pre></div></div>
+
+<p><strong>More than one thing will read it.</strong> Flashcards, the export for the website, eventually the slang database. With SQLite each of those needs its own copy of the file, and the copies drift. With Postgres they all connect to the same one.</p>
+
+<p>Locally, Postgres is one Docker Compose file:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">yaml</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# Local Postgres for development and tests only.\n# No volume on purpose: data is thrown away on \`docker compose down\`.\nservices:\n  db:\n    image: postgres:16\n    environment:\n      POSTGRES_USER: postgres\n      POSTGRES_PASSWORD: postgres\n      POSTGRES_DB: corpus\n    ports:\n      - "5432:5432"`}</pre></div></div>
+
+<ul>
+  <li><strong>No volume, on purpose.</strong> The data lives inside the container and disappears with it. For local testing that is the point. Every fresh start is clean, and nothing I did yesterday can make a test pass today.</li>
+  <li><strong><code>5432:5432</code></strong> is <code>LOCAL:CONTAINER</code>. Same left and right pattern as <code>kubectl port-forward</code>.</li>
+  <li><strong>The password is <code>postgres</code>.</strong> It only exists on my laptop, for data I throw away. The cluster database gets a real secret.</li>
+</ul>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`docker compose up -d\ndocker compose exec db psql -U postgres -d corpus -c "select version();"\n#    -> PostgreSQL 16.15 (Debian 16.15-1.pgdg13+2) on aarch64-unknown-linux-gnu ...`}</pre></div></div>
+
+<p><code>aarch64</code> is ARM. Docker pulled the Apple Silicon build by itself. <code>exec db psql</code> runs psql inside the container, so I never had to install Postgres on the Mac.</p>
+
+<h2 class="pp-h2" id="schema">The schema, one decision at a time</h2>
+
+<p>I did not design the first table from scratch. The scraper already had a <code>Resource</code> record, one per downloadable file. The table is that record, field for field, so one Resource is one row and there is nothing to translate.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">sql</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`CREATE TABLE IF NOT EXISTS resource (\n    id             bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    source         text        NOT NULL,\n    provider       text        NOT NULL,\n    course         text        NOT NULL,\n    kind           text        NOT NULL CHECK (kind IN ('pdf', 'audio', 'zip')),\n    url            text        NOT NULL UNIQUE,\n    filename       text        NOT NULL,\n    title          text        NOT NULL,\n    section        text,\n    ordinal        integer,\n    part           text,\n    declared_bytes bigint,\n    discovered_at  timestamptz NOT NULL DEFAULT now()\n);`}</pre></div></div>
+
+<ul>
+  <li><strong><code>url</code> is UNIQUE.</strong> The URL is the natural key. It comes straight off the page, it never changes, and it points at exactly one file. Unique means discover can run a hundred times and never create a duplicate row.</li>
+  <li><strong><code>id</code> as well.</strong> A small number is cheaper for other tables to point at than a long URL. The two new tables point at <code>id</code>, never at <code>url</code>.</li>
+  <li><strong><code>CHECK (kind IN (...))</code></strong> matches <code>Kind = Literal["pdf", "audio", "zip"]</code> in the Python. In Python that is only a hint, and nothing stops a bad value unless I run a type checker. The database refuses it every time, no matter which program writes the row.</li>
+  <li><strong><code>NOT NULL</code> follows the Python.</strong> Fields with no default in the record are required. Fields that default to <code>None</code> are allowed to be empty.</li>
+  <li><strong><code>timestamptz</code></strong> stores the moment in UTC with the zone attached. After the Navidrome timezone mess, I wanted that settled at the database level.</li>
+</ul>
+
+<p>Then the two tables for the parsed text:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">sql</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`CREATE TABLE IF NOT EXISTS lesson (\n    id        bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    course    text    NOT NULL,\n    number    integer NOT NULL,\n    location  text    NOT NULL,\n    title     text    NOT NULL,\n    UNIQUE (course, number)\n);\n\nCREATE TABLE IF NOT EXISTS dialog_line (\n    id        bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    lesson_id bigint  NOT NULL REFERENCES lesson(id) ON DELETE CASCADE,\n    seq       integer NOT NULL,\n    speaker   text,\n    text      text    NOT NULL,\n    page      integer NOT NULL,\n    UNIQUE (lesson_id, seq)\n);`}</pre></div></div>
+
+<ul>
+  <li><strong><code>UNIQUE (course, number)</code>.</strong> One lesson 13 per course. The <code>course</code> column is there because COERLL is coming next, and its lessons go in the same table.</li>
+  <li><strong><code>REFERENCES lesson(id)</code>.</strong> A dialog line cannot point at a lesson that does not exist.</li>
+  <li><strong><code>ON DELETE CASCADE</code>.</strong> If a lesson is deleted, its lines go with it. Without it, Postgres refuses to delete a lesson that still has lines. The lines have no meaning without their lesson, so they should go too.</li>
+  <li><strong><code>speaker</code> can be empty.</strong> That is for stage directions.</li>
+  <li><strong><code>page</code></strong> is the page in the PDF. If a line ever looks wrong, I can open the book to that exact page and check.</li>
+</ul>
+
+<p><code>IF NOT EXISTS</code> makes the whole file safe to run again. When I added the two new tables I applied the whole file, including the table that was already there:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`docker compose exec -T db psql -U postgres -d corpus < db/schema.sql\n#    -> NOTICE:  relation "resource" already exists, skipping\n#    -> CREATE TABLE\n#    -> CREATE TABLE\n#    -> CREATE TABLE`}</pre></div></div>
+
+<p>Small trap there. Postgres printed <code>CREATE TABLE</code> three times, even for the table it skipped. The <code>NOTICE</code> line is the one that tells you what actually happened.</p>
+
+<h2 class="pp-h2" id="load">Load: run it twice, get the same database</h2>
+
+<p>The first time <code>load</code> runs, lesson 13 goes in. The second time, it tries to put lesson 13 in again, and <code>UNIQUE (course, number)</code> says no. Postgres does not guess what you meant. It stops with an error:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">text</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`ERROR:  duplicate key value violates unique constraint "lesson_course_number_key"`}</pre></div></div>
+
+<p>So every insert says what to do instead:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">sql</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`INSERT INTO lesson (course, number, location, title)\nVALUES (%s, %s, %s, %s)\nON CONFLICT (course, number) DO UPDATE SET\n    location = EXCLUDED.location,\n    title = EXCLUDED.title\nRETURNING id`}</pre></div></div>
+
+<ul>
+  <li><code>ON CONFLICT (course, number)</code> means if this lesson already exists...</li>
+  <li><code>DO UPDATE SET</code> ...update it instead of failing.</li>
+  <li><code>EXCLUDED</code> is the row that just got rejected, the new one. So <code>EXCLUDED.title</code> is the new title.</li>
+  <li><code>RETURNING id</code> hands back the lesson's id whether it was inserted or updated. The dialog lines need it.</li>
+</ul>
+
+<p>That pattern is called an upsert. The <code>resource</code> table gets the same thing, on <code>url</code>, with one column left out on purpose:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">python</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# discovered_at is left out of the update on purpose: it keeps the date the\n# file was FIRST seen, which is the useful one.`}</pre></div></div>
+
+<h3 class="pp-h3">Dialog lines get replaced, not updated</h3>
+
+<p>Lines are different. If the parser gets better, lesson 4 might go from 11 lines to 12. There is no clean way to match old line 7 to new line 7 when a line has been added in the middle. So for each lesson, load deletes its lines and inserts the fresh ones:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">python</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`cur.execute(UPSERT_LESSON, (course, lesson.number, lesson.location, lesson.title))\n(lesson_id,) = cur.fetchone()\n\ncur.execute("DELETE FROM dialog_line WHERE lesson_id = %s", (lesson_id,))\ncur.executemany(INSERT_LINE, [\n    (lesson_id, line.seq, line.speaker, line.text, line.page)\n    for line in lesson.lines\n])`}</pre></div></div>
+
+<p>Delete then insert sounds dangerous. What if it crashes in between, and the lesson ends up with no lines? It cannot, because all of it runs inside one transaction. The whole load sits inside <code>with psycopg.connect(...) as conn:</code>. If anything fails, Postgres rolls the entire load back. Either every lesson is saved or none of them are. There is no half state.</p>
+
+<h3 class="pp-h3">The proof</h3>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`fsi-scraper load --cache .cache\n#    -> loaded 36 resources, 30 lessons, 351 dialog lines\nfsi-scraper load --cache .cache\n#    -> loaded 36 resources, 30 lessons, 351 dialog lines\n\nselect (select count(*) from resource),\n       (select count(*) from lesson),\n       (select count(*) from dialog_line);\n#    -> 36 | 30 | 351`}</pre></div></div>
+
+<p>Two runs. Still 351, not 702. This is what idempotent means. Running it once or ten times leaves the database in the same state. It matters because I am going to rerun load after every parser fix, and later the cluster will run it on a schedule. Neither of those can be allowed to pile up duplicates.</p>
+
+<h2 class="pp-h2" id="export">Export: the website never touches the database</h2>
+
+<p>The <a href="/brasil/demo">demo page</a> is going to show real lessons. The obvious way to do that is to have the website read the database. There are three reasons it does not.</p>
+
+<ul>
+  <li><strong>It cannot reach it.</strong> projectpattie.com runs on Cloudflare. The database runs on a laptop in my house. Connecting them means opening the database to the internet, and then anyone can try to log in to it.</li>
+  <li><strong>The site is static.</strong> It gets built once when I push. After that there is no program running that could go ask a database a question when someone visits.</li>
+  <li><strong>The site should stay up when the homelab does not.</strong> My nodes are laptops. They sleep, they reboot, I move them. The portfolio should not go down with them.</li>
+</ul>
+
+<p>So <code>export</code> reads three lessons back out of Postgres and writes a JSON file into the website repo. The site will read the file at build time.</p>
+
+<h3 class="pp-h3">Read it back from the database</h3>
+
+<p>Export could have taken the lessons straight from the parser. It reads from Postgres instead, on purpose. The file is proof that the whole chain worked: the files came down, the PDFs parsed, the rows landed, and they come back out the way they went in.</p>
+
+<h3 class="pp-h3">Same data in, same file out</h3>
+
+<p>The export has no timestamp, and every query has an <code>ORDER BY</code>. Export the same data twice and you get the same file, byte for byte. It also writes with <code>ensure_ascii=False</code>, so <code>às</code> stays <code>às</code> instead of turning into <code>\u00e0s</code>, which keeps the file readable in a diff.</p>
+
+<p>That paid off right away. After I added the title table, I loaded and exported again:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`git diff --stat src/data/corpus-sample.json\n#    -> 1 file changed, 2 insertions(+), 2 deletions(-)`}</pre></div></div>
+
+<p>Two lines. Lesson 1 and lesson 2, the two broken titles in the sample. Lesson 3 was already right, so it did not move. If the export stamped the time, every run would change the file, and I would never be able to see what actually changed.</p>
+
+<div class="pp-note"><strong>worth knowing:</strong> if a generated file is going into git, make it deterministic. Then a diff only shows up when the data really changed.</div>
+
+<h2 class="pp-h2" id="audio">Where the audio goes</h2>
+
+<p>34 mp3s, about 330 MB. Three options:</p>
+
+<ul>
+  <li><strong>In Navidrome's music volume.</strong> No. They would show up in my music library next to Astrud Gilberto as if they were albums.</li>
+  <li><strong>In the database.</strong> No. 330 MB of binary data in Postgres makes every backup huge and every query slower. A very common mistake.</li>
+  <li><strong>Their own volume on the cluster, with the database holding the path to each file.</strong> Yes.</li>
+</ul>
+
+<p>Files live on disk and facts about files live in the database. That is the same split Navidrome already uses for my music. Locally they sit in <code>data/raw/.../audio/</code> for now. The volume gets created when fsi-scraper moves onto the cluster, and since local-path volumes cannot grow after they are created, it gets sized with room to spare.</p>
+
+<h2 class="pp-h2" id="notdone">What is not done yet</h2>
+
+<p>The pipeline works end to end. That is different from finished. What is still open:</p>
+
+<ul>
+  <li><strong>Tests cover the parser, not the rest.</strong> Fetch and load have been checked by running them twice and counting, which is real evidence but not an automated test. The next step is a test that runs load against the Docker Postgres.</li>
+  <li><strong>One course.</strong> COERLL from UT Austin is next. Discover already has one interface every source plugs into. The parser and the loader do not yet. The second source is where I find out how much of this was FAST-specific.</li>
+  <li><strong>It only runs on my Mac.</strong> On the cluster it becomes a CronJob, not a Job, because Job specs cannot be changed once created and Flux fights recreating them. <code>DATABASE_URL</code> comes from a secret instead of a default.</li>
+  <li><strong>The demo page still has to read the sample.</strong> The file is committed. Wiring it into the page is next.</li>
+</ul>
+
+<h2 class="pp-h2" id="checklist">Final checklist: is the pipeline actually working</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# 1. The right Python, in the venv\npython --version\n#    -> 3.11 or newer\n\n# 2. Lint and tests\nruff check . && pytest -q\n\n# 3. Local Postgres is up and has the tables\ndocker compose up -d\ndocker compose exec -T db psql -U postgres -d corpus < db/schema.sql\n\n# 4. Download, twice. The second run should say "have", not "got".\nfsi-scraper fetch --kind pdf --cache .cache\n\n# 5. Parse. Every lesson should have dialog.\nfsi-scraper parse > /dev/null\n#    -> 30 lessons, 351 dialog lines\n\n# 6. Load, twice. The counts should not move.\nfsi-scraper load --cache .cache\n\n# 7. Export, twice. git diff should only show real data changes.\nfsi-scraper export --out corpus-sample.json`}</pre></div></div>
