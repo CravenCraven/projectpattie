@@ -1,0 +1,332 @@
+---
+title: "Letting Linkding Out of the House"
+description: "My bookmark manager only existed behind a port-forward. Getting it onto the public internet took a Cloudflare Tunnel, a Service I never made, and a certificate lesson I did not see coming."
+tags: ["kubernetes", "cloudflare-tunnel", "flux", "gitops", "k3s"]
+date: 2026-10-05
+category: devops
+readTime: 9
+draft: true
+---
+
+<div class="pp-meta">2026-10-05 · devops · 9 min read</div>
+
+<h1 class="pp-title">Letting Linkding<br/><em>Out of the House</em></h1>
+
+<p class="pp-subtitle">My bookmark manager only existed behind a port-forward. Getting it onto the public internet took a Cloudflare Tunnel, a Service I never made, and a certificate lesson I did not see coming.</p>
+
+## The hook
+
+Linkding has been running in my cluster for weeks and I could only reach it by
+typing a port-forward command and remembering which port I picked. Close the
+terminal, lose the app. That is not self-hosting, that is a science project.
+
+I wanted it on a real URL, over HTTPS, reachable from my phone. What I did not
+want was to open a port on my home router and start advertising my front door
+to the internet.
+
+## What I built and why
+
+A Cloudflare Tunnel. The idea is backwards from what you would expect: instead
+of the internet connecting in to me, something inside my cluster makes an
+outbound connection to Cloudflare and holds it open. Traffic arrives at
+Cloudflare, goes down that existing connection, and lands on my app. My router
+never has to accept an inbound connection at all, so there is nothing to port
+forward and nothing to leave exposed.
+
+The piece that does this is called `cloudflared`, and it runs as a Deployment
+in the cluster like anything else.
+
+Where it fits: this is the first thing in my homelab that the public internet
+can reach. Everything up to now has been on the home network or behind
+port-forward. The plan is for the rest of the apps to follow through the same
+tunnel, one DNS record each.
+
+## Before you start
+
+- A k3s cluster with Flux already running, because nothing gets applied by hand
+- A domain on Cloudflare with the nameservers pointed there
+- `kubectl` working from wherever you are typing
+- The app already running in the cluster
+
+That third one caught me out before I started, so it is worth being specific.
+Two of these commands need a browser, and my control plane boots headless with
+no desktop. So everything here happens on my laptop, not on the server. I
+checked first:
+
+```bash
+kubectl cluster-info
+```
+
+If that prints your cluster's address, you are in the right place. If it prints
+`127.0.0.1` you are on the server.
+
+I also checked which context I was pointed at, because my laptop has more than
+one and a secret created in the wrong cluster fails quietly:
+
+```bash
+kubectl config current-context
+```
+
+## How I did it
+
+**Install cloudflared and log it in.**
+
+```bash
+brew install cloudflared
+cloudflared tunnel login
+```
+
+A browser window opens with a list of your domains. Click the one you want.
+The terminal sits there waiting the entire time, so if you walk away it times
+out and writes nothing, which is exactly what I did on my first attempt. On
+success it drops a certificate at `~/.cloudflared/cert.pem` that proves to
+Cloudflare you own the domain.
+
+**Create the tunnel.**
+
+```bash
+cloudflared tunnel create homelab
+```
+
+This registers the tunnel with Cloudflare and writes a credentials file at
+`~/.cloudflared/<UUID>.json`. Keep that file to yourself. Anyone holding it can
+run your tunnel and serve traffic on your domain.
+
+**Put the credentials into the cluster.**
+
+```bash
+kubectl create namespace cloudflared
+kubectl create secret generic tunnel-credentials \
+  --namespace cloudflared \
+  --from-file=credentials.json=$HOME/.cloudflared/<UUID>.json
+```
+
+The name on the left of the `=` becomes the filename when the secret gets
+mounted into the pod. That is why the config later points at
+`/etc/cloudflared/creds/credentials.json`.
+
+I will be honest about this one: it breaks my own rule. My repo README says if
+it is not in `main`, it is not in the cluster. This secret only exists because
+I typed it, and a rebuild from the repo would not bring it back. Sealed Secrets
+is on my roadmap and this is precisely the reason it is there.
+
+**Point DNS at the tunnel.**
+
+```bash
+cloudflared tunnel route dns homelab links.example.com
+```
+
+That creates a CNAME pointing your hostname at the tunnel. I used the CLI
+rather than the dashboard on purpose, because clicking around in DNS next to
+the records that serve my actual blog felt like a good way to break something
+at eleven at night.
+
+**Give the app a Service.**
+
+This is the step I did not know I needed. Linkding had a Deployment and a
+running pod, but no Service at all. Port-forward works against a pod directly,
+so I had never missed it.
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: linkding
+  namespace: linkding
+spec:
+  type: ClusterIP
+  selector:
+    app: linkding
+  ports:
+    - port: 9090
+      targetPort: 9090
+```
+
+The selector is the part that matters. A Service does not find pods by name, it
+finds them by label. Get that wrong and you get a Service that exists, looks
+fine in `kubectl get svc`, and routes to absolutely nothing.
+
+`ClusterIP` is correct here because `cloudflared` is also inside the cluster.
+Nothing needs to be exposed on my home network for this to work.
+
+**Write the cloudflared manifests.**
+
+A ConfigMap holding the tunnel's config, and a Deployment that runs it. The
+interesting part is the ingress list:
+
+```yaml
+ingress:
+- hostname: links.example.com
+  service: http://linkding.linkding.svc.cluster.local:9090
+- service: http_status:404
+```
+
+Rules are read top to bottom and the first match wins. The last rule has no
+hostname, so it catches everything else and returns a 404. It is not optional.
+cloudflared refuses to start without it.
+
+That long service address is a cross-namespace thing. I put cloudflared in its
+own namespace because it is going to serve more than just Linkding eventually,
+and short names like `http://linkding:9090` only resolve inside the same
+namespace. The full form is
+`service.namespace.svc.cluster.local`.
+
+**Push it and let Flux apply it.**
+
+```bash
+git add apps/base/cloudflared apps/staging/kustomization.yaml
+git commit -m "feat(cloudflared): tunnel deployment"
+git push origin main
+```
+
+One thing that is easy to miss: adding files under `apps/base` does nothing on
+its own. My Flux Kustomization points at `apps/staging`, and that overlay has
+to list the new folder before anything happens.
+
+## What broke and how I fixed it
+
+Two things broke, and the first one was not even related to the tunnel.
+
+**Linkding was already down.**
+
+Before I started I ran `kubectl get pods` and found one Linkding pod stuck in
+`Terminating`, a replacement stuck in `Pending` for over five hours, and one of
+my three nodes showing `NotReady`. Three problems, or so I thought.
+
+`kubectl describe pod` on the pending one gave me the whole answer in one line:
+
+```
+0/3 nodes are available:
+  1 node(s) had untolerated taint(s),
+  2 node(s) didn't match PersistentVolume's node affinity.
+```
+
+The scheduler had tried all three nodes and explained why each one failed. The
+tainted node was the `NotReady` one. Kubernetes had applied
+`node.kubernetes.io/unreachable` to it automatically when it went quiet.
+
+The other two failed on the volume, and that is the bit I had not properly
+internalised. My cluster uses k3s local-path storage. "Local" is literal. The
+volume is a folder on one specific machine's disk, and the PersistentVolume
+carries a rule saying only schedule pods here if they can reach me. So Linkding
+could only ever run on that one node. The other two being healthy and idle made
+no difference at all.
+
+Which meant the three symptoms were one fault:
+
+1. The node stopped reporting.
+2. Five minutes later the pod's tolerations expired and it was marked for
+   eviction, which is why it went to `Terminating`.
+3. It could not finish terminating, because deleting a pod means waiting for
+   the kubelet on that node to confirm the container is gone, and there was no
+   kubelet answering.
+4. The Deployment made a replacement, which could not be scheduled anywhere.
+
+The node is a laptop. It had gone to sleep.
+
+The fix was to wake it up, and then do nothing. Kubernetes sorted the rest out
+by itself: the taints cleared, the stuck pod finished deleting, and the pending
+pod got scheduled. What got me was that the replacement pod was the same one
+that had been pending all morning, not a fresh one. The scheduler had been
+retrying for seven hours straight and placed it the second it had somewhere to
+put it.
+
+**The certificate error.**
+
+I originally picked `links.lab.example.com`, because grouping all the homelab
+services under `lab` felt tidy. The browser gave me this:
+
+```
+ERR_SSL_VERSION_OR_CIPHER_MISMATCH
+```
+
+Nothing in my cluster was wrong. Cloudflare's free Universal SSL certificate
+covers the apex and one level of subdomain, and nothing deeper. My hostname was
+two levels down, so no certificate matched it and the TLS handshake failed
+before any traffic got near my tunnel.
+
+I flattened it to `links.example.com` and it worked immediately. Going deeper
+needs Advanced Certificate Manager, which is a paid add-on and not worth it for
+a bookmark manager.
+
+**One more trap.** Changing a ConfigMap does not restart the pods that mounted
+it. Flux updated the config, the running pods kept using the old version, and
+nothing appeared to happen. You have to tell them:
+
+```bash
+kubectl rollout restart deployment/cloudflared -n cloudflared
+```
+
+The proper fix is Kustomize's `configMapGenerator`, which hashes the ConfigMap
+name so any change forces a rollout automatically. That is on my list.
+
+## How I checked it worked
+
+```bash
+kubectl get pods -n cloudflared
+```
+
+```
+NAME                          READY   STATUS    RESTARTS   AGE
+cloudflared-6b87b866c7-2qdht  1/1     Running   0          73s
+cloudflared-6b87b866c7-rg922  1/1     Running   0          74s
+```
+
+`1/1` means more here than it usually does. The readiness probe hits
+cloudflared's own `/ready` endpoint, which only returns a 200 when it has a
+live connection to Cloudflare's edge. So `1/1` is not just "the process
+started", it is "the tunnel is actually up".
+
+Then the real test: load the URL. Linkding's login page came back, over HTTPS,
+from my phone, on mobile data with my home wifi off.
+
+Last step was turning on **Always Use HTTPS** in the Cloudflare dashboard under
+SSL/TLS, Edge Certificates. It is off by default, and until you flip it, plain
+HTTP gets served rather than redirecting.
+
+## What I learned
+
+**Read the scheduler's error message properly.** `0/3 nodes are available`
+followed by a reason per node is not noise, it is a complete diagnosis. I used
+to skim past that line. It told me about the taint and the volume pinning in
+one go and I nearly missed it.
+
+**Local-path storage welds an app to one machine.** It is the default in k3s
+and it is fast and free, but a PersistentVolume on local-path means the app can
+only run where its data physically sits. Having three nodes gives you no
+resilience at all for that app. I had this written in my own README under
+design trade-offs and had not actually felt it until a laptop went to sleep.
+
+**TLS failures can be about the name, not the setup.** I spent the first
+minutes of that certificate error assuming my tunnel config was wrong. It was
+the hostname having one subdomain too many. Universal SSL covers one level
+down. Knowing where a failure happens in the chain is most of debugging it.
+
+**Declarative means it keeps trying.** The pending pod sat there for seven
+hours and scheduled itself the moment the node came back, with no input from
+me. I did not restart anything or re-apply anything. I said one Linkding should
+exist, and the cluster kept working toward that until reality allowed it.
+
+## What I would do next
+
+- **Stop the laptop sleeping.** My control plane already has sleep disabled
+  through logind config and masked sleep targets. The worker node that went
+  down never got the same treatment, and now that it hosts something public
+  that is a real gap rather than a minor one.
+- **Sealed Secrets.** The tunnel credentials are the only thing in my cluster
+  that exists outside Git. That needs to stop being true.
+- **configMapGenerator**, so config changes roll the pods out on their own
+  instead of relying on me remembering.
+- **Authentication in front of the app.** Right now the only thing between the
+  internet and my bookmarks is Linkding's own login form. Cloudflare Access, or
+  Authentik, sits on the roadmap.
+- **More apps through the same tunnel.** That is the nice part of the design.
+  Each new one is a DNS record and three lines of ingress config, not a new
+  tunnel.
+
+## Links
+
+- Manifests and runbooks: my homelab repo on GitHub
+- [Cloudflare Tunnel: Kubernetes deployment guide](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/deploy-tunnels/deployment-guides/kubernetes/)
+- [Cloudflare Tunnel: local management and config file reference](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/do-more-with-tunnels/local-management/configuration-file/)
+- [Linkding](https://github.com/sissbruecker/linkding)
