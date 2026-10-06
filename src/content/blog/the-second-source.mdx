@@ -1,0 +1,360 @@
+---
+title: "The second source is the one that tells you if your design was right"
+description: "The first course worked. The second one showed me which parts of my design were real and which parts were just how FSI happened to be laid out."
+date: 2026-10-03
+category: devops
+homelab: brasil
+readTime: 20
+tags: ["python", "postgres", "pdf", "fsi-scraper", "homelab", "brasil"]
+draft: false
+---
+
+<div class="pp-meta"><span>devops</span> · October 3, 2026 · 20 min read</div>
+
+<h1 class="pp-title">The second source.<br/><em>where my scraper design held up, and where it didn't.</em></h1>
+
+<p class="pp-subtitle">The first course worked. The second one showed me which parts of my design were real and which parts were just how FSI happened to be laid out.</p>
+
+<div class="pp-tags">
+  <span class="pp-tag">python</span>
+  <span class="pp-tag">postgres</span>
+  <span class="pp-tag">pdf</span>
+  <span class="pp-tag">fsi-scraper</span>
+  <span class="pp-tag">homelab</span>
+  <span class="pp-tag">brasil</span>
+</div>
+
+<div class="pp-toc">
+  <div class="pp-toc-label">// <span>what we're getting into</span></div>
+  <ol>
+    <li><a href="#start">How this started</a></li>
+    <li><a href="#pick">Picking the harder source on purpose</a></li>
+    <li><a href="#403">The site said no</a></li>
+    <li><a href="#shape">Index, scene pages, then a PDF</a></li>
+    <li><a href="#link">34 files for 35 scenes</a></li>
+    <li><a href="#pdf">Inside the PDF</a></li>
+    <li><a href="#which">Which line is the translation</a></li>
+    <li><a href="#broke">Everything else that broke</a></li>
+    <li><a href="#find">Finding bad lines without reading 1,790 of them</a></li>
+    <li><a href="#nul">The load that failed, and the bug it was hiding</a></li>
+    <li><a href="#held">What held</a></li>
+    <li><a href="#changed">What I had to change</a></li>
+    <li><a href="#numbers">Where it landed</a></li>
+    <li><a href="#notdone">What is not done</a></li>
+    <li><a href="#checklist">Final checklist: adding a source</a></li>
+  </ol>
+</div>
+
+<h2 class="pp-h2" id="start">How this started</h2>
+
+<p><a href="/blog/scraping-a-1970s-language-course-into-postgres/">Last post</a> ended with the FSI course in Postgres. 30 lessons, 351 lines of dialog, a pipeline I could run twice without breaking anything.</p>
+
+<p>It worked for one course. That proves less than it sounds like. Every decision I made was tested against exactly one set of books. Some of those decisions were real design, and some of them were just how FSI happens to be laid out. With one source there is no way to tell which is which.</p>
+
+<p>A second source tells you. Whatever I built for FSI by accident breaks the moment it meets something shaped differently. So this post is about the second source, and specifically about the changes it forced. That list of changes is the honest review of the first design.</p>
+
+<h2 class="pp-h2" id="pick">Picking the harder source on purpose</h2>
+
+<p>COERLL, the open language center at UT Austin, has two Portuguese courses I could use:</p>
+
+<ul>
+  <li><strong>Tá Falado.</strong> 46 podcast lessons with PDF transcripts and mp3s. The same shape as FSI.</li>
+  <li><strong>Conversa Brasileira.</strong> 35 short videos of real people talking. Two friends in a park, a couple stuck in traffic, a band in rehearsal. Every scene has a transcript with an English translation.</li>
+</ul>
+
+<p>Tá Falado would have been faster. It would also have proved almost nothing, because a source shaped exactly like the first one cannot break the parts that were built around the first one. I went with Conversa Brasileira. It is also much closer to how people in Rio actually talk than a 1970s government course.</p>
+
+<p>One difference before any code. FSI is public domain. COERLL is CC BY, Creative Commons Attribution. Free to use, but the credit has to appear wherever the text appears. Nothing in my database had anywhere to store that. More on that below.</p>
+
+<h2 class="pp-h2" id="403">The site said no</h2>
+
+<p>First step on any new site is checking whether it has rules for scrapers:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`curl -s https://www.coerll.utexas.edu/robots.txt\n#    -> <title>404 Not Found</title>`}</pre></div></div>
+
+<p>No robots.txt. No posted rules. That is not permission to hammer them, so the one second delay between requests and the page cache stay on.</p>
+
+<p>Then I saved the course page and pulled out every link:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`curl -s https://www.coerll.utexas.edu/brazilpod/cob/ -o .cache/cob/index.html\ngrep -o 'href="[^"]*"' .cache/cob/index.html | sort -u | head -60\n#    -> (nothing)`}</pre></div></div>
+
+<p>Nothing. A real web page always has links, so the problem was what I saved, not the page. I had two guesses: a redirect that curl did not follow, or links written with single quotes that my pattern skipped. I checked instead of picking one:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`ls -l .cache/cob/index.html\n#    -> 199 bytes\n\ncurl -sI https://www.coerll.utexas.edu/brazilpod/cob/ | head -1\n#    -> HTTP/2 403`}</pre></div></div>
+
+<p>Neither guess. 403 means the server got the request and refused it. The 199 byte file was the refusal page. In a browser the same URL loads fine, so the server was turning away anything that does not look like a browser.</p>
+
+<p>The well known fix is to make curl pretend to be Chrome. I did not do that. If a site blocks tools, getting around the block means ignoring what the owner asked for, and that is the difference between a polite scraper and a rude one. Before going anywhere near that line I tried the other address the project lives at:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`curl -sI https://cob.coerll.utexas.edu/brazilpod/cob/ | head -1\n#    -> HTTP/2 200`}</pre></div></div>
+
+<p>200. The block was only on the old <code>www</code> path. The course actually lives on the <code>cob.</code> address. So the scraper uses that one, with a comment in the code saying why, and it still sends its own honest User-Agent with a link back to my repo.</p>
+
+<div class="pp-note"><strong>worth knowing:</strong> <code>curl -sI</code> fetches only the response headers. The first line tells you 200, 301, 403 or 404 before you waste time reading a page that is not there.</div>
+
+<h2 class="pp-h2" id="shape">Index, scene pages, then a PDF</h2>
+
+<p>With the right address, the links came out clean:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`grep -o 'href=["'"'"'][^"'"'"']*' .cache/cob/index.html | sort -u\n#    -> href="/brazilpod/cob/animals-1/\n#    -> href="/brazilpod/cob/animals-2/\n#    -> href="/brazilpod/cob/directions-1/\n#    -> ...\n#    -> href="/brazilpod/cob/working-out-2/`}</pre></div></div>
+
+<p>17 topics with a part 1 and a part 2, plus a <code>shopping-3</code>. 35 scene pages, which matched the 35 transcripts the site advertises. Each scene page had one link I cared about:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">text</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`wp-content/uploads/cob_01.pdf">PDF: Notes, Transcripts, Translation</a>`}</pre></div></div>
+
+<p>So the path to the text is three steps: the index, then 35 scene pages, then one PDF on each. FSI FAST was one page with every file on it.</p>
+
+<p>This is where the first design either held or did not. Discover has a small contract every course has to fill in. <code>parse</code> finds the files on a page. <code>follow</code> finds more pages worth visiting. FAST only ever needed <code>parse</code>. My other FSI course, Programmatic, already used <code>follow</code> to walk its 48 unit pages. So the shape Conversa Brasileira needed already existed:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">python</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`def follow(self, html: str, page_url: str = "") -> Iterable[str]:\n    """Yield the scene pages (animals-1, food-2, ...) linked from the index."""\n    soup = BeautifulSoup(html, "html.parser")\n    found: dict[str, str] = {}\n    for anchor in soup.find_all("a", href=True):\n        url = urljoin(page_url or self.page_url, anchor["href"].strip())\n        parsed = urlparse(url)\n        if parsed.netloc == SITE_HOST and SCENE_PAGE.match(parsed.path):\n            found.setdefault(parsed.path, f"https://{SITE_HOST}{parsed.path}")\n    return [found[path] for path in sorted(found)]`}</pre></div></div>
+
+<p><code>SCENE_PAGE</code> only matches <code>/brazilpod/cob/&lt;topic&gt;-&lt;number&gt;/</code>, so the about page, the CSS files, <code>/video</code> and <code>/podcast</code> never get visited. <code>parse</code> then reads each scene page and returns the one transcript PDF it links. The crawl loop, the delay, the cache and the download code did not change at all.</p>
+
+<h2 class="pp-h2" id="link">34 files for 35 scenes</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`fsi-scraper discover --course conversa-brasileira --cache .cache\n#    -> ...\n#    -> 34 assets: 34 pdf; units 1-35`}</pre></div></div>
+
+<p>Units 1 to 35, but only 34 files. Those two numbers should agree, and they did not. When two numbers that should match do not, that is the moment to stop.</p>
+
+<p>Discover had cached every page, so I could check all 36 without touching their server again. Two different scene pages linked the same PDF:</p>
+
+<table class="pp-table">
+  <thead><tr><th>Scene page</th><th>Links to</th></tr></thead>
+  <tbody>
+    <tr><td>Soccer 1</td><td><code>cob_30.pdf</code></td></tr>
+    <tr><td><strong>Soccer 2</strong></td><td><strong><code>cob_32.pdf</code></strong></td></tr>
+    <tr><td><strong>Jam Session 1</strong></td><td><strong><code>cob_32.pdf</code></strong></td></tr>
+    <tr><td>Jam Session 2</td><td><code>cob_33.pdf</code></td></tr>
+  </tbody>
+</table>
+
+<p>And <code>cob_31.pdf</code> was not linked from anywhere. Discover keeps one entry per URL, the same rule as the <code>UNIQUE</code> on <code>url</code> in the database, so the duplicate quietly folded into one. 35 pages, 34 files.</p>
+
+<p>It looked like the Soccer 2 page was supposed to link <code>cob_31.pdf</code>. Looking like it is not proof. So I checked that the file exists and read its cover:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`curl -sI https://cob.coerll.utexas.edu/brazilpod/cob/wp-content/uploads/cob_31.pdf | head -1\n#    -> HTTP/2 200\n\npython -c "from pypdf import PdfReader; print(PdfReader('.cache/cob/cob_31.pdf').pages[0].extract_text()[:60])"\n#    -> Soccer 2: Ninguém tira o título da gente`}</pre></div></div>
+
+<p>Proven. Then the fix, and the proof written next to it, so nobody six months from now has to wonder why that line exists:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">python</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# One known error on the site: the Soccer 2 page links cob_32.pdf, which is\n# Jam Session 1's file. The real Soccer 2 PDF, cob_31.pdf, exists but is linked\n# from nowhere. Checked 2026-10-01: cob_31.pdf returns 200 and its cover reads\n# "Soccer 2: Ninguém tira o título da gente". LINK_FIXES corrects that one link.\nLINK_FIXES = {"soccer-2": "cob_31.pdf"}`}</pre></div></div>
+
+<p>After that, 35 assets, and fetch pulled down all 35 PDFs, 41.6 MB.</p>
+
+<h2 class="pp-h2" id="pdf">Inside the PDF</h2>
+
+<p>FSI was scanned books with an OCR layer full of guessed letters. These are 2013 PDFs made on a computer, so the text is real. Accents clean, no <code>81anks</code>. The hard parts were somewhere else entirely. Here is a piece of the dog lovers scene:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">text</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`MICHELLE:  E cadê # o Júnior? $\nWhere is Junior?\nDENISE:  Pois é, eu tenho duas meninas em casa, aí elas que escolheram o nome,\nné? %\nWell, I have two girls at home, so they chose her name...`}</pre></div></div>
+
+<ul>
+  <li><strong>Speakers are real people</strong>, in capitals with a colon. Denise, Michelle, Valdo, Simone. That part is easier than FSI's <code>A.</code> and <code>B.</code>.</li>
+  <li><strong>Every Portuguese line is followed by its English translation.</strong> FSI had no translations at all, and my <code>dialog_line</code> table had nowhere to put one.</li>
+  <li><strong>Marker symbols sit in the Portuguese.</strong> <code>#</code>, <code>$</code>, <code>%</code>. Each points to a note at the back of the PDF about that phrase.</li>
+  <li><strong>The back pages are the notes.</strong> Numbered, <code>1. Ai, que amor!</code>, explaining grammar and culture. The dialog ends where the notes begin.</li>
+</ul>
+
+<h2 class="pp-h2" id="which">Which line is the translation</h2>
+
+<p>This was the actual problem with this source. Look at Denise's turn above. Her Portuguese runs onto a second line, <code>né? %</code>, and then the English starts. So "the line after the speaker is the translation" is wrong. Nothing in the text says where the Portuguese stops.</p>
+
+<h3 class="pp-h3">First, look for a fact</h3>
+
+<p>My first thought was the printed page. In books like this the translation is often in italics or a lighter color. If the PDF stored that, I would not have to guess at all. I would be reading the label the author put there. pypdf can report the font of every piece of text:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`/UWYLGY+GillSansMT | DENISE:\n/UWYLGY+GillSansMT | É...\n/UWYLGY+GillSansMT | Yeah...\n/UWYLGY+GillSansMT | MICHELLE:\n/UWYLGY+GillSansMT | E cadê\n/LHPKTE+ZapfDingbatsITC | #\n/UWYLGY+GillSansMT | o Júnior?`}</pre></div></div>
+
+<p>Same font for both languages. I checked the color next: it tracks the speaker, not the language. Michelle's Portuguese and every English line are grey, Denise's Portuguese is black. Then the position on the page: every Portuguese and English line starts at the same left edge with the same spacing.</p>
+
+<p>So the author never marked the language anywhere in the file. That is a real finding, and it is worth checking for before writing a single guess. When the data carries the answer, use it. When it does not, then you guess, carefully.</p>
+
+<p>The font check did turn up one fact I could use. The marker symbols are drawn in <code>ZapfDingbats</code>, a symbol font. So the parser drops anything in a symbol font. That is reading the file, not guessing which <code>%</code> is a marker and which is a percent sign.</p>
+
+<h3 class="pp-h3">Then, clues</h3>
+
+<p>With no fact to read, each line gets judged on what it contains. A line collects Portuguese clues and English clues:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">python</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`PT_LETTERS = re.compile(r"[ãõçáéíóúâêô]", re.IGNORECASE)\nEN_SPELLING = re.compile(r"th|\\w+ing\\b|\\w'(s|t|re|ll|ve|m|d)\\b", re.IGNORECASE)\n\ndef evidence(line: str) -> tuple[int, int]:\n    """(Portuguese clues, English clues) found in a line."""\n    words = [w.lower() for w in WORD.findall(line)]\n    pt = sum(w in PT_WORDS for w in words) + len(PT_LETTERS.findall(line))\n    en = sum(w in EN_WORDS for w in words) + len(EN_SPELLING.findall(line))\n    return pt, en`}</pre></div></div>
+
+<ul>
+  <li>Portuguese clues: common words like <code>né</code>, <code>você</code>, <code>que</code>, <code>tava</code>, plus accented letters.</li>
+  <li>English clues: common words like <code>the</code>, <code>you</code>, <code>well</code>, plus spelling Portuguese never uses. <code>th</code>, words ending in <code>-ing</code>, and contractions like <code>it's</code> and <code>don't</code>.</li>
+</ul>
+
+<p>The words decide when they clearly can. When they cannot, the line before breaks the tie. If the Portuguese line before it was cut off mid-sentence, this line continues it. If it ended a sentence, this is where the English starts:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">python</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`pt_clues, en_clues = evidence(line)\ns = pt_clues - en_clues\nunfinished = not pt[-1] or not TERMINAL.search(pt[-1])\nif s >= 2 or (pt_clues and not en_clues) or (s >= 0 and unfinished):\n    pt.append(line)\nelse:\n    en.append(line)`}</pre></div></div>
+
+<p>Denise's turn: <code>...escolheram o nome,</code> ends in a comma, and <code>né?</code> has a Portuguese word in it. Portuguese. Then <code>Well, I have two girls...</code> has <code>well</code>, <code>I</code>, <code>have</code>. English. Every line after that is English until the next speaker.</p>
+
+<p>Every part of that one <code>if</code> came from a line that broke an earlier version. That is the next section.</p>
+
+<h2 class="pp-h2" id="broke">Everything else that broke</h2>
+
+<p>I ran each version against all 35 PDFs and read what came out. This is the list, in the order it happened.</p>
+
+<h3 class="pp-h3">Markers in three fonts, not one</h3>
+
+<p><code>ZapfDingbats</code> covered most files. Some used <code>AppleGothic</code> and came out as <code>�</code>. Two used <code>HiraKaku</code> and came out as <code>⤓</code> and <code>⤚</code>. Same job, three fonts. The symbol font list has all three now.</p>
+
+<h3 class="pp-h3">Note numbers that look like real numbers</h3>
+
+<p>Some notes are pointed to with a plain number in the normal font, right after the phrase: <code>Ai, que amor! 1 Que coisa mais linda!</code>. Deleting every lone number would also delete <code>fechava às 5 horas</code> and <code>continua na 24</code>, which are real. So a number only gets removed when note N at the back of that same PDF starts or ends with the words right before it:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">python</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`def strip_note_numbers(text: str, notes: dict[int, str]) -> str:\n    """Remove "1" in "Ai, que amor! 1 Que..." when note 1 is "Ai, que amor!"."""\n    for n, phrase in notes.items():\n        words = WORD.findall(phrase.split("/")[0])\n        if not words:\n            continue\n        # the number sits after the end of the phrase, or after its first word\n        for anchor in (words[-2:], words[:1]):\n            pattern = r"\\W+".join(re.escape(w) for w in anchor)\n            text = re.sub(rf"(\\b{pattern}\\W{{0,4}})\\s*\\b{n}\\b\\s*", r"\\1 ", text)\n    return re.sub(r"\\s+", " ", text).strip()`}</pre></div></div>
+
+<p>A few stray note numbers still get through, where the note is worded differently from the dialog. I left those. A stray number is a much smaller problem than deleting a real one.</p>
+
+<h3 class="pp-h3">A misspelled name for a whole file</h3>
+
+<p>Lesson 4 spells Denise as <code>DESINE</code>, 53 times. Same person, same voice, every other file spells it right. One line fixes it:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">python</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`SPEAKER_FIXES = {"DESINE": "DENISE"}`}</pre></div></div>
+
+<h3 class="pp-h3">A bug I wrote myself</h3>
+
+<p>Every page repeats the scene title at the top. My first version dropped any line containing the title. Lesson 18 is titled <em>They are getting along</em>, and one of its translations is <em>They are getting along really well, right?</em>. My filter deleted a real line of dialog because it matched the title.</p>
+
+<p>Now the header and footer are dropped by where they sit on the page, the top and bottom bands, not by what they say. Lines of dialog never sit there.</p>
+
+<h3 class="pp-h3">Words that are both languages</h3>
+
+<p><code>as</code> and <code>no</code> are common in Portuguese and English. Counting them as Portuguese turned <code>... as big as Rio...</code> into Portuguese with no translation. They are out of both lists now.</p>
+
+<h3 class="pp-h3">A translation that keeps a Portuguese word</h3>
+
+<p><code>Or pão de queijo ...</code> is English. The translation just keeps the name of the food. <code>pão</code> and <code>de</code> count as Portuguese, so I added <code>or</code> to the English words. Now the clues tie, and the finished sentence before it breaks the tie toward English.</p>
+
+<h3 class="pp-h3">Two Portuguese sentences in a row</h3>
+
+<p>In lesson 8, Alexandre finishes a sentence with <code>não?</code> and keeps talking: <code>Em primeiro lugar... Então, se ela tem uma vida estável</code>. The finished sentence rule said that line had to be English. That is why clearly Portuguese words now beat the finished sentence rule.</p>
+
+<h3 class="pp-h3">Names printed twice</h3>
+
+<p><code>Sílvia!</code> then <code>Sílvia!</code>. A name needs no translation, so the PDF just prints it again. Same with <code>Guaraná!</code>. A turn of two lines with the same words now treats the second copy as the translation.</p>
+
+<h2 class="pp-h2" id="find">Finding bad lines without reading 1,790 of them</h2>
+
+<p>1,790 lines is too many to read every time something changes. So I made the data point at its own problems. A Portuguese line and its English are usually close in length, so I flagged any pair where one side was more than three times the other:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`fsi-scraper parse --course conversa-brasileira --format json | python -c "\nimport json, sys\nfor lesson in json.load(sys.stdin):\n    for l in lesson['lines']:\n        pt, en = l['text'], l['translation'] or ''\n        if en and (len(pt) > 3 * len(en) or len(en) > 3 * len(pt)) and max(len(pt), len(en)) > 40:\n            print(lesson['number'], l['speaker'], '|', pt[:70], '||', en[:70])\n"`}</pre></div></div>
+
+<p>Three lines out of 1,790. All three in lessons 34 and 35:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">text</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`34 Orlando | It’d be nice to have different words, one for ‘ safado ’ and one for… || ‘ desgraçado …’\n35 Orlando | Ok. Let’s get back on track here. So the next, the number 12, Simone || says, ‘ Ah, eu também acho .’ ...`}</pre></div></div>
+
+<p>Those two scenes are "Behind the Scenes." The people who made the course, talking about the course, in English, quoting Portuguese as they go. There is no Portuguese then English pattern to find, so the parser was cutting English sentences in half and calling the second half a translation.</p>
+
+<p>That is not a word list problem. No amount of tuning fixes it. It is a different kind of content. So turns in those two lessons are kept whole, with no translation:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">python</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`COMMENTARY = re.compile(r"^Behind the Scenes", re.IGNORECASE)`}</pre></div></div>
+
+<p><code>IGNORECASE</code> matters. Lesson 34 says <em>Behind the Scenes</em> and lesson 35 says <em>Behind The Scenes</em>. Without it the rule catches one of them.</p>
+
+<div class="pp-note"><strong>worth knowing:</strong> the second source was not one format. It was two. The checks that compare things against each other, like lengths or counts, are what find that kind of problem.</div>
+
+<h2 class="pp-h2" id="nul">The load that failed, and the bug it was hiding</h2>
+
+<p>With the parser in shape, I loaded both courses into a fresh database:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`fsi-scraper load --course brazilian-portuguese-fast --cache .cache\n#    -> brazilian-portuguese-fast: loaded 36 resources, 30 lessons, 351 dialog lines\nfsi-scraper load --course conversa-brasileira --cache .cache\n#    -> psycopg.DataError: PostgreSQL text fields cannot contain NUL (0x00) bytes`}</pre></div></div>
+
+<p>Lesson 30 had an invisible character, code 0, where a symbol used to be. Postgres will not store that in text at all.</p>
+
+<p>The useful part was what the database looked like after the crash:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`select course, count(*) from lesson group by course;\n#    -> brazilian-portuguese-fast | 30`}</pre></div></div>
+
+<p>FSI fully loaded. Conversa Brasileira, zero. Not 29 lessons and half of the 30th. The whole load runs in one transaction, so when it failed partway, Postgres rolled back every row of it. I designed it that way in the last post. This was the first time it actually had to work.</p>
+
+<p>The fix was small. No line of dialog ever needs a control character, so the parser drops them:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">python</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# Lesson 30 has a NUL byte where a symbol was. Postgres refuses NUL in\n# text, and no control character belongs in dialog, so drop them all.\ntext = CONTROL.sub("", text)`}</pre></div></div>
+
+<p>Then I reran every check, not just the one that failed, and lesson 30 was wrong in a new way:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">text</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`Alexandre | Pô, pessoal! Eu fiz o único gol da partida, carrego o time nas costas...\n          = Tava ali no meio do campo tentando fazer alguma jogada... Hey, guys! I scored...`}</pre></div></div>
+
+<p>Portuguese inside the translation. That NUL byte had been sitting at the end of a line and gluing the next Portuguese line onto it. With it gone, <code>Tava ali no meio do campo tentando</code> stood on its own line, after a sentence that ended in <code>...</code>. It has only one Portuguese word I was counting, so the tie went to English.</p>
+
+<p>That bug was there the whole time. A different bug was covering it up. The fix was the rule in the <code>if</code> above: a line with some Portuguese clues and no English clues at all stays Portuguese, even after a finished sentence. That is also when the English spelling clues went in, so English lines can never slip through on zero.</p>
+
+<div class="pp-note"><strong>worth knowing:</strong> fixing one bug can uncover another. Rerun everything after every fix, not just the check that failed.</div>
+
+<h2 class="pp-h2" id="held">What held</h2>
+
+<p>Most of the first design took the second source without changes:</p>
+
+<ul>
+  <li><strong>Discover's <code>parse</code> and <code>follow</code> contract.</strong> The new course is one new file. The crawl, the delay, the cache did not change.</li>
+  <li><strong>Fetch.</strong> Not one line. It downloaded 35 PDFs into <code>data/raw/conversa-brasileira/pdf/</code> because it was already built around course and kind, not around FSI.</li>
+  <li><strong>The <code>Resource</code> record and the <code>resource</code> table.</strong> A COERLL PDF is a file with a URL like any other.</li>
+  <li><strong>Upserts and the one transaction load.</strong> Loading twice still changes nothing. A failed load still saves nothing.</li>
+  <li><strong>One <code>DATABASE_URL</code>.</strong> Nothing about where the database lives changed.</li>
+  <li><strong>The export staying the same every run.</strong> The diff still only shows real changes.</li>
+</ul>
+
+<h2 class="pp-h2" id="changed">What I had to change</h2>
+
+<p>This is the honest part. Each of these was something I built for FSI without realizing it.</p>
+
+<h3 class="pp-h3">The text parser was never shared</h3>
+
+<p>Discover has one contract every source fills in. The text parser never did. <code>parse_fast.py</code> was written for FSI's OCR books, top to bottom. Conversa Brasileira needed its own parser from scratch. The only thing the two share is what they hand back: lessons, and lines of dialog. The command line now picks a parser by course:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">python</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# course -> function that turns that course's PDFs into lessons\nTEXT_PARSERS = {\n    "brazilian-portuguese-fast": parse_fast.parse_books,\n    "conversa-brasileira": parse_cob.parse_books,\n}`}</pre></div></div>
+
+<p>I am fine with that. FSI and COERLL PDFs have nothing in common past the file extension. A shared parser would have been one function full of <code>if this course</code> checks. Sharing the output and keeping the parsers separate is the right split. But it means the claim "add a source by adding one file" is only true for discover. The full truth is one file for discover, one parser, and a set of tests.</p>
+
+<h3 class="pp-h3">Translations</h3>
+
+<p>FSI has none. COERLL has one for every line. Zero or one per line is a column, not a separate table:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">sql</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`CREATE TABLE IF NOT EXISTS dialog_line (\n    id          bigint  GENERATED ALWAYS AS IDENTITY PRIMARY KEY,\n    lesson_id   bigint  NOT NULL REFERENCES lesson(id) ON DELETE CASCADE,\n    seq         integer NOT NULL,\n    speaker     text,\n    text        text    NOT NULL,\n    translation text,             -- English, when the source gives one\n    page        integer NOT NULL,\n    UNIQUE (lesson_id, seq)\n);`}</pre></div></div>
+
+<p>If I ever add a second translation for the same line, Spanish say, that is when it becomes its own table. Moving a column into a table later is a small, well known change. Building the table now would cost a join on every query for a case that does not exist yet.</p>
+
+<h3 class="pp-h3">License and credit</h3>
+
+<p>FSI is public domain, so I never needed to say where the text came from. COERLL is CC BY. The license belongs to the course, not to each lesson, and one course has many lessons. That makes it a table:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">sql</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`CREATE TABLE IF NOT EXISTS course (\n    slug     text PRIMARY KEY,\n    title    text NOT NULL,\n    provider text NOT NULL,\n    url      text NOT NULL,\n    license  text NOT NULL,\n    credit   text NOT NULL\n);`}</pre></div></div>
+
+<p><code>lesson.course</code> now has to point at a row in that table. The credit line itself lives in the code, next to the scraper for that source, so the facts about a course are in one place:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">python</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`class CoerllCobParser(CourseParser):\n    source = "coerll"\n    provider = "coerll"\n    course = "conversa-brasileira"\n    title = "Conversa Brasileira"\n    license = "CC BY"\n    credit = ("Conversa Brasileira, COERLL, The University of Texas at Austin "\n              "(CC BY)")`}</pre></div></div>
+
+<p>Load writes the course row first, because lessons point at it. Export writes every course with its credit. And the <a href="/brasil/demo">demo page</a>, which shows one random lesson from the sample, shows the credit for that lesson's own course. If a COERLL scene comes up, the COERLL credit comes with it. That is the license being handled by the code instead of by me remembering.</p>
+
+<h3 class="pp-h3">The schema file could not change the tables</h3>
+
+<p><code>CREATE TABLE IF NOT EXISTS</code> creates a table that is missing. It never changes a table that is already there. So rerunning the schema file did not add the new column or the new rule to my existing tables.</p>
+
+<p>Locally that was easy, and it is exactly why my local Postgres has no volume. Throw the database away and build it from the file:</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`docker compose down && docker compose up -d && sleep 3\ndocker compose exec -T db psql -U postgres -d corpus < db/schema.sql`}</pre></div></div>
+
+<p>On the cluster the data has to survive, so that does not work there. The cluster will need migrations: small numbered scripts that each change the database one step, applied in order, and recorded so none runs twice. That is block 8's problem, and now I know it is coming.</p>
+
+<h2 class="pp-h2" id="numbers">Where it landed</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`pytest -q\n#    -> 23 passed in 0.03s\n\nfsi-scraper load --course brazilian-portuguese-fast --cache .cache\n#    -> brazilian-portuguese-fast: loaded 36 resources, 30 lessons, 351 dialog lines\nfsi-scraper load --course conversa-brasileira --cache .cache\n#    -> conversa-brasileira: loaded 35 resources, 35 lessons, 1790 dialog lines\n\nselect course, count(*) from lesson group by course;\n#    -> conversa-brasileira       | 35\n#    -> brazilian-portuguese-fast | 30\n\nfsi-scraper export --out corpus-sample.json\n#    -> 6 sample lessons from 2 courses (of 65 lessons, 2141 lines, 71 files)`}</pre></div></div>
+
+<p>30 plus 35 is 65. 351 plus 1,790 is 2,141. The database agrees with the arithmetic, which is how I know nothing got lost or doubled on the way in.</p>
+
+<p>The 12 new tests are all real lines from these PDFs: Denise's wrapped <code>né?</code>, <code>Or pão de queijo</code>, Alexandre's second sentence, <code>às 5 horas</code>, the <code>Tava ali</code> line, <code>Guaraná!</code> printed twice, Orlando's commentary, and the misspelled <code>DESINE</code>. Each one broke a version of the parser once.</p>
+
+<h2 class="pp-h2" id="notdone">What is not done</h2>
+
+<ul>
+  <li><strong>Tá Falado</strong>, the third source. It is shaped like FSI, so it should mostly need its own parser and tests.</li>
+  <li><strong>The notes pages.</strong> Every scene has pages of grammar and culture notes. I skip them for now. They are probably the best study material in the whole PDF.</li>
+  <li><strong>A few stray note numbers</strong> where the note is worded differently from the dialog.</li>
+  <li><strong>Tests for load and export against a real database.</strong> Right now they are proven by running them twice and counting, which is real evidence but not an automated test.</li>
+  <li><strong>The cluster.</strong> A CronJob, a volume for the files, CloudNativePG, and migrations instead of a rebuild.</li>
+</ul>
+
+<h2 class="pp-h2" id="checklist">Final checklist: adding a source</h2>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">bash</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`# 1. Rules and the right address\ncurl -s https://<site>/robots.txt\ncurl -sI https://<site>/<course>/ | head -1\n#    -> 200, not 403. Try the project's other address before anything else.\n\n# 2. Map the site from one saved page\ncurl -s https://<site>/<course>/ -o .cache/index.html\ngrep -o 'href=["'"'"'][^"'"'"']*' .cache/index.html | sort -u\n\n# 3. Discover. The count of files should match the count of units.\nfsi-scraper discover --course <course> --cache .cache\n\n# 4. Before writing a parser, look for facts in the file: fonts, colors, position\n# 5. Parse, then let the data point at problems (length check)\nfsi-scraper parse --course <course> > /dev/null\n\n# 6. Tests from real lines that broke something\npytest -q\n\n# 7. Load into a fresh database, then count by course\nfsi-scraper load --course <course> --cache .cache`}</pre></div></div>
+
+<p>Next is block 8. Everything here moves onto the cluster, and the schema file stops being enough.</p>
