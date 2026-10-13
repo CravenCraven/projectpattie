@@ -3,9 +3,9 @@
   "repo": "https://github.com/CravenCraven/homelab-kubecraft",
   "hero": {
     "kicker": "~/homelab-kubecraft",
-    "title": "Three laptops running a GitOps k3s cluster.",
-    "titleAccent": "Everything in git.",
-    "blurb": "A three-node k3s homelab built in public. Every change ships from git through Flux, apps reach the internet through a Cloudflare Tunnel with no open router ports, and Prometheus watches every node. Below: how it's wired, what broke along the way, the decisions I made and why, and what's next."
+    "title": "A production-shaped cluster,",
+    "titleAccent": "run by one person who is still learning it.",
+    "blurb": "I'm a sysadmin moving into DevOps, and this homelab is where the KubeCraft course meets real hardware. Three nodes, two CPU architectures, GitOps with Flux, secrets encrypted in the repo, and a public app behind a Cloudflare Tunnel. Everything below links to the commit or the post that proves it, including the parts that went wrong."
   },
   "badges": [
     { "k": "k3s", "v": "v1.36.2", "t": 1 },
