@@ -1,0 +1,441 @@
+---
+title: "Exercise - Ingress with Traefik"
+description: "The exercise said not to write the Ingress myself. Make the Helm chart do it. I spent the first half convinced I was just typing commands for no reason, and the second half fighting the space bar."
+tags: ["kubernetes", "helm", "traefik", "ingress", "grafana", "tls", "sops", "flux", "homelab-kubecraft"]
+date: 2026-10-12
+category: devops
+homelab: kubecraft
+readTime: 10
+draft: false
+---
+
+<div class="pp-meta">2026-10-12 · devops · 10 min read</div>
+
+<h1 class="pp-title">Exercise<br/><em>Ingress with Traefik</em></h1>
+
+<p class="pp-subtitle">The exercise said not to write the Ingress myself. Make the Helm chart do it. I spent the first half convinced I was just typing commands for no reason, and the second half fighting the space bar.</p>
+
+## The hook
+
+I had just gotten Linkding onto a real hostname with an Ingress I typed out
+myself, and I was feeling good about it. I understood every line in that file.
+So of course the very next exercise said: now do it for Grafana, and you are
+not allowed to write the file.
+
+Here is the exercise, word for word from the KubeCraft course:
+
+> Use the kube-prometheus-stack helm chart to create an ingress on the cluster.
+> The goal is to be able to enter something like grafana.mydomain.com into the
+> browser and access Grafana that way. Do not create an ingress yaml file
+> yourself, but try to utilize `helm show values` to configure it yourself
+> using the chart. Bonus points: create a self signed TLS certificate and serve
+> that on the ingress.
+
+I read that three times. I knew how to write an Ingress. I did not know how to
+get something else to write one for me.
+
+## What I built and why
+
+Grafana at its own hostname, going through Traefik, with an Ingress I never
+wrote. Three lines in my Helm values and the chart built it. Then I did the
+bonus, so it answers on HTTPS with a certificate I made myself.
+
+The part I had to get straight in my head first: I installed Grafana with a
+Helm chart, and a chart is somebody else's work. I cannot open it up and add
+an Ingress to it. What I can do is tell it what I want, and the chart decides
+how to build that. Those instructions are called values. The chart already
+knew how to make an Ingress the whole time. It was just turned off.
+
+So the exercise is really two questions. What is the setting called? And
+where do I put it?
+
+## Before you start
+
+- A k3s cluster. Traefik comes with it.
+- kube-prometheus-stack already installed with Flux
+- SOPS and age already set up, if you want to do the bonus
+- A domain you control the DNS for. I am using `grafana.example.com` here.
+- The IP of one of your nodes. I am using `192.168.1.50` here.
+
+I ran everything from my laptop, inside my homelab repo. Nothing gets applied
+to the cluster by hand. It goes to GitHub and Flux picks it up.
+
+## How I did it
+
+**See which version of the chart I have.**
+
+```bash
+flux get helmreleases -A
+```
+
+This shows every Helm install Flux is looking after. Mine said `92.0.0`. I
+wanted the settings for the exact version I run, not whatever is newest.
+
+**Get the list of every setting the chart has.**
+
+```bash
+helm show values prometheus-community/kube-prometheus-stack --version 92.0.0 > /tmp/kps-values.yaml
+```
+
+`helm show values` prints all of them with their defaults. The `>` sends it
+into a file, because it is more than six thousand lines and I was not about
+to scroll that.
+
+**Search it.**
+
+```bash
+grep -n "ingress:" /tmp/kps-values.yaml
+```
+
+`grep -n` finds every line with that word and gives me the line number. I
+expected one result. I got six: 640, 1511, 3828, 3832, 4164 and 5556.
+
+**Figure out which of the six is Grafana.**
+
+This chart does not only install Grafana. It installs Prometheus,
+Alertmanager and a few others, and each one has its own ingress setting. So I
+needed to know which section each line lives in.
+
+```bash
+grep -n "^[a-zA-Z]" /tmp/kps-values.yaml
+```
+
+The `^` means the start of the line, so this only shows the main headings.
+`grafana:` starts on line 1396. The next heading starts on 1732. Only one of
+my six numbers is in between: 1511. That one is Grafana's.
+
+**Read just that part.**
+
+```bash
+sed -n '1511,1560p' /tmp/kps-values.yaml
+```
+
+This prints lines 1511 to 1560 and nothing else. Here is what matters from
+it:
+
+```yaml
+  ingress:
+    ## If true, Grafana Ingress will be created
+    enabled: false
+
+    ## IngressClassName for Grafana Ingress.
+    ## Should be provided if Ingress is enable.
+    # ingressClassName: nginx
+
+    ## Hostnames.
+    ## Must be provided if Ingress is enable.
+    # hosts:
+    #   - grafana.domain.com
+    hosts: []
+
+    path: /
+
+    ## TLS configuration for grafana Ingress
+    ## Secret must be manually created in the namespace
+    tls: []
+    # - secretName: grafana-general-tls
+    #   hosts:
+    #   - grafana.example.com
+```
+
+Anything with a `#` in front is a comment. It is an example, not a real
+setting. Out of all that I needed three things: `enabled`, `ingressClassName`
+and `hosts`.
+
+**Find my ingress class name.**
+
+Their example says `nginx`. I am not running nginx.
+
+```bash
+kubectl get ingressclass
+```
+
+```
+NAME                CONTROLLER                      PARAMETERS   AGE
+traefik (default)   traefik.io/ingress-controller   <none>       87d
+```
+
+So it is `traefik`. The `(default)` part is not part of the name.
+
+**Add the settings to my HelmRelease.**
+
+I already had a `grafana:` section in my values from when I set up the admin
+password. The ingress settings go inside that same section, lined up with
+`admin:`.
+
+```yaml
+  values:
+    grafana:
+       admin:
+         existingSecret: grafana-admin
+       ingress:
+         enabled: true
+         ingressClassName: traefik
+         hosts:
+           - grafana.example.com
+```
+
+That is how it ended up. It is not how it started. More on that below.
+
+**Check it before I commit it.**
+
+```bash
+kubectl kustomize infrastructure/monitoring/controllers/staging
+kubectl apply --dry-run=server -f infrastructure/monitoring/controllers/base/kube-prometheus-stack/release.yaml
+git diff
+```
+
+The first one builds everything the way Flux will, so bad spacing fails here
+instead of in the cluster. The second asks the cluster "would you take this?"
+without actually saving it. The third shows me exactly what I changed. Five
+new lines, one file.
+
+**Commit, push, and tell Flux to go get it.**
+
+```bash
+git add infrastructure/monitoring/controllers/base/kube-prometheus-stack/release.yaml
+git commit -m "Enable Grafana ingress via kube-prometheus-stack chart values"
+git push
+flux reconcile source git flux-system-kubecraft -n flux-system
+```
+
+The last line makes Flux check GitHub now, so I am not sitting there waiting
+on its timer.
+
+**Add the DNS record.**
+
+In Cloudflare I added an `A` record named `grafana` pointing at
+`192.168.1.50`, set to **DNS only**. That is a home network address, so this
+only works from inside my house. Which is what I want for Grafana.
+
+### The bonus: self-signed TLS
+
+At this point the browser had a "Not Secure" label next to my Grafana
+address, because it was plain HTTP. The bonus fixes that.
+
+**Make a certificate and a key.**
+
+```bash
+openssl req -x509 -newkey rsa:2048 -nodes -days 365 -keyout /tmp/grafana-tls.key -out /tmp/grafana-tls.crt -subj "/CN=grafana.example.com" -addext "subjectAltName=DNS:grafana.example.com"
+```
+
+It prints a screen full of dots and plus signs and then gives you two files.
+The `.crt` is the certificate, and that one is public. The `.key` is the
+private key, and that one is a secret. `-nodes` means no password on the key,
+since Traefik has to read it by itself. I saved both to `/tmp` and not my
+repo, because I did not want a private key sitting one `git add .` away from
+GitHub.
+
+**Put them in a Secret and encrypt it right away.**
+
+```bash
+kubectl create secret tls grafana-tls -n monitoring --cert=/tmp/grafana-tls.crt --key=/tmp/grafana-tls.key --dry-run=client -o yaml > infrastructure/monitoring/controllers/staging/kube-prometheus-stack/tls-secret.yaml
+sops --encrypt --in-place infrastructure/monitoring/controllers/staging/kube-prometheus-stack/tls-secret.yaml
+```
+
+The first command has kubectl write the Secret file for me instead of sending
+it to the cluster. The second encrypts that file where it sits. It prints
+nothing when it works, which I am still getting used to.
+
+**Add the new file to the kustomization.**
+
+Flux only applies the files that are listed. If the file is in the folder but
+not on the list, nothing happens.
+
+```yaml
+resources:
+  - ../../base/kube-prometheus-stack/
+  - secret.yaml
+  - tls-secret.yaml
+```
+
+**Tell the Ingress to use it.**
+
+```yaml
+       ingress:
+         enabled: true
+         ingressClassName: traefik
+         hosts:
+           - grafana.example.com
+         tls:
+           - secretName: grafana-tls
+             hosts:
+               - grafana.example.com
+```
+
+Then the same checks as before, commit all three files, push, reconcile.
+
+## What broke and how I fixed it
+
+Nothing blew up. I just kept tripping over small things, one after another.
+
+**My laptop said the chart version did not exist.**
+
+```
+Error: chart "kube-prometheus-stack" matching 92.0.0 not found in prometheus-community index. (try 'helm repo update')
+```
+
+I was looking right at it running in my cluster. Turns out my laptop keeps
+its own list of chart versions, and mine was old. The error message tells you
+the fix, which I appreciated:
+
+```bash
+helm repo update
+```
+
+**Then my search came back empty.** I had gone ahead and run the `grep`
+anyway, and it printed nothing at all. The command before it had failed, so
+the file was empty. I was searching a blank file.
+
+**I had no idea why I was running any of this.** I am putting this one in
+because it was the biggest problem of the whole exercise and it was not a
+technical one. A few commands in, I stopped and said it out loud: where are
+we in the exercise? It feels like I am just doing stuff. I was running
+`grep`, then another `grep`, then `sed`, and none of it looked like making an
+Ingress.
+
+What I was missing is that the first half of this exercise is all looking.
+You cannot turn on a setting until you know what it is called and where it
+lives. Once I saw it as three parts (find the setting, set it, test it) I
+knew where I was. I needed that map before the first command, not after the
+fifth.
+
+**I put `ingress:` in the wrong spot.** My first try, I typed it above
+`admin:`, and one space too far left. I honestly was not sure, so I stopped
+and asked if it was in the right place. It was not. In YAML the spacing is
+what says what belongs to what, and the way I had it, my password setting
+would have ended up inside the ingress section. I deleted it and put it below
+the password line, in the same column as `admin:`.
+
+**I did not know the name for `ingressClassName`.** I just looked at it. The
+answer had been on my screen a few minutes earlier, in the NAME column of
+`kubectl get ingressclass`. I had run the command and not connected it to the
+blank I was trying to fill.
+
+**I typed `enabled: false`.** This is my favorite one. I got the spacing
+right, the class right, the hostname right, and I left the whole thing turned
+off. I had copied the default from the chart. It would not even have given me
+an error. The chart would have read my settings, built nothing, and left me
+wondering. I changed it to `true` before I committed.
+
+**I forgot the `tls:` line.** On the bonus I typed `- secretName:` straight
+under `hosts:`. That makes the secret look like another hostname. It needed
+its own `tls:` line above it, lined up with `hosts:`.
+
+**The browser gave me a big red warning.** I opened the HTTPS address, got
+"Your connection is not private", and thought something was not right. It was
+doing exactly what it should. I made the certificate myself, so the browser
+has no reason to trust it. Click Advanced, then Proceed, and Grafana loads.
+
+## How I checked it worked
+
+**Did Flux apply it?**
+
+```bash
+flux get helmreleases -n monitoring
+```
+
+```
+kube-prometheus-stack   92.0.0   False   True   Helm upgrade succeeded for release monitoring/kube-prometheus-stack.v2
+```
+
+It went from `v1` to `v2`, which is the chart running again with my new
+settings.
+
+**Is there an Ingress?**
+
+```bash
+kubectl get ingress -n monitoring
+```
+
+```
+NAME                            CLASS     HOSTS                 PORTS   AGE
+kube-prometheus-stack-grafana   traefik   grafana.example.com   80      38s
+```
+
+There it is. I did not write a file for that. That was the whole point of the
+exercise and it was a good moment.
+
+**Does the name go anywhere?**
+
+```bash
+nslookup grafana.example.com
+```
+
+It came back with my node's IP.
+
+**Does Grafana answer?**
+
+```bash
+curl -I http://grafana.example.com
+```
+
+```
+HTTP/1.1 302 Found
+Location: /login
+```
+
+The 302 is Grafana sending me to the login page. So the request got all the
+way there. Then I opened it in the browser and logged in.
+
+**After the bonus, same checks on HTTPS.**
+
+```bash
+kubectl get ingress -n monitoring
+curl -kI https://grafana.example.com
+```
+
+PORTS changed from `80` to `80, 443`, and curl gave me `HTTP/2 302` and the
+same login redirect. The `-k` tells curl to accept my self-signed
+certificate.
+
+**Is the secret really encrypted?**
+
+```bash
+grep -c "ENC\[" infrastructure/monitoring/controllers/staging/kube-prometheus-stack/tls-secret.yaml
+```
+
+It printed `3`. The certificate, the key, and a line SOPS adds at the bottom
+so it can tell if the file was changed. If it prints `0`, do not commit that
+file.
+
+## What I learned
+
+**I do not edit a chart. I give it values.** If I want a chart to do
+something, I look it up with `helm show values`, find the setting, and set it
+in my own file. I do not guess the name, because a wrong name does not fail.
+It just gets ignored.
+
+**Find it, set it, test it.** The first half of a task like this is reading,
+and it does not feel like work. Now I know to expect that, and to ask where I
+am in the task when I lose the thread instead of pushing through.
+
+**In YAML, where a line sits is what it means.** Three of my mistakes were a
+line in the wrong column or under the wrong heading. Things that belong
+together line up. Things that belong to something sit further in.
+
+**A secret gets encrypted before it goes anywhere near Git.** The key never
+sat in my repo unencrypted for longer than it took to type the next command.
+It is the same thing I did for my Grafana password, so the bonus felt like
+something I already knew how to do.
+
+## What I would do next
+
+- **Get a real certificate.** Self-signed works, but I do not want to get
+  comfortable clicking past browser warnings. cert-manager and Let's Encrypt
+  are the next step.
+- **Move the hostname out of base.** The hostname is specific to this
+  cluster, so it should not live in the base HelmRelease.
+- **Delete the plain key from `/tmp`** now that the encrypted one is working.
+- **Check which certificate is being served.** Traefik has its own default
+  one it falls back to, and `curl -k` accepts anything.
+  `curl -kv https://grafana.example.com 2>&1 | grep -i "subject:"` shows the
+  name on it.
+- **Put the rest of my apps behind Traefik** the same way.
+
+## Links
+
+- Manifests and runbooks: my homelab repo on GitHub
+- Course module: KubeCraft, Exercise - Ingress with Traefik
+- [kube-prometheus-stack chart](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack)
+- [Traefik and Kubernetes Ingress](https://doc.traefik.io/traefik/providers/kubernetes-ingress/)
