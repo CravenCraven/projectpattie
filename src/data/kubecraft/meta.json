@@ -1,0 +1,34 @@
+{
+  "updated": "2026-10-13",
+  "repo": "https://github.com/CravenCraven/homelab-kubecraft",
+  "hero": {
+    "kicker": "~/homelab-kubecraft",
+    "title": "Three laptops running a GitOps k3s cluster.",
+    "titleAccent": "Everything in git.",
+    "blurb": "A three-node k3s homelab built in public. Every change ships from git through Flux, apps reach the internet through a Cloudflare Tunnel with no open router ports, and Prometheus watches every node. Below: how it's wired, what broke along the way, the decisions I made and why, and what's next."
+  },
+  "badges": [
+    { "k": "k3s", "v": "v1.36.2", "t": 1 },
+    { "k": "nodes", "v": "3", "t": 3 },
+    { "k": "arch", "v": "amd64 + arm64", "t": 5 },
+    { "k": "ram", "v": "64 GB", "t": 2 },
+    { "k": "apps", "v": "6", "t": 6 },
+    { "k": "open ports", "v": "0", "t": 4 },
+    { "k": "flux", "v": "synced", "t": 2 }
+  ],
+  "photo": "",
+  "screenshots": [],
+  "buildLogSlugs": [
+    "kubecraft-capstone-audiobookshelf",
+    "letting-linkding-out-of-the-house"
+  ],
+  "contact": {
+    "name": "Craven Craven",
+    "role": "DevOps / SRE",
+    "headline": "Open to DevOps and SRE roles.",
+    "line": "Happy to walk through the cluster live and show you how a change gets from git to running.",
+    "linkedin": "https://www.linkedin.com/in/craven-craven-43b813a8",
+    "github": "https://github.com/CravenCraven",
+    "email": "mailto:nicolecraven@gmail.com"
+  }
+}

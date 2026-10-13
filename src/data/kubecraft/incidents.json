@@ -1,0 +1,47 @@
+[
+  {
+    "title": "Linkding stuck Pending for seven hours",
+    "impact": "Old pod stuck Terminating, replacement stuck Pending, one node NotReady.",
+    "cause": "A worker laptop went to sleep. The local-path volume is pinned to that node, so nothing else could take the pod.",
+    "fix": "Woke the laptop. Kubernetes recovered on its own.",
+    "lesson": "Disable sleep on every node, and read the scheduler's per-node reasons before guessing.",
+    "post": "letting-linkding-out-of-the-house",
+    "t": 3
+  },
+  {
+    "title": "The PVC that never showed up",
+    "impact": "No storage created even though Flux had the commit.",
+    "cause": "Switching to Recreate clashed with rollingUpdate fields Kubernetes had filled in by default. Flux's dry-run rejected the whole kustomization.",
+    "fix": "Deleted the Deployment and let Flux rebuild it clean.",
+    "lesson": "Check flux get kustomizations first. Set Recreate in the first commit, not later.",
+    "post": "adding-persistent-storage-to-linkding",
+    "t": 1
+  },
+  {
+    "title": "TLS handshake failure on a public hostname",
+    "impact": "ERR_SSL_VERSION_OR_CIPHER_MISMATCH in the browser.",
+    "cause": "Cloudflare Universal SSL only covers one subdomain level. links.lab.example.com was one level too deep.",
+    "fix": "Flattened the hostname to links.example.com.",
+    "lesson": "A TLS error can come from the name, not the setup.",
+    "post": "letting-linkding-out-of-the-house",
+    "t": 2
+  },
+  {
+    "title": "Flux bootstrap refused",
+    "impact": "Lost an afternoon before the cluster had GitOps at all.",
+    "cause": "The fine-grained GitHub token had no Administration permission, which repo creation needs.",
+    "fix": "Used a classic token with the full repo scope.",
+    "lesson": "Check token scopes, then GITHUB_TOKEN, then the repo name, in that order.",
+    "post": "setting-up-gitops-with-flux",
+    "t": 5
+  },
+  {
+    "title": "Capstone deploy broken by one stray letter",
+    "impact": "Flux apply failed on the first line of a manifest.",
+    "cause": "An extra vim i turned apiVersion into iapiVersion.",
+    "fix": "Deleted the character, reconciled with --with-source.",
+    "lesson": "Run head -1 on anything you pasted.",
+    "post": "kubecraft-capstone-audiobookshelf",
+    "t": 4
+  }
+]

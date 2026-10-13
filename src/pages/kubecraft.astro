@@ -1,168 +1,388 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import PostCard from '../components/PostCard.astro';
 import { getCollection } from 'astro:content';
+import meta from '../data/kubecraft/meta.json';
+import hardware from '../data/kubecraft/hardware.json';
+import stack from '../data/kubecraft/stack.json';
+import decisions from '../data/kubecraft/decisions.json';
+import incidents from '../data/kubecraft/incidents.json';
+import roadmap from '../data/kubecraft/roadmap.json';
 
-const slugify = (s: string) =>
-  s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+// Build logs: every kubecraft post, plus any listed by slug in meta.json.
+const all = await getCollection('blog', ({ data }) => !data.draft);
+const bySlug = new Map(all.map(p => [p.slug, p]));
+const posts = all
+  .filter(p => p.data.homelab === 'kubecraft' || meta.buildLogSlugs.includes(p.slug))
+  .sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
+const postUrl = (slug?: string) => (slug && bySlug.has(slug) ? `/blog/${slug}` : null);
+const fmt = (d: Date) => d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 
-const posts = await getCollection('blog', ({ data }) =>
-  data.homelab === 'kubecraft' && !data.draft
-);
+// Roadmap counts.
+const items = roadmap.flatMap(g => g.items);
+const done = items.filter(i => i.status === 'done').length;
+const doing = items.filter(i => i.status === 'doing').length;
+const pct = Math.round((done / items.length) * 100);
+const pctDoing = Math.round((doing / items.length) * 100);
 
-// Same grouping as the category pages: series get a card, the rest are standalone.
-type Post = (typeof posts)[number];
-const seriesGroups = new Map<string, Post[]>();
-const standalone: Post[] = [];
-
-for (const post of posts) {
-  const s = post.data.series;
-  if (s) {
-    if (!seriesGroups.has(s)) seriesGroups.set(s, []);
-    seriesGroups.get(s)!.push(post);
-  } else {
-    standalone.push(post);
-  }
-}
-
-for (const list of seriesGroups.values()) {
-  list.sort((a, b) => (a.data.seriesOrder ?? 0) - (b.data.seriesOrder ?? 0));
-}
-
-standalone.sort((a, b) => b.data.date.valueOf() - a.data.date.valueOf());
-
-const seriesEntries = Array.from(seriesGroups.entries())
-  .map(([name, list]) => ({
-    name,
-    list,
-    newestDate: Math.max(...list.map(p => p.data.date.valueOf())),
-  }))
-  .sort((a, b) => b.newestDate - a.newestDate);
-
-const totalPostCount = posts.length;
+const badges = meta.badges.filter(b => b.v && b.v.trim() !== '');
+const label = { done: 'DONE', doing: 'NOW', next: 'NEXT' } as const;
+type Status = keyof typeof label;
 ---
 
 <BaseLayout
   title="kubecraft homelab — projectpattie;"
-  description="Kubernetes built from scratch, one YAML file at a time, with the bugs left in."
+  description="A three-node k3s homelab built in public: GitOps with Flux, Cloudflare Tunnel, Prometheus, and a roadmap with proof."
 >
-  <div style="max-width:900px; margin:0 auto; padding:60px 24px 100px;">
-    <div style="font-size:12px; color:var(--dimmer); margin-bottom:12px;">// homelab</div>
-    <h1 style="font-size:28px; margin-bottom:14px;">kubecraft homelab</h1>
-    <p class="kc-blurb">The kubecraft homelab is Kubernetes built from scratch, one YAML file at a time, with the bugs left in. What I ran, what melted my brain, and what broke in spectacular fashion.</p>
+  <div class="kc">
 
-    {totalPostCount === 0 ? (
-      <div style="border:1px solid var(--bd); border-radius:6px; padding:32px; text-align:center; color:var(--dimmer); font-size:13px;">
-        coming soon — check back shortly.
-      </div>
-    ) : (
-      <div style="display:flex; flex-direction:column; gap:36px;">
-
-        {seriesEntries.map(({ name, list }) => (
-          <a href={`/series/${slugify(name)}`} class="cat-series-card">
-            <div class="cat-section-label">// <span>series</span> {name} <span class="cat-section-count">{list.length} parts</span></div>
-            <div class="cat-series-titles">
-              {list.slice(0, 3).map(post => (
-                <div class="cat-series-line">
-                  <span class="cat-series-order">{String(post.data.seriesOrder ?? 0).padStart(2, '0')}</span>
-                  {post.data.title}
-                </div>
-              ))}
-              {list.length > 3 && <div class="cat-series-line cat-series-more">+ {list.length - 3} more</div>}
-            </div>
-            <div class="cat-series-cta">open the series →</div>
-          </a>
-        ))}
-
-        {standalone.length > 0 && (
-          <section>
-            {seriesEntries.length > 0 && (
-              <div class="cat-section-label">// <span>standalone</span> posts</div>
-            )}
-            <div class="cat-cards">
-              {standalone.map(post => (
-                <PostCard
-                  title={post.data.title}
-                  description={post.data.description}
-                  slug={post.slug}
-                  date={post.data.date}
-                  category={post.data.category}
-                  readTime={post.data.readTime}
-                />
-              ))}
-            </div>
-          </section>
+    <!-- hero -->
+    <header class="hero">
+      <div class="hero-text">
+        <div class="kicker">{meta.hero.kicker}</div>
+        <h1>{meta.hero.title} <span class="accent">{meta.hero.titleAccent}</span></h1>
+        <p class="blurb">{meta.hero.blurb}</p>
+        {badges.length > 0 && (
+          <div class="badges">
+            {badges.map(b => (
+              <span class="badge"><span class="bk">{b.k}</span><span class={`bv t${b.t}`}>{b.v}</span></span>
+            ))}
+          </div>
         )}
+        <div class="ctas">
+          <a class="btn primary" href={meta.repo} target="_blank" rel="noopener">View the repo</a>
+          <a class="btn" href="#logs">Read the build logs</a>
+        </div>
       </div>
+      {meta.photo && <img class="hero-photo" src={meta.photo} alt="The three laptops that run the cluster" loading="lazy" />}
+    </header>
+
+    <!-- hardware -->
+    <section id="hardware">
+      <h2><span class="t1">#</span> Hardware</h2>
+      <div class="tbl-wrap">
+        <table class="tbl">
+          <thead><tr class="th t1bg"><th>Role</th><th>Node</th><th>Device</th><th>OS</th><th>Arch</th><th>RAM</th><th>Label</th></tr></thead>
+          <tbody>
+            {hardware.map(h => (
+              <tr>
+                <td>{h.role}</td><td class="mono-strong">{h.host}</td><td>{h.device}</td><td>{h.os}</td><td>{h.arch}</td><td>{h.ram}</td>
+                <td><span class={`tag t${h.t}bg`}>{h.label}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p class="note">Workloads pick nodes by label, not hostname, so I can swap hardware without touching manifests. Total spend on hardware: nothing. It was all in a drawer.</p>
+    </section>
+
+    <!-- stack + deploy diagram -->
+    <section class="two-col">
+      <div class="col-wide">
+        <h2><span class="t2">#</span> Stack</h2>
+        <div class="tbl-wrap">
+          <table class="tbl">
+            <thead><tr class="th t2bg"><th>Layer</th><th>Tool</th><th>Job</th><th>Since</th><th>Status</th></tr></thead>
+            <tbody>
+              {stack.map(s => (
+                <tr class={s.status === 'next' ? 'dim-row' : ''}>
+                  <td class="dim">{s.layer}</td><td class="mono-strong">{s.tool}</td><td class="dim">{s.job}</td>
+                  <td class="dim nowrap">{s.since || '—'}</td>
+                  <td><span class={`chip ${s.status}`}>{label[s.status as Status]}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="col-narrow">
+        <h2><span class="t4">#</span> How it deploys</h2>
+        <div class="diagram">
+          <div class="box t1bg"><b>GitHub · homelab-kubecraft</b><small>source of truth · SOPS-encrypted secrets</small></div>
+          <div class="line t1"></div>
+          <div class="tiny">Flux pulls every 1 to 10 minutes</div>
+          <div class="line t3"></div>
+          <div class="box t3bg"><b>Flux</b><small>Kustomize + HelmRelease · decrypts with age</small></div>
+          <div class="line t2"></div>
+          <div class="cluster">
+            <div class="cl-label t2">K3S CLUSTER · 3 NODES</div>
+            <div class="grid3">
+              <div class="box dark"><b>control plane</b><small>amd64 · light</small></div>
+              <div class="box dark"><b>worker</b><small>amd64 · heavy</small></div>
+              <div class="box dark"><b>worker</b><small>arm64 · compute</small></div>
+            </div>
+            <div class="grid2">
+              <div class="box t5bg"><b>apps</b><small>linkding · audiobookshelf · mealie · ntfy · homepage · littlelink</small></div>
+              <div class="box t4bg"><b>monitoring</b><small>kube-prometheus-stack · Grafana</small></div>
+            </div>
+          </div>
+          <div class="line t5"></div>
+          <div class="box t5bg"><b>cloudflared</b><small>outbound tunnel · no open ports</small></div>
+          <div class="line t5"></div>
+          <div class="box dark"><b>Internet</b><small>you, through Cloudflare</small></div>
+        </div>
+        <p class="note">Nothing is applied by hand. Every box above is a folder in the repo.</p>
+      </div>
+    </section>
+
+    <!-- screenshots (hidden until there are some) -->
+    {meta.screenshots.length > 0 && (
+      <section id="screens">
+        <h2><span class="t5">#</span> Screenshots</h2>
+        <div class="shots">
+          {meta.screenshots.map((s: any) => (
+            <figure>
+              <img src={`/kubecraft/screenshots/${s.file}`} alt={s.title} loading="lazy" />
+              <figcaption><b>{s.title}</b> · <span class="dim">{s.note}</span></figcaption>
+            </figure>
+          ))}
+        </div>
+      </section>
     )}
+
+    <!-- incidents -->
+    {incidents.length > 0 && (
+      <section id="broke">
+        <h2><span class="t3">#</span> Things that broke</h2>
+        <div class="rows">
+          {incidents.map(i => (
+            <div class={`row t${i.t}bd`}>
+              <div class="row-title">{i.title}</div>
+              <div class="row-body">
+                <b>Impact:</b> {i.impact} <b>Cause:</b> {i.cause} <b>Fix:</b> {i.fix} <b>Lesson:</b> {i.lesson}
+              </div>
+              {postUrl(i.post) && <a class="row-link" href={postUrl(i.post)}>read the post →</a>}
+            </div>
+          ))}
+        </div>
+      </section>
+    )}
+
+    <!-- decisions -->
+    {decisions.length > 0 && (
+      <section id="decisions">
+        <h2><span class="t6">#</span> Decisions</h2>
+        <div class="tbl-wrap">
+          <table class="tbl adr">
+            <thead><tr class="th t6bg"><th>ID</th><th>Decision</th><th>Why</th><th>Tradeoff</th><th>Status</th></tr></thead>
+            <tbody>
+              {decisions.map(d => (
+                <tr>
+                  <td class="nowrap mono-strong">{d.id}</td>
+                  <td class="mono-strong">{d.decision}{postUrl(d.post) && <a class="src" href={postUrl(d.post)}>post →</a>}</td>
+                  <td class="dim">{d.why}</td>
+                  <td class="dim">{d.tradeoff}</td>
+                  <td><span class={`tag ${d.status === 'accepted' ? 't4bg' : 't1bg'}`}>{d.status}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    )}
+
+    <!-- roadmap -->
+    <section id="roadmap">
+      <div class="rm-head">
+        <h2><span class="t1">#</span> Roadmap <span class="dim small">· {done}/{items.length} done · {roadmap.length} goals · updated {meta.updated}</span></h2>
+        <div class="filters" role="group" aria-label="filter roadmap">
+          <button type="button" class="f on" data-f="all">all</button>
+          <button type="button" class="f" data-f="done">done</button>
+          <button type="button" class="f" data-f="doing">now</button>
+          <button type="button" class="f" data-f="next">next</button>
+        </div>
+      </div>
+      <div class="bar"><div class="bar-done" style={`width:${pct}%`}></div><div class="bar-doing" style={`width:${pctDoing}%`}></div></div>
+      <div class="goals">
+        {roadmap.map((g, gi) => (
+          <div class="goal" data-goal>
+            <div class={`goal-head t${g.t}bg`}><span>{String(gi + 1).padStart(2, '0')} · {g.goal}</span><span>{g.items.filter(i => i.status === 'done').length}/{g.items.length}</span></div>
+            <ul>
+              {g.items.map(i => (
+                <li data-s={i.status}>
+                  <span class={`chip ${i.status}`}>{label[i.status as Status]}</span>
+                  <span class={i.status === 'next' ? 'dim' : ''}>{i.name}</span>
+                  {postUrl(i.post) && <a class="src" href={postUrl(i.post)}>post →</a>}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- build logs + brasil -->
+    <section class="two-col" id="logs">
+      <div class="col-wide">
+        <h2><span class="t2">#</span> Build logs <span class="dim small">· {posts.length} posts</span></h2>
+        <div class="rows">
+          {posts.map(p => (
+            <a class="log" href={`/blog/${p.slug}`}>
+              <span class="log-cat">{p.data.category}</span>
+              <span class="log-title">{p.data.title}</span>
+              <span class="dim small nowrap">{fmt(p.data.date)}</span>
+            </a>
+          ))}
+        </div>
+      </div>
+      <a class="col-narrow brasil" href="/brasil/demo">
+        <span class="small-caps">also on this site</span>
+        <span class="brasil-title">Laboratório Brasil</span>
+        <span>My second homelab project: a self-hosted Brazilian Portuguese learning platform.</span>
+        <span class="brasil-cta">/brasil/demo →</span>
+      </a>
+    </section>
+
+    <!-- contact band -->
+    <section class="band">
+      <div>
+        <div class="small-caps">{meta.contact.name} · {meta.contact.role}</div>
+        <div class="band-title">{meta.contact.headline}</div>
+        <div>{meta.contact.line}</div>
+      </div>
+      <div class="ctas">
+        <a class="btn dark" href={meta.contact.linkedin} target="_blank" rel="noopener">LinkedIn</a>
+        <a class="btn outline-dark" href={meta.contact.github} target="_blank" rel="noopener">GitHub</a>
+        <a class="btn outline-dark" href={meta.contact.email}>Email</a>
+      </div>
+    </section>
+
   </div>
 </BaseLayout>
 
+<script>
+  // Roadmap filter. Works without JS: everything shows by default.
+  const buttons = document.querySelectorAll<HTMLButtonElement>('.filters .f');
+  const goals = document.querySelectorAll<HTMLElement>('[data-goal]');
+  buttons.forEach(b => b.addEventListener('click', () => {
+    const f = b.dataset.f;
+    buttons.forEach(x => x.classList.toggle('on', x === b));
+    goals.forEach(g => {
+      let visible = 0;
+      g.querySelectorAll<HTMLElement>('li').forEach(li => {
+        const show = f === 'all' || li.dataset.s === f;
+        li.hidden = !show; if (show) visible++;
+      });
+      g.hidden = visible === 0;
+    });
+  }));
+</script>
+
 <style>
-  .kc-blurb {
-    color: var(--dim);
-    font-size: 14px;
-    line-height: 1.8;
-    max-width: 680px;
-    margin: 0 0 40px;
-  }
-  .cat-section-label {
-    color: var(--a3);
-    font-size: 11px;
-    letter-spacing: .15em;
-    text-transform: uppercase;
-    margin: 0 0 16px;
-    font-family: 'Source Code Pro', monospace;
-  }
-  .cat-section-label span { color: var(--dimmer); }
-  .cat-section-count {
-    color: var(--dimmer);
-    margin-left: 8px;
-    font-size: 10px;
-    letter-spacing: .12em;
-  }
-  .cat-cards {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-  .cat-series-card {
-    display: block;
-    text-decoration: none;
-    border: 1px solid var(--bd);
-    border-left: 3px solid var(--a3);
-    border-radius: 6px;
-    background: var(--card);
-    padding: 18px 20px;
-    transition: border-color .2s, background .2s;
-  }
-  .cat-series-card:hover {
-    border-color: var(--a3);
-    background: var(--bd);
-    text-decoration: none;
-  }
-  .cat-series-card .cat-section-label { margin-bottom: 14px; }
-  .cat-series-titles {
-    display: flex;
-    flex-direction: column;
-    gap: 7px;
-    margin-bottom: 14px;
-  }
-  .cat-series-line {
-    color: var(--tx);
-    font-size: 13px;
-    font-family: 'Source Code Pro', monospace;
-  }
-  .cat-series-order {
-    color: var(--a3);
-    margin-right: 10px;
-    font-size: 12px;
-  }
-  .cat-series-more { color: var(--dimmer); }
-  .cat-series-cta {
-    color: var(--a1);
-    font-size: 12px;
-    letter-spacing: .08em;
-    font-family: 'Source Code Pro', monospace;
+  .kc { max-width: 1120px; margin: 0 auto; padding: 48px 24px 64px; display: flex; flex-direction: column; gap: 56px; }
+  h2 { font-size: 18px; margin: 0 0 14px; }
+  h2 .small { font-size: 12px; font-weight: 400; }
+  .dim { color: var(--dim); } .small { font-size: 12px; } .nowrap { white-space: nowrap; }
+  .note { font-size: 12px; color: var(--dim); margin: 10px 0 0; max-width: 720px; }
+  .mono-strong { color: var(--head); font-weight: 700; }
+  .small-caps { font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+
+  /* track colours */
+  .t1 { color: var(--t1); } .t2 { color: var(--t2); } .t3 { color: var(--t3); } .t4 { color: var(--t4); } .t5 { color: var(--t5); } .t6 { color: var(--t6); }
+  .t1bg { background: var(--t1); color: var(--bg); } .t2bg { background: var(--t2); color: var(--bg); } .t3bg { background: var(--t3); color: var(--bg); }
+  .t4bg { background: var(--t4); color: var(--bg); } .t5bg { background: var(--t5); color: var(--bg); } .t6bg { background: var(--t6); color: var(--bg); }
+  .t1bd { border-left-color: var(--t1); } .t2bd { border-left-color: var(--t2); } .t3bd { border-left-color: var(--t3); }
+  .t4bd { border-left-color: var(--t4); } .t5bd { border-left-color: var(--t5); } .t6bd { border-left-color: var(--t6); }
+
+  /* hero */
+  .hero { display: flex; flex-wrap: wrap; gap: 28px; align-items: stretch; }
+  .hero-text { flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 16px; }
+  .kicker { font-size: 12px; font-weight: 700; color: var(--a1); }
+  .hero h1 { font-size: clamp(26px, 4vw, 38px); line-height: 1.15; margin: 0; }
+  .hero h1 .accent { color: var(--a3); }
+  .blurb { color: var(--tx); font-size: 15px; line-height: 1.7; max-width: 680px; margin: 0; }
+  .hero-photo { flex: 1 1 320px; min-height: 240px; object-fit: cover; border-radius: 8px; border: 1px solid var(--bd); }
+  .badges { display: flex; flex-wrap: wrap; gap: 8px; }
+  .badge { display: inline-flex; font-size: 12px; font-weight: 700; border-radius: 4px; overflow: hidden; }
+  .badge .bk { background: var(--bg2); color: var(--tx); padding: 5px 8px; border: 1px solid var(--bd); border-right: 0; }
+  .badge .bv { padding: 5px 8px; color: var(--bg); }
+  .badge .bv.t1 { background: var(--t1); } .badge .bv.t2 { background: var(--t2); } .badge .bv.t3 { background: var(--t3); }
+  .badge .bv.t4 { background: var(--t4); } .badge .bv.t5 { background: var(--t5); } .badge .bv.t6 { background: var(--t6); }
+  .ctas { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn { display: inline-block; padding: 11px 18px; border-radius: 6px; border: 2px solid var(--head); color: var(--head); font-weight: 700; font-size: 13px; min-height: 44px; box-sizing: border-box; }
+  .btn.primary { background: var(--a1); border-color: var(--a1); color: var(--bg); }
+  .btn.dark { background: var(--bg); border-color: var(--bg); color: var(--head); }
+  .btn.outline-dark { border-color: var(--bg); color: var(--bg); }
+  .btn:hover { text-decoration: none; filter: brightness(1.1); }
+
+  /* tables */
+  .tbl-wrap { overflow-x: auto; border-radius: 8px; background: var(--card); border: 1px solid var(--bd); }
+  .tbl { width: 100%; min-width: 720px; border-collapse: collapse; font-size: 13px; line-height: 1.5; }
+  .tbl th { text-align: left; padding: 10px 14px; font-weight: 700; }
+  .tbl td { padding: 9px 14px; border-top: 1px solid var(--bd); vertical-align: top; }
+  .tbl.adr { min-width: 860px; }
+  .dim-row td { opacity: .75; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; }
+  .chip { display: inline-block; width: 44px; text-align: center; padding: 2px 0; border-radius: 4px; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+  .chip.done { background: var(--t1); color: var(--bg); }
+  .chip.doing { background: var(--t3); color: var(--bg); }
+  .chip.next { background: transparent; color: var(--dim); border: 1px solid var(--bd2); }
+  .src { font-size: 11px; font-weight: 700; margin-left: 8px; white-space: nowrap; }
+
+  /* two-column sections */
+  .two-col { display: flex; flex-wrap: wrap; gap: 28px; }
+  .col-wide { flex: 999 1 520px; min-width: 0; }
+  .col-narrow { flex: 1 1 320px; min-width: 0; }
+
+  /* diagram */
+  .diagram { border-radius: 8px; background: var(--card); border: 1px solid var(--bd); padding: 16px; display: flex; flex-direction: column; align-items: center; }
+  .box { width: 100%; box-sizing: border-box; border-radius: 6px; padding: 8px 10px; text-align: center; display: flex; flex-direction: column; gap: 2px; }
+  .box b { font-size: 12px; } .box small { font-size: 10px; opacity: .85; line-height: 1.4; }
+  .box.dark { background: var(--bg2); color: var(--tx); border: 1px solid var(--bd); }
+  .line { width: 2px; height: 14px; background: currentColor; }
+  .tiny { font-size: 10px; color: var(--dim); padding: 2px 0; }
+  .cluster { width: 100%; box-sizing: border-box; border: 1px dashed var(--a2); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+  .cl-label { font-size: 10px; font-weight: 700; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+
+  /* screenshots */
+  .shots { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+  .shots figure { margin: 0; display: flex; flex-direction: column; gap: 8px; }
+  .shots img { width: 100%; height: 160px; object-fit: cover; border-radius: 6px; border: 1px solid var(--bd); }
+  .shots figcaption { font-size: 12px; }
+
+  /* incidents / logs */
+  .rows { display: flex; flex-direction: column; border-radius: 8px; overflow: hidden; background: var(--card); border: 1px solid var(--bd); }
+  .row { display: flex; flex-wrap: wrap; gap: 10px 16px; padding: 14px 18px; border-left: 6px solid var(--bd); border-bottom: 1px solid var(--bd); align-items: flex-start; }
+  .row:last-child { border-bottom: 0; }
+  .row-title { flex: 1 1 220px; font-weight: 700; color: var(--head); font-size: 14px; }
+  .row-body { flex: 3 1 420px; font-size: 13px; line-height: 1.6; color: var(--dim); }
+  .row-body b { color: var(--tx); }
+  .row-link { font-size: 12px; font-weight: 700; flex: 0 0 auto; }
+  .log { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--bd); color: var(--tx); font-size: 13px; }
+  .log:last-child { border-bottom: 0; }
+  .log:hover { background: var(--bd); text-decoration: none; }
+  .log-cat { width: 92px; text-align: center; padding: 2px 0; border-radius: 4px; font-size: 10px; font-weight: 700; background: var(--a2); color: var(--bg); text-transform: uppercase; }
+  .log-title { flex: 1 1 240px; font-weight: 700; color: var(--head); }
+
+  /* brasil card */
+  .brasil { align-self: flex-start; border-radius: 8px; background: var(--t4); color: var(--bg); padding: 22px; display: flex; flex-direction: column; gap: 10px; font-size: 13px; line-height: 1.6; }
+  .brasil:hover { text-decoration: none; filter: brightness(1.05); }
+  .brasil-title { font-size: 22px; font-weight: 700; line-height: 1.2; }
+  .brasil-cta { font-weight: 700; }
+
+  /* roadmap */
+  .rm-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; }
+  .filters { display: flex; gap: 6px; flex-wrap: wrap; }
+  .f { min-height: 44px; padding: 8px 14px; border-radius: 6px; font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer; border: 2px solid var(--bd2); background: transparent; color: var(--tx); }
+  .f.on { background: var(--a1); border-color: var(--a1); color: var(--bg); }
+  .bar { height: 10px; border-radius: 5px; background: var(--card); border: 1px solid var(--bd); overflow: hidden; display: flex; margin: 14px 0; }
+  .bar-done { background: var(--t1); } .bar-doing { background: var(--t3); }
+  .goals { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 12px; align-items: start; }
+  .goal { border-radius: 8px; background: var(--card); border: 1px solid var(--bd); overflow: hidden; }
+  .goal-head { display: flex; justify-content: space-between; gap: 10px; padding: 9px 14px; font-size: 13px; font-weight: 700; }
+  .goal ul { list-style: none; margin: 0; padding: 6px 6px 8px; display: flex; flex-direction: column; }
+  .goal li { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 6px 8px; font-size: 13px; color: var(--head); }
+  .goal li[hidden] { display: none; }
+
+  /* contact band */
+  .band { border-radius: 10px; background: var(--a1); color: var(--bg); padding: 32px 28px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 20px; font-size: 14px; line-height: 1.6; }
+  .band-title { font-size: 26px; font-weight: 700; line-height: 1.2; margin: 6px 0; }
+
+  @media (max-width: 640px) {
+    .kc { padding: 32px 16px 48px; gap: 44px; }
+    .grid3 { grid-template-columns: 1fr; }
+    .goals { grid-template-columns: 1fr; }
   }
 </style>

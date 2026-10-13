@@ -1,0 +1,16 @@
+[
+  { "layer": "distro",     "tool": "k3s",                   "job": "lightweight Kubernetes on old laptops",                  "since": "Aug 2026", "status": "done" },
+  { "layer": "gitops",     "tool": "Flux",                  "job": "reconciles the cluster from the repo, prunes drift",      "since": "Aug 2026", "status": "done" },
+  { "layer": "packaging",  "tool": "Helm + Kustomize",      "job": "HelmRelease for monitoring, base + staging overlays",     "since": "Sep 2026", "status": "done" },
+  { "layer": "secrets",    "tool": "SOPS + age",            "job": "encrypted secrets in git, decrypted by Flux",             "since": "Oct 2026", "status": "done" },
+  { "layer": "ingress",    "tool": "Traefik",               "job": "routes traffic to apps inside the cluster",               "since": "Oct 2026", "status": "done" },
+  { "layer": "exposure",   "tool": "Cloudflare Tunnel",     "job": "outbound tunnel, no inbound ports on the router",         "since": "Oct 2026", "status": "done" },
+  { "layer": "metrics",    "tool": "kube-prometheus-stack", "job": "Prometheus, Grafana, alert rules",                        "since": "Sep 2026", "status": "done" },
+  { "layer": "storage",    "tool": "local-path",            "job": "k3s default; fast, free, pinned to one node",             "since": "Sep 2026", "status": "done" },
+  { "layer": "dashboards", "tool": "Grafana (own)",         "job": "node health, SLO, error budget",                          "since": "",         "status": "doing" },
+  { "layer": "tls",        "tool": "cert-manager",          "job": "automatic certificates (self-signed today)",              "since": "",         "status": "next" },
+  { "layer": "logs",       "tool": "Loki + Alloy",          "job": "cluster-wide log search",                                 "since": "",         "status": "next" },
+  { "layer": "networking", "tool": "Cilium",                "job": "CNI + LoadBalancer IPAM",                                 "since": "",         "status": "next" },
+  { "layer": "database",   "tool": "CloudNativePG",         "job": "Postgres with backups and tested restore",                "since": "",         "status": "next" },
+  { "layer": "iac",        "tool": "Terraform",             "job": "cloud infrastructure as code",                            "since": "",         "status": "next" }
+]

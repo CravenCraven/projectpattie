@@ -1,0 +1,58 @@
+[
+  {
+    "id": "ADR-001",
+    "decision": "Flux GitOps instead of kubectl apply",
+    "why": "The manifests lived in my shell history and in my head, which are two places I do not trust. With Flux the repo is the source of truth and the cluster gets pulled back to it if it drifts.",
+    "tradeoff": "prune: true is also the flag that deletes your workload the moment you delete a file.",
+    "status": "accepted",
+    "post": "setting-up-gitops-with-flux"
+  },
+  {
+    "id": "ADR-002",
+    "decision": "Cloudflare Tunnel instead of opening router ports",
+    "why": "I did not want to open a port and start advertising my front door. With a tunnel my router never has to accept an inbound connection at all.",
+    "tradeoff": "Universal SSL only covers one subdomain level, so hostnames had to be flattened. Deeper names cost extra.",
+    "status": "accepted",
+    "post": "letting-linkding-out-of-the-house"
+  },
+  {
+    "id": "ADR-003",
+    "decision": "Label nodes by what they can do, not by brand",
+    "why": "When dell-node eventually dies, every workload asking for workload=heavy follows the label to whatever replaces it. Also, honestly, dell-node felt ugly in a YAML file.",
+    "tradeoff": "One more thing to keep consistent when a node is rebuilt.",
+    "status": "accepted",
+    "post": "not-ready-a-love-story"
+  },
+  {
+    "id": "ADR-004",
+    "decision": "Recreate strategy for single-replica apps with one volume",
+    "why": "A rolling update deadlocks: the new pod cannot mount the volume while the old pod still holds it. On a single-replica homelab app with one RWO volume, that is exactly the right trade.",
+    "tradeoff": "A few seconds of downtime on every deploy.",
+    "status": "accepted",
+    "post": "adding-persistent-storage-to-linkding"
+  },
+  {
+    "id": "ADR-005",
+    "decision": "Let the Helm chart generate the Ingress instead of writing it",
+    "why": "I do not edit a chart. I give it values. The chart owns the Ingress, so an upgrade does not fight my hand-written copy.",
+    "tradeoff": "A wrong value name does not fail. It just gets ignored.",
+    "status": "accepted",
+    "post": "exercise-ingress-with-traefik"
+  },
+  {
+    "id": "ADR-006",
+    "decision": "SOPS + age for secrets in git",
+    "why": "A plaintext password in values ends up in git history forever. A Secret created by hand was a problem I had deferred, not fixed. Encrypting with SOPS before it goes near git fixes it.",
+    "tradeoff": "One more key to protect. Lose the age key and every secret in the repo is unreadable.",
+    "status": "accepted",
+    "post": "exercise-ingress-with-traefik"
+  },
+  {
+    "id": "ADR-007",
+    "decision": "k3s default local-path storage, for now",
+    "why": "It is the default in k3s and it is fast and free.",
+    "tradeoff": "The volume is pinned to one node, so three nodes give that app no resilience at all. Shared storage and volume backups are on the roadmap.",
+    "status": "revisiting",
+    "post": "letting-linkding-out-of-the-house"
+  }
+]

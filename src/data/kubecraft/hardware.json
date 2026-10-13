@@ -1,0 +1,5 @@
+[
+  { "role": "control plane", "host": "k3s-server", "device": "2018 MacBook Pro (T2)", "os": "Ubuntu Server, headless", "arch": "amd64", "ram": "16 GB", "label": "light", "t": 1 },
+  { "role": "worker", "host": "dell-node", "device": "Dell Latitude 7490", "os": "Fedora", "arch": "amd64", "ram": "32 GB", "label": "heavy", "t": 3 },
+  { "role": "worker", "host": "biggie-smalls", "device": "M2 MacBook Air", "os": "Fedora Asahi Remix", "arch": "arm64", "ram": "16 GB", "label": "compute", "t": 5 }
+]

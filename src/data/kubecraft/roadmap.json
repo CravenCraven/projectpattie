@@ -1,0 +1,139 @@
+[
+  { "goal": "Kubernetes cluster operations", "t": 1, "items": [
+    { "name": "k3s control plane on the T2 MacBook", "status": "done", "post": "not-ready-a-love-story" },
+    { "name": "amd64 worker node (Dell)", "status": "done", "post": "joining-the-dell-as-a-k3s-worker-node" },
+    { "name": "arm64 worker node (M2 Air)", "status": "done", "post": "the-m2-air-as-a-homelab-node" },
+    { "name": "Capability-based node labels", "status": "done", "post": "not-ready-a-love-story" },
+    { "name": "Mixed-architecture scheduling with node affinity", "status": "next" },
+    { "name": "Cluster upgrades + patching, one node at a time", "status": "next" }
+  ]},
+  { "goal": "Cluster provisioning & lifecycle", "t": 2, "items": [
+    { "name": "First look at Omni", "status": "next" },
+    { "name": "Cluster architecture, bootstrapping + secrets", "status": "next" },
+    { "name": "Provisioning with Ansible", "status": "next" },
+    { "name": "Kubernetes from dev containers", "status": "next" }
+  ]},
+  { "goal": "Infrastructure as Code", "t": 3, "items": [
+    { "name": "Clouds are APIs", "status": "next" },
+    { "name": "Intro to Infrastructure as Code", "status": "next" },
+    { "name": "Terraform modules", "status": "next" },
+    { "name": "AKS with Terraform", "status": "next" },
+    { "name": "Ansible playbooks for node prep", "status": "next" }
+  ]},
+  { "goal": "Cloud: AWS", "t": 4, "items": [
+    { "name": "Scoping the first AWS project", "status": "next" }
+  ]},
+  { "goal": "Cloud: Azure", "t": 6, "items": [
+    { "name": "Setting up the repo + Azure", "status": "next" },
+    { "name": "Azure Kubernetes Service", "status": "next" },
+    { "name": "Best practices for AKS ops", "status": "next" },
+    { "name": "Fixing the new staging environment", "status": "next" },
+    { "name": "Production cluster + customer onboarding", "status": "next" },
+    { "name": "Reviewing the production cluster", "status": "next" }
+  ]},
+  { "goal": "GitOps with Flux", "t": 3, "items": [
+    { "name": "Flux bootstrap, git as the source of truth", "status": "done", "post": "setting-up-gitops-with-flux" },
+    { "name": "Capstone: an app deployed with nothing but git", "status": "done", "post": "kubecraft-capstone-audiobookshelf" },
+    { "name": "Setting up the GitOps repo (course)", "status": "next" },
+    { "name": "Script for Kubernetes with Flux", "status": "next" },
+    { "name": "Automated image updates", "status": "next" },
+    { "name": "Automating PRs on release", "status": "next" },
+    { "name": "GitOps on AKS", "status": "next" }
+  ]},
+  { "goal": "CI/CD with GitHub Actions", "t": 1, "items": [
+    { "name": "Repository settings", "status": "next" },
+    { "name": "Linting with ruff (pre-commit + GHA)", "status": "next" },
+    { "name": "Tests, coverage, dev dependencies", "status": "next" },
+    { "name": "Frontend CI", "status": "next" },
+    { "name": "DRY in pipelines", "status": "next" },
+    { "name": "Automatic versioning + release creation", "status": "next" }
+  ]},
+  { "goal": "Containers & image security", "t": 3, "items": [
+    { "name": "Building a Python image", "status": "next" },
+    { "name": "Containerizing the backend with uv", "status": "next" },
+    { "name": "Scanning images with Trivy", "status": "next" },
+    { "name": "Smaller base image, optimized layers", "status": "next" },
+    { "name": "Securing the image", "status": "next" },
+    { "name": "Building + pushing images, frontend included", "status": "next" }
+  ]},
+  { "goal": "Local testing with k3d", "t": 4, "items": [
+    { "name": "Intro to k3d", "status": "next" },
+    { "name": "Manifests directory + local build script", "status": "next" },
+    { "name": "Minimal cluster exercise", "status": "next" },
+    { "name": "End-to-end testing with k3d + Python", "status": "next" },
+    { "name": "e2e testing in the pipeline", "status": "next" }
+  ]},
+  { "goal": "Helm & packaging", "t": 5, "items": [
+    { "name": "Monitoring + Helm", "status": "done", "post": "where-does-the-grafana-password-come-from" },
+    { "name": "HelmRelease through Flux", "status": "done", "post": "exercise-ingress-with-traefik" },
+    { "name": "Kustomize base + staging overlays", "status": "done", "post": "adding-persistent-storage-to-linkding" },
+    { "name": "Chart-generated Ingress via values", "status": "done", "post": "exercise-ingress-with-traefik" },
+    { "name": "Kubernetes operators", "status": "next" }
+  ]},
+  { "goal": "Observability", "t": 2, "items": [
+    { "name": "kube-prometheus-stack", "status": "done", "post": "where-does-the-grafana-password-come-from" },
+    { "name": "My own Grafana dashboard", "status": "doing" },
+    { "name": "Alert rules in Prometheus, delivered to ntfy", "status": "next" },
+    { "name": "Logs with Loki", "status": "next" },
+    { "name": "Production-grade monitoring", "status": "next" }
+  ]},
+  { "goal": "SRE practice", "t": 6, "items": [
+    { "name": "Define an SLO for one app", "status": "next" },
+    { "name": "Error budget tracked in Grafana", "status": "next" },
+    { "name": "Runbook for each alert", "status": "next" },
+    { "name": "Postmortem template, blameless", "status": "next" },
+    { "name": "Capacity notes per node", "status": "next" }
+  ]},
+  { "goal": "Bare-metal networking", "t": 4, "items": [
+    { "name": "Bootstrapping + installing Cilium", "status": "next" },
+    { "name": "Cilium LoadBalancer IPAM", "status": "next" },
+    { "name": "External DNS", "status": "next" }
+  ]},
+  { "goal": "Ingress & TLS", "t": 6, "items": [
+    { "name": "Traefik ingress", "status": "done", "post": "exercise-ingress-with-traefik" },
+    { "name": "Cloudflare Tunnel, zero inbound ports", "status": "done", "post": "letting-linkding-out-of-the-house" },
+    { "name": "Linkding on the public internet", "status": "done", "post": "letting-linkding-out-of-the-house" },
+    { "name": "cert-manager + Let's Encrypt", "status": "next" },
+    { "name": "Ingress + cert-manager on AKS", "status": "next" },
+    { "name": "Expose n8n to the public internet", "status": "next" }
+  ]},
+  { "goal": "Identity & access", "t": 5, "items": [
+    { "name": "Securing Linkding properly", "status": "done" },
+    { "name": "Single sign-on in front of apps", "status": "next" },
+    { "name": "AKS hardening: securing cluster access", "status": "next" }
+  ]},
+  { "goal": "Secrets management", "t": 5, "items": [
+    { "name": "SOPS + age, encrypted secrets in git", "status": "done", "post": "exercise-ingress-with-traefik" },
+    { "name": "Grafana admin via existingSecret", "status": "done", "post": "where-does-the-grafana-password-come-from" },
+    { "name": "Syncing secrets from Azure Key Vault", "status": "next" }
+  ]},
+  { "goal": "Storage & databases", "t": 1, "items": [
+    { "name": "Persistent volumes with local-path", "status": "done", "post": "adding-persistent-storage-to-linkding" },
+    { "name": "Shared storage across nodes", "status": "next" },
+    { "name": "Intro to databases in Kubernetes", "status": "next" },
+    { "name": "Postgres database for n8n", "status": "next" }
+  ]},
+  { "goal": "Backups & disaster recovery", "t": 3, "items": [
+    { "name": "Volume backups", "status": "next" },
+    { "name": "Backups with the CNPG operator", "status": "next" },
+    { "name": "Restoring backups with CNPG", "status": "next" },
+    { "name": "Tested restore, timed and documented", "status": "next" }
+  ]},
+  { "goal": "Dev workflow & scripting", "t": 2, "items": [
+    { "name": "mise.toml + setup script", "status": "next" },
+    { "name": "Conventional commits, Commitizen, pre-commit", "status": "next" },
+    { "name": "Python project + packaging with uv", "status": "next" },
+    { "name": "Backend + frontend code walkthroughs", "status": "next" },
+    { "name": "Go for tooling, later", "status": "next" }
+  ]},
+  { "goal": "Workloads & capstone", "t": 1, "items": [
+    { "name": "Linkding", "status": "done", "post": "adding-persistent-storage-to-linkding" },
+    { "name": "Audiobookshelf (KubeCraft capstone)", "status": "done", "post": "kubecraft-capstone-audiobookshelf" },
+    { "name": "Mealie", "status": "done" },
+    { "name": "ntfy", "status": "done" },
+    { "name": "Homepage", "status": "done" },
+    { "name": "LittleLink", "status": "done" },
+    { "name": "n8n with Postgres", "status": "next" },
+    { "name": "Production-grade app deployment", "status": "next" }
+  ]}
+]

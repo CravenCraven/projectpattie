@@ -48,3 +48,13 @@ h1,h2,h3{ color: var(--head); font-weight: 700; line-height: 1.25; }
 @media (prefers-reduced-motion: reduce){
   *{ animation: none !important; transition: none !important; }
 }
+
+/* kubecraft portfolio: roadmap track colours, muted to sit under --a1/--a2 */
+:root{
+  --t1: #ffb000;   /* amber  */
+  --t2: #5cb8ff;   /* blue   */
+  --t3: #ff7a59;   /* coral  */
+  --t4: #4fd1a0;   /* mint   */
+  --t5: #c48bff;   /* lilac  */
+  --t6: #ff9ecb;   /* pink   */
+}
