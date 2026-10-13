@@ -1,0 +1,157 @@
+---
+title: "KubeCraft Capstone: Can I Deploy Audiobookshelf With Nothing but Git?"
+description: "No kubectl apply allowed. One app, three stages, and four things that broke on the way to a public audiobook server running on my homelab."
+tags: ["kubernetes", "gitops", "flux", "homelab", "kubecraft"]
+date: 2026-10-13
+category: devops
+readTime: 9
+draft: false
+---
+
+
+<h1 class="pp-title">KubeCraft Capstone:<br/><em>Can I Deploy Audiobookshelf With Nothing but Git?</em></h1>
+
+<p class="pp-subtitle">No kubectl apply allowed. One app, three stages, and four things that broke on the way to a public audiobook server running on my homelab.</p>
+
+## The hook
+
+The capstone for the KubeCraft GitOps course is one page long. Deploy Audiobookshelf. Then one line in bold: everything must be done through GitOps.
+
+That means no `kubectl apply` when I get impatient. If it is not in Git, it does not exist. There is also no video to follow this time. I thought it would take an afternoon. It did, but a good chunk of that afternoon was me staring at a terminal that said "No resources found."
+
+## What I built and why
+
+Audiobookshelf is a self-hosted audiobook and podcast server. The exercise comes in three stages:
+
+1. Run it on port 3005, set through a ConfigMap, with a ClusterIP Service. Reach it with a port-forward and upload a file.
+2. Give it persistent storage for every volume the docs suggest, so nothing is lost when the pod restarts.
+3. Run it as the `node` user and not root, then put it on the public internet.
+
+Each stage is a module I had already done once with a video holding my hand. The capstone is doing it without the hand.
+
+## Before you start
+
+This is what my setup looks like. Yours will differ, so swap in your own values.
+
+- A k3s cluster with Flux already watching a Git repo
+- A repo laid out as `apps/base/<app>` and `apps/staging/<app>`
+- A Cloudflare tunnel already running in the cluster
+- Hostname used in this post: `abs.example.com`
+- Image: `ghcr.io/advplyr/audiobookshelf:2.37.1`
+
+## How I did it
+
+### Stage 1: a settings card and a phone extension
+
+Audiobookshelf listens on port 80 unless you hand it a `PORT` environment variable. So the ConfigMap is tiny:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: audiobookshelf-config
+  namespace: audiobookshelf
+data:
+  PORT: "3005"
+```
+
+The quotes matter. ConfigMap values have to be text.
+
+The Deployment reads it with three lines:
+
+```yaml
+envFrom:
+  - configMapRef:
+      name: audiobookshelf-config
+```
+
+That block is the plug. Without it the card still exists, but the app never sees it and quietly starts on port 80.
+
+Then a ClusterIP Service on 3005, two `kustomization.yaml` files so Flux knows the app exists, and a push.
+
+```
+kubectl kustomize apps/staging
+```
+
+This builds the YAML the way Flux will, without touching the cluster. Typos show up here in seconds.
+
+```
+kubectl port-forward -n audiobookshelf svc/audiobookshelf 3005:3005
+```
+
+A private line from my laptop to the Service. I created the admin account here, while the app was still private.
+
+### Stage 2: lockers
+
+Everything in a container lives on a whiteboard. Restart the pod and the whiteboard is wiped. The fix is four PersistentVolumeClaims, one each for `/config`, `/metadata`, `/audiobooks` and `/podcasts`, mounted into the Deployment.
+
+I also set `strategy: Recreate`, because one pod with one-at-a-time volumes will deadlock on a rolling update. Remember that line. It comes back.
+
+### Stage 3: an ID badge, then the front door
+
+Lock it down first, open the door second.
+
+```yaml
+securityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+```
+
+User 1000 is the `node` user that ships in the image. My volumes had been filled while the app was root, so a small init container runs first and hands the folders over with `chown -R 1000:1000`.
+
+This is also why the exercise picked port 3005 back in Stage 1. Ordinary users cannot open ports below 1024.
+
+For the public part I added one rule to my tunnel config, above the catch-all 404:
+
+```yaml
+- hostname: abs.example.com
+  service: http://audiobookshelf.audiobookshelf.svc.cluster.local:3005
+```
+
+Then one command to create the DNS record:
+
+```
+cloudflared tunnel route dns <tunnel-name> abs.example.com
+```
+
+## What broke and how I fixed it
+
+**A stray letter.** I pasted the new Deployment in vim, pressed `i` one time too many, and pushed a file that started with `iapiVersion`. Flux told me exactly that, once I thought to ask it with `flux get kustomizations`. One `x` in vim fixed it. I now run `head -1` on every file I paste.
+
+**The fix that "did not work."** I pushed the fix and saw the same error. The fix was fine. Flux had not fetched it yet. `flux reconcile kustomization apps --with-source` makes it look right now.
+
+**Kubernetes remembering things I never said.** Next error:
+
+```
+spec.strategy.rollingUpdate: Forbidden: may not be specified when strategy `type` is 'Recreate'
+```
+
+My Stage 1 Deployment had no strategy, so Kubernetes filled in the default along with its rolling-update settings. When Git later said Recreate, the leftovers were still on the live object. Setting the field to null did not clear it. Deleting the old Deployment and letting Flux rebuild it from Git did.
+
+**The wrong kind of DNS record.** I started making an A record to my node's private address, because that is how I set up my local-only apps. Private addresses do not work from outside the house. The browser said `NXDOMAIN`, which just means the name does not exist yet. Nothing I had built was broken. The phone book entry was missing.
+
+## How I checked it worked
+
+- Logs end with `Listening on port :3005`
+- Uploaded an MP3, deleted the pod, and the replacement logged me straight back in with my library intact
+- `kubectl exec ... -- whoami` said `root` before Stage 3 and `node` after
+- The login page loads at the public hostname
+
+## What I learned
+
+1. **Config belongs outside the workload.** I can change a setting without editing the Deployment, and reuse the same Deployment in another environment.
+2. **Kubernetes fills in defaults you never wrote.** If a single-replica app will ever get a volume, set `Recreate` in the first commit.
+3. **Going public takes two things.** The tunnel rule says where to send visitors. The DNS record says the name exists. I had one and wondered why nothing loaded.
+
+## What I'd do next
+
+- Back up those volumes. Local-path storage ties the data to one node.
+- Get the DNS record into Git with External DNS, since it is the one step I did by hand.
+
+## Links
+
+- Repo: homelab-kubecraft
+- Course: KubeCraft, GitOps Deployment Masterclass, capstone exercise
+- Audiobookshelf docs: https://audiobookshelf.org/docs/documentation/install/docker
