@@ -1,5 +1,5 @@
 {
-  "updated": "2026-10-16",
+  "updated": "2026-10-17",
   "repo": "https://github.com/CravenCraven/homelab-kubecraft",
   "hero": {
     "kicker": "~/homelab-kubecraft",
@@ -12,13 +12,14 @@
     { "k": "nodes", "v": "3", "t": 3 },
     { "k": "arch", "v": "amd64 + arm64", "t": 5 },
     { "k": "ram", "v": "64 GB", "t": 2 },
-    { "k": "apps", "v": "6", "t": 6 },
+    { "k": "apps", "v": "8", "t": 6 },
     { "k": "open ports", "v": "0", "t": 4 },
     { "k": "flux", "v": "synced", "t": 2 }
   ],
   "photo": "",
   "screenshots": [],
   "buildLogSlugs": [
+    "n8n-authentik-sso",
     "kubecraft-capstone-audiobookshelf",
     "letting-linkding-out-of-the-house"
   ],

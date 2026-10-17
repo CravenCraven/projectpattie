@@ -95,11 +95,11 @@
     { "name": "Linkding on the public internet", "status": "done", "post": "letting-linkding-out-of-the-house" },
     { "name": "cert-manager + Let's Encrypt", "status": "next" },
     { "name": "Ingress + cert-manager on AKS", "status": "next" },
-    { "name": "Expose n8n to the public internet", "status": "next" }
+    { "name": "Expose n8n to the public internet", "status": "done" }
   ]},
   { "goal": "Identity & access", "t": 5, "items": [
     { "name": "Securing Linkding properly", "status": "done" },
-    { "name": "Single sign-on in front of apps", "status": "next" },
+    { "name": "Single sign-on in front of apps", "status": "done" },
     { "name": "AKS hardening: securing cluster access", "status": "next" }
   ]},
   { "goal": "Secrets management", "t": 5, "items": [
@@ -111,7 +111,7 @@
     { "name": "Persistent volumes with local-path", "status": "done", "post": "adding-persistent-storage-to-linkding" },
     { "name": "Shared storage across nodes", "status": "next" },
     { "name": "Intro to databases in Kubernetes", "status": "next" },
-    { "name": "Postgres database for n8n", "status": "next" }
+    { "name": "Postgres database for n8n", "status": "done" }
   ]},
   { "goal": "Backups & disaster recovery", "t": 3, "items": [
     { "name": "Volume backups", "status": "next" },
@@ -133,7 +133,7 @@
     { "name": "ntfy", "status": "done" },
     { "name": "Homepage", "status": "done" },
     { "name": "LittleLink", "status": "done" },
-    { "name": "n8n with Postgres", "status": "next" },
+    { "name": "n8n with Postgres", "status": "done" },
     { "name": "Production-grade app deployment", "status": "next" }
   ]}
 ]
