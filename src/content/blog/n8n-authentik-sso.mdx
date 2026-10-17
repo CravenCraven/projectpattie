@@ -1,0 +1,779 @@
+---
+title: "One Login for the Whole Lab: n8n, Postgres, Traefik, and Authentik"
+description: "Deploying n8n on its own Postgres, pushing it through Traefik, then standing up Authentik so one login sits in front of it. Three days, four parts, and every mistake I made on the way."
+tags: ["kubernetes", "gitops", "flux", "traefik", "authentik", "n8n", "postgres", "homelab", "kubecraft"]
+date: 2026-10-17
+category: devops
+readTime: 25
+draft: false
+---
+
+
+<h1 class="pp-title">One Login for the Whole Lab:<br/><em>n8n, Postgres, Traefik, and Authentik</em></h1>
+
+<p class="pp-subtitle">Deploying n8n on its own Postgres, pushing it through Traefik, then standing up Authentik so one login sits in front of it. Three days, four parts, and every mistake I made on the way.</p>
+
+## The hook
+
+I wanted n8n in the lab. It is self-hosted automation, basically Zapier you run yourself, and I had a list of small things I wanted it to do. The plan was one afternoon.
+
+What I got was my first StatefulSet, my first Kustomize patch, Traefik finally doing real routing instead of sitting there, an identity provider in front of it all, and three days of losing a fight with vim. This post is the whole thing, including the parts I would rather skip.
+
+## What I built and why
+
+The original ask to myself was "deploy n8n." Then it grew, one reasonable step at a time:
+
+1. I wanted Postgres instead of SQLite, because that is what you would run anywhere real.
+2. I wanted it public, which in my lab means through the Cloudflare tunnel. But this time routed through Traefik, so there would be one place to attach things to every app later.
+3. If it is public it should be behind proper authentication, and I did not want to keep managing a separate login for every app. That meant deploying Authentik.
+4. Put n8n behind Authentik with Traefik ForwardAuth.
+
+So "deploy n8n" turned into five sessions:
+
+1. n8n plus Postgres, running, from git
+2. Public through Traefik
+3. Authentik deployed
+4. n8n behind Authentik
+5. Write it all down
+
+Worth it. But I want to be honest that I had no idea it would be eight hours when I started.
+
+## Before you start
+
+This is my setup. Yours will differ, so swap in your own values.
+
+- A three-node k3s cluster with Flux already watching a Git repo, laid out as `apps/base/<app>` and `apps/staging/<app>`, plus an `infrastructure/` tree for cluster-wide pieces like monitoring
+- SOPS with age already wired into Flux, with a `decryption` block on each Flux Kustomization
+- Traefik, the one k3s ships with, in `kube-system`
+- A Cloudflare tunnel already running as pods in the cluster, configured through a ConfigMap
+- Hostnames used in this post: `n8n.example.com` and `auth.example.com`
+- Images and versions: `docker.n8n.io/n8nio/n8n:2.43.7`, `postgres:16`, Authentik Helm chart `2026.8.4`
+- I run `kubectl` as `k`
+
+## How I did it
+
+### Part 1: the database is not a Deployment
+
+Every app I had deployed so far was a Deployment. Linkding, Homepage, Audiobookshelf, all of them. A Deployment treats pods like they are interchangeable. Kill one, make another, nobody cares.
+
+A database cannot work like that. It has to wake up as the same thing, with the same disk, every single time, or you have an empty database and a very bad day. That is what a StatefulSet is for. The pod gets a fixed name, `n8n-postgres-0`, and instead of me writing a separate PVC file, the StatefulSet has a `volumeClaimTemplates` block that stamps out a disk named after the pod and reattaches it forever. It also wants a headless Service, which is a Service with `clusterIP: None`, so DNS points at the pod itself instead of a virtual IP.
+
+Both go in one file, `apps/base/n8n/postgres.yaml`, Service first because the StatefulSet's `serviceName` refers to it:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: n8n-postgres
+spec:
+  clusterIP: None
+  selector:
+    app: n8n-postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: n8n-postgres
+spec:
+  serviceName: n8n-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: n8n-postgres
+  template:
+    metadata:
+      labels:
+        app: n8n-postgres
+    spec:
+      securityContext:
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+      containers:
+        - name: postgres
+          image: postgres:16
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: n8n-secrets
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: n8n-secrets
+                  key: POSTGRES_PASSWORD
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: n8n-secrets
+                  key: POSTGRES_DB
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command:
+                - pg_isready
+                - -U
+                - $(POSTGRES_USER)
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: local-path
+        resources:
+          requests:
+            storage: 5Gi
+```
+
+Three things are different from a Deployment. There is no `strategy` field; a StatefulSet updates one pod at a time, which gives the same RWO protection that `Recreate` gives a Deployment. There is a `serviceName` pointing at the headless Service, so the pod is reachable as `n8n-postgres-0.n8n-postgres`. And `volumeClaimTemplates` replaces the PVC file: the PVC it creates is named `data-n8n-postgres-0`, template name, dash, pod name.
+
+The container runs as user 999 because that is the `postgres` user inside the image, and `fsGroup: 999` hands the disk over before the container starts. Wrong uid and Postgres cannot write to its own disk and crashloops. `PGDATA` points one folder below the mount so Postgres never tries to initialize into a directory that already has a `lost+found` in it. The readiness probe runs `pg_isready` instead of hitting an HTTP endpoint, because Postgres does not speak HTTP; `$(POSTGRES_USER)` is Kubernetes expanding an env var from the same container, not a shell. And there is no CPU limit on purpose. CPU limits throttle, memory limits kill. For a homelab database a memory ceiling is enough.
+
+The n8n side is a normal Deployment with `Recreate`, same rule as always for a single replica with a ReadWriteOnce disk. I started by copying the Audiobookshelf Deployment and then deleted more than half of it, which taught me a rule: copy when you are changing values, write fresh when you are changing structure.
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: n8n
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: n8n
+  template:
+    metadata:
+      labels:
+        app: n8n
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        runAsNonRoot: true
+      containers:
+        - name: n8n
+          image: docker.n8n.io/n8nio/n8n:2.43.7
+          securityContext:
+            allowPrivilegeEscalation: false
+          ports:
+            - name: http
+              containerPort: 5678
+          env:
+            - name: GENERIC_TIMEZONE
+              value: America/New_York
+            - name: TZ
+              value: America/New_York
+            - name: DB_TYPE
+              value: postgresdb
+            - name: DB_POSTGRESDB_HOST
+              value: n8n-postgres
+            - name: DB_POSTGRESDB_PORT
+              value: "5432"
+            - name: DB_POSTGRESDB_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: n8n-secrets
+                  key: POSTGRES_DB
+            - name: DB_POSTGRESDB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: n8n-secrets
+                  key: POSTGRES_USER
+            - name: DB_POSTGRESDB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: n8n-secrets
+                  key: POSTGRES_PASSWORD
+            - name: N8N_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: n8n-secrets
+                  key: N8N_ENCRYPTION_KEY
+          volumeMounts:
+            - name: data
+              mountPath: /home/node/.n8n
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            initialDelaySeconds: 30
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: n8n-data
+```
+
+Every container block answers the same six questions, and once I saw that I could read any Deployment. What runs: the image, pinned to a version so git says exactly what is running. What it is allowed to do: the security contexts, uid 1000 because that is the `node` user inside the n8n image. Which door: port 5678, named `http` so the Service and probes can refer to the name. How it is configured: the env block. Where it keeps files: `/home/node/.n8n`. How Kubernetes knows it is healthy: the probes, `httpGet` here because n8n speaks HTTP where Postgres needed `exec`.
+
+The env block is the interesting part. `DB_POSTGRESDB_HOST=n8n-postgres` is literally the name of the headless Service, resolved through cluster DNS. The database name, user, and password come out of the same Secret keys Postgres reads, so the two sides can never disagree. The rule for plain `value` versus `secretKeyRef` is one question: would I be fine with this appearing on GitHub? `"5432"` is quoted because env values must be strings. And `N8N_ENCRYPTION_KEY` comes from the Secret too, because n8n encrypts stored credentials with it. If you let n8n invent one and later lose the disk, every saved credential is gone forever.
+
+How did I know what env vars n8n wanted? I did not make them up. n8n's docs have a docker-compose example with Postgres, and compose maps almost line for line onto a container block. `environment:` becomes `env:`, `volumes:` becomes `volumeMounts`, `ports:` becomes `containerPort`. That is how I am going to start every new app from now on.
+
+The PVC and Service are small:
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: n8n-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: n8n
+spec:
+  type: ClusterIP
+  selector:
+    app: n8n
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+```
+
+Three doors in a row: Ingress talks to Service port 80, Service forwards to the container port named `http`, which is 5678, container is n8n. `targetPort: http` means if n8n ever changes its port I fix the number once.
+
+None of the base files carry a `namespace:`. The staging overlay stamps it on, and adds the one thing that is tied to this cluster: the Secret.
+
+```bash
+openssl rand -hex 32    # n8n encryption key
+openssl rand -hex 24    # postgres password
+```
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: n8n-secrets
+  namespace: n8n
+type: Opaque
+stringData:
+  N8N_ENCRYPTION_KEY: "<64 hex>"
+  POSTGRES_USER: "n8n"
+  POSTGRES_PASSWORD: "<48 hex>"
+  POSTGRES_DB: "n8n"
+```
+
+```bash
+sops --encrypt --in-place apps/staging/n8n/secret.yaml
+grep -c 'ENC\[' apps/staging/n8n/secret.yaml
+```
+
+That last line counts encrypted values. It has to be more than zero before `git add`. Keep reading for why I am so firm about it.
+
+```yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: n8n
+resources:
+  - ../../base/n8n
+  - secret.yaml
+```
+
+Then one line, `- n8n`, in `apps/staging/kustomization.yaml`. That is the line that turns a folder in git into things running on the cluster.
+
+```bash
+git push
+flux reconcile kustomization apps --with-source
+k -n n8n get pods,pvc
+k -n n8n get pods -o wide
+```
+
+Both PVCs bound on the first try. `n8n-postgres-0` went Running, then `1/1` once `pg_isready` passed. n8n pulled its image and came up. And `-o wide` showed me where the scheduler had put them: n8n on the control plane, Postgres on my least reliable worker, and local-path had now pinned both disks there. If that worker loses power, n8n is up with no database, which is worse than both being down. I let it go for the day. It is on the list.
+
+```bash
+k -n n8n port-forward svc/n8n 5678:80
+```
+
+Opened `localhost:5678`, created the owner account. That is n8n's own login and it had to exist before anything went public.
+
+### Part 2: Traefik finally does something
+
+Every public app before this had its own line in the tunnel ConfigMap pointing straight at the app's Service. Fine, until you want to put something in front of all of them.
+
+So for n8n the tunnel points at Traefik instead:
+
+```yaml
+    - hostname: n8n.example.com
+      service: http://traefik.kube-system.svc.cluster.local:80
+    - service: http_status:404
+```
+
+The pattern for every entry is `http://<service>.<namespace>.svc.cluster.local:<port>`, the full cluster DNS name, because the tunnel pod lives in a different namespace from everything it points at. The `http_status:404` line is the catch-all and it must stay last. cloudflared refuses to start without a final rule that has no hostname, and that takes every app offline at once. I deleted it by accident during the edit and caught it before pushing.
+
+Traefik then reads an Ingress object to decide where `n8n.example.com` goes:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: n8n
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: n8n.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: n8n
+                port:
+                  number: 80
+```
+
+The port is the Service's 80, not the container's 5678. I got that wrong first.
+
+n8n also needs to know its own public address, for webhooks and cookies. That is specific to my cluster, so it does not go in base. It goes in the staging overlay as a Kustomize patch, a small file with the same `kind` and `name` as the base Deployment and only the env vars I am adding:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: n8n
+spec:
+  template:
+    spec:
+      containers:
+        - name: n8n
+          env:
+            - name: N8N_HOST
+              value: n8n.example.com
+            - name: N8N_PROTOCOL
+              value: https
+            - name: WEBHOOK_URL
+              value: https://n8n.example.com/
+```
+
+The container `name: n8n` is what lets the patch find the right container. Everything not mentioned stays as it is in base. It gets registered under `patches:` in the overlay kustomization, a different key from `resources:`, because resources are whole objects and patches are changes to objects that come from base. First time I had used it. I checked the merge by grepping the built output for a new var and a base var in the same result:
+
+```bash
+k kustomize apps/staging/n8n | grep -A1 'N8N_HOST\|WEBHOOK_URL\|DB_TYPE'
+```
+
+All three new vars and `DB_TYPE` from base, together. Added, not replaced.
+
+```bash
+cloudflared tunnel route dns homelab-kubecraft n8n.example.com
+git push
+flux reconcile kustomization apps --with-source
+k -n cloudflared rollout restart deployment cloudflared
+```
+
+cloudflared reads its ConfigMap at startup only, so the restart is not optional. Same for Homepage, which I also updated with n8n and Audiobookshelf tiles that day.
+
+### Part 3: Authentik
+
+Authentik is an identity provider. The way I think about it: every app stops running its own door lock and trusts the badge the security desk issued.
+
+It is a Helm chart, so I did not write a Deployment or a StatefulSet for any of it. I wrote a HelmRepository, a HelmRelease with values, an encrypted Secret, and a Flux Kustomization, mirroring exactly how kube-prometheus-stack is laid out in my repo. It went under `infrastructure/auth/` rather than `apps/`, because every app is going to depend on it and it should reconcile first. The namespace and HelmRepository were copies of the Prometheus ones with a `sed`:
+
+```yaml
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: authentik
+  namespace: authentik
+spec:
+  interval: 24h
+  url: https://charts.goauthentik.io
+```
+
+The HelmRelease is where the new concept lives:
+
+```yaml
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: authentik
+  namespace: authentik
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: authentik
+      version: "2026.8.4"
+      sourceRef:
+        kind: HelmRepository
+        name: authentik
+        namespace: authentik
+      interval: 12h
+  values:
+    authentik:
+      error_reporting:
+        enabled: false
+    global:
+      env:
+        - name: AUTHENTIK_BOOTSTRAP_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: authentik-secrets
+              key: AUTHENTIK_BOOTSTRAP_PASSWORD
+        - name: AUTHENTIK_BOOTSTRAP_EMAIL
+          value: admin@example.com
+        - name: AUTHENTIK_WEB__BASE_URL
+          value: https://auth.example.com
+    server:
+      ingress:
+        enabled: true
+        ingressClassName: traefik
+        annotations:
+          traefik.ingress.kubernetes.io/router.middlewares: authentik-forwarded-proto-https@kubernetescrd
+        hosts:
+          - auth.example.com
+    postgresql:
+      enabled: true
+  valuesFrom:
+    - kind: Secret
+      name: authentik-secrets
+      valuesKey: AUTHENTIK_SECRET_KEY
+      targetPath: authentik.secret_key
+    - kind: Secret
+      name: authentik-secrets
+      valuesKey: POSTGRES_PASSWORD
+      targetPath: authentik.postgresql.password
+    - kind: Secret
+      name: authentik-secrets
+      valuesKey: POSTGRES_PASSWORD
+      targetPath: postgresql.auth.password
+```
+
+Two places to put settings. `values:` is plain config, safe for GitHub. `valuesFrom:` is the Helm version of `secretKeyRef`: pull one key out of a Secret and drop it into the chart's values at a path you name. The Postgres password lands in two places on purpose, once as what the bundled database is created with and once as what the server connects with. One key, two targets, no drift.
+
+The bootstrap password is different. It is not a chart value, it is an env var the server reads on first boot, so it goes through `global.env`. With it set, Authentik creates `akadmin` with that password and never shows the open initial-setup page. I chose this over the setup page because it is fully declarative: rebuild the cluster from git tomorrow and the admin exists without anyone clicking anything. One more Secret key, and I had a course module on it anyway.
+
+`server.ingress` is the chart creating the Ingress for me, same as Grafana's did. The annotation and `AUTHENTIK_WEB__BASE_URL` were not in the first version. They arrived during the debugging below.
+
+Three secret values this time:
+
+```bash
+openssl rand -base64 48   # AUTHENTIK_SECRET_KEY, docs want 50+ chars
+openssl rand -hex 24      # POSTGRES_PASSWORD
+```
+
+plus a bootstrap password I chose myself and put in a password manager, because it is one I type.
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: authentik-secrets
+  namespace: authentik
+type: Opaque
+stringData:
+  AUTHENTIK_SECRET_KEY: "<base64>"
+  POSTGRES_PASSWORD: "<hex>"
+  AUTHENTIK_BOOTSTRAP_PASSWORD: "<chosen>"
+```
+
+Then the Flux Kustomization that makes Flux care, `clusters/dev/auth.yaml`, copied from the monitoring one with `sed -i '' 's/monitoring/auth/g'`:
+
+```yaml
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: auth-controllers
+  namespace: flux-system
+spec:
+  interval: 1m0s
+  retryInterval: 1m
+  timeout: 5m
+  sourceRef:
+    kind: GitRepository
+    name: flux-system-kubecraft
+  path: ./infrastructure/auth/controllers/staging
+  prune: true
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+```
+
+```bash
+git push
+flux reconcile source git flux-system-kubecraft
+flux get kustomizations
+flux get helmreleases -n authentik
+k -n authentik get pods -w
+```
+
+The source gets reconciled this time, not a Kustomization, because `auth-controllers` does not exist on the cluster until Flux re-reads `clusters/dev/` and finds the file.
+
+Three pods came up, not the four I had drawn. No Redis. Recent Authentik versions dropped it and use Postgres for sessions too, so the `redis:` block in my first values was ignored. Removed it. The server and worker sat at `Running 0/1` for several minutes while the logs scrolled migration after migration, each `OK`. Hundreds of them on a fresh install. Normal.
+
+First login over a port-forward, before any DNS or tunnel entry existed:
+
+```bash
+k -n authentik port-forward svc/authentik-server 9000:80
+```
+
+`localhost:9000`, username `akadmin`, bootstrap password, Application Dashboard. The admin existed straight from git. Then the same tunnel entry, DNS record, push, and restart as n8n, pointed at `auth.example.com`. That is where the real debugging started; it has its own section below.
+
+### Part 4: the side trip
+
+Forward auth is simple to describe. Every request to n8n gets a side trip. Traefik's ForwardAuth middleware asks Authentik's embedded outpost "is this person logged in?" No: the browser gets bounced to `auth.example.com`, logs in, and is sent back to `n8n.example.com/outpost.goauthentik.io/callback`, where the outpost sets a cookie for n8n's domain. Yes: Traefik forwards to n8n. n8n never knows Authentik exists.
+
+Four pieces. Two in Authentik's admin UI, two in git.
+
+In Authentik, I used the New Application wizard. Step 1, name and slug `n8n`. Step 2, the Proxy Provider tile. Step 3, the provider: authorization flow `default-provider-authorization-implicit-consent`, the **Forward auth (single application)** tab, external host `https://n8n.example.com`. Step 4, bindings left empty, which means any logged-in Authentik user can reach n8n; fine for one person. Step 5, create. Then Applications, Outposts, edit the `authentik Embedded Outpost`, move n8n into Selected Applications, save. The outpost is the piece Traefik talks to, and this tells it which apps it answers for.
+
+One thing I would do differently: I had created a standalone provider from the Providers page first, and the wizard will not let you pick an existing one. It only creates new ones. So I ended up with an orphan to delete. Use the wizard first.
+
+In git, a ForwardAuth Middleware in the n8n overlay:
+
+```yaml
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: authentik-forward-auth
+spec:
+  forwardAuth:
+    address: http://authentik-server.authentik.svc.cluster.local:80/outpost.goauthentik.io/auth/traefik
+    trustForwardHeader: true
+    authResponseHeaders:
+      - X-authentik-username
+      - X-authentik-groups
+      - X-authentik-email
+      - X-authentik-name
+      - X-authentik-uid
+```
+
+`address` is the outpost's check endpoint. `trustForwardHeader` passes the original host and scheme along so Authentik builds the right redirect back. The response headers are what n8n would see about the logged-in user if it cared.
+
+And because the n8n Ingress needs to route `/outpost.goauthentik.io` to Authentik, which lives in another namespace, and an Ingress can only point at Services in its own namespace, an ExternalName Service in the n8n namespace that is just an alias:
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: authentik-server
+spec:
+  type: ExternalName
+  externalName: authentik-server.authentik.svc.cluster.local
+  ports:
+    - name: http
+      port: 80
+```
+
+A mail-forwarding address. Then the final Ingress, with the middleware annotation and a second path for the callback:
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: n8n
+  annotations:
+    traefik.ingress.kubernetes.io/router.middlewares: n8n-authentik-forward-auth@kubernetescrd
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: n8n.example.com
+      http:
+        paths:
+          - path: /outpost.goauthentik.io
+            pathType: Prefix
+            backend:
+              service:
+                name: authentik-server
+                port:
+                  number: 80
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: n8n
+                port:
+                  number: 80
+```
+
+The annotation value is always `<namespace>-<middleware name>@kubernetescrd`. Traefik picks the longest matching prefix, so the outpost path wins for the callback and everything else goes to n8n.
+
+Last, in `clusters/dev/apps.yaml`:
+
+```yaml
+  dependsOn:
+    - name: auth-controllers
+```
+
+So on a rebuild, `apps` never applies a Middleware pointing at a Service that does not exist yet.
+
+```bash
+git push
+flux reconcile kustomization apps --with-source
+k -n n8n get middleware,ingress
+```
+
+## What broke and how I fixed it
+
+### Vim, mostly
+
+Not Kubernetes. Vim. I kept getting indentation wrong. I would paste a block and vim's autoindent would re-indent it. I typed `PASSWOD` instead of `PASSWORD`, fixed it, then quit without saving and lost the fix. I had `spec:` nested under `metadata:` instead of beside it, so the security context was sitting where Kubernetes would ignore it, and `kubectl apply --dry-run=client` passed the file anyway. A client dry run only checks that the YAML parses and the field names exist. It does not check that your blocks are at the right level. I learned that the hard way and now I `cat` every file and read it after it builds.
+
+What finally worked was taking vim out of the picture for anything longer than a few lines. `cat > file <<'EOF'` to write a block from the shell where nothing can re-indent it. `sed -i '' '/pattern/,$d'` to chop a broken tail off a file and re-append it clean. Line-ranged `sed` to fix one block's indent without touching the rest. And `cp` the closest working manifest when only values change.
+
+### The Ingress port
+
+I wrote `port: 5376` with `number: 80` nested under it. The dry run said `line 15: mapping values are not allowed in this context`, and line 15 was exactly that line. A key cannot be both a value and a map. Read the error.
+
+### NXDOMAIN
+
+I forgot to create the DNS record for n8n and got `DNS_PROBE_FINISHED_NXDOMAIN`. That error means the name does not exist. The browser never reached Cloudflare, the tunnel, or the cluster. Nothing I had pushed was at fault. One `cloudflared tunnel route dns` later it was fine on the Mac, after a `dig @1.1.1.1` to confirm the record and a DNS cache flush. My phone on 5G took another twenty minutes because the carrier's resolver had cached the "does not exist" answer. Airplane mode on and off, then wait.
+
+### Homepage dropped a tile
+
+I added n8n and Audiobookshelf to the Homepage ConfigMap, got the indentation wrong on both entries (10 and 11 spaces instead of 12), and Homepage silently dropped Audiobookshelf. I had also accidentally appended `.png` to littlelink's `mdi-link-variant` icon, which broke a tile that had been working for weeks. Fixed with `sed` on specific line numbers and a `rollout restart`.
+
+### Almost committing a secret in plain text
+
+I had written the Authentik Secret with real values and not yet run `sops --encrypt`. The thing that saved me was the habit from the day before: `grep -c 'ENC\['` on any secret file before `git add`. It returned `0`. Thirty seconds, and the difference between a secret and a leak.
+
+### Two kustomization files
+
+I opened `vim .../kustomization` without the `.yaml` by typo, which created a second file. Kustomize failed with `Found multiple kustomization files under ...`. `rm` the stray one.
+
+### ErrImagePull on the Authentik worker
+
+First boot threw `ErrImagePull` then `ImagePullBackOff`. I ran `describe pod`, read the Events top to bottom, and watched the story: pull failed with `connection reset by peer`, backed off, retried forty seconds later, succeeded, container started. Nothing to fix. `ErrImagePull` on its own tells you nothing. The Events tell you why, and the last Event tells you whether it is still a problem.
+
+### The one that took real debugging
+
+Port-forward to Authentik worked. I logged in as `akadmin`, bootstrap password, Application Dashboard. Then I added the tunnel entry and DNS, opened `auth.example.com`, and got:
+
+> The request failed and the interceptors did not return an alternative response
+
+Which tells you nothing. So, in order:
+
+Server logs, filtered for errors, while reloading the page:
+
+```bash
+k -n authentik logs deploy/authentik-server -f | grep -E '"status": (4|5)|warning|error'
+```
+
+Nothing failed server side. But every public request logged `"scheme": "http"`. And a warning that no base URL was configured.
+
+Is the API even reachable through Cloudflare?
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' https://auth.example.com/api/v3/root/config/
+```
+
+200. So Cloudflare and Traefik were not blocking anything.
+
+Browser DevTools, Network tab, reload. The flow executor request showed status `(blocked)` and its URL started with `http://auth.example.com/api/v3/flows/executor/...`. There it was. The page was served over https, Authentik built its API URL with http, and the browser blocked the call as mixed content. The server never saw it, which is why the logs were clean.
+
+Why did Authentik think it was on http? Cloudflare terminates TLS and tells the tunnel "this was https" with an `X-Forwarded-Proto` header. Traefik, by default, does not trust forwarded headers from anyone, so it overwrites that with what Traefik itself saw, which is plain http from the cloudflared pod. Authentik reads http. Over the port-forward both sides agreed on http so it worked. Grafana and n8n do not care about their own scheme, so they had never shown this.
+
+I tried the base URL setting first, because Authentik was literally asking for it. Helm did a proper rolling update, new pod ready before the old one terminated, and it was still broken. The frontend builds its API URL from the request, not from that setting. Kept it anyway.
+
+The real fix is eight lines of YAML:
+
+```yaml
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: forwarded-proto-https
+spec:
+  headers:
+    customRequestHeaders:
+      X-Forwarded-Proto: https
+```
+
+attached to the chart's Ingress through `server.ingress.annotations` with `authentik-forwarded-proto-https@kubernetescrd`. Safe to hardcode because every request through the tunnel really was https at Cloudflare.
+
+On the way there I managed to add the annotation before the Middleware file existed. A heredoc had failed because my pasted lines had leading spaces, so the closing `EOF` never matched and the file was never written. An Ingress annotation pointing at a Middleware that does not exist takes the whole route down, from "broken login page" to "nothing loads." Build the Middleware, confirm it is in the kustomize output, then add the annotation.
+
+Login page loaded. Signed in over the public URL.
+
+I got told, fairly, that it looked like I was guessing partway through that. The honest answer is that the diagnosis was evidence-based from the logs, but I had reached for a fix before confirming it in the browser. The curl and the Network tab were the confirmation, and they took two minutes. Should have done them first.
+
+### Forward auth "worked" with no redirect
+
+I pushed, opened n8n, and landed straight in it. No Authentik. For a second I thought it had not worked. It had. My normal browser already had both cookies. Opened a private window: redirected to `auth.example.com`, "Log in to continue to n8n", logged in, landed in n8n. Always test auth in a private window.
+
+## How I checked it worked
+
+```bash
+k -n n8n exec n8n-postgres-0 -- psql -U n8n -d n8n -c '\dt'
+```
+
+Pages of n8n tables: `user`, `workflow_entity`, `credentials_entity`, and so on. The data went to Postgres, not a SQLite file. That is the proof the Deployment is talking to the StatefulSet.
+
+```bash
+flux get kustomizations
+k -n n8n get pods,pvc,svc,ingress,middleware -o wide
+k -n authentik get pods,ingress,middleware
+```
+
+Four Flux Kustomizations, all Ready. Both n8n pods `1/1`, both PVCs Bound, the Middleware and the Ingress present. Three Authentik pods `1/1`.
+
+```bash
+curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' https://n8n.example.com/
+```
+
+`302` and a redirect URL on `auth.example.com`. Forward auth is in front.
+
+And the private-window test: open n8n, bounce to Authentik, log in, land in n8n. n8n still shows its own login after Authentik's. That is a second lock, not a bug. Community n8n has no SSO support, so the two stay separate.
+
+## What I learned
+
+1. **The error tells you which layer to look at.** NXDOMAIN is DNS. A 413 with `cloudflare` in the body is the edge. A 502 is tunnel to Service. Clean server logs with a frontend error is the browser. I stopped treating every failure as a cluster problem.
+2. **Shape is not correctness.** A passing dry run and a clean kustomize build mean the YAML parses. Reading the file is the review.
+3. **Confirm before you fix.** The confirmation usually takes two minutes. The wrong fix is a redeploy and a dent in your trust in your own diagnosis.
+
+## What I'd do next
+
+- A `nodeSelector` so n8n and its Postgres land together on a node that stays up, then fresh PVCs.
+- Put Grafana, Linkding, Homepage, and Audiobookshelf behind Authentik, one at a time. Same four pieces each.
+- A local-only Ingress for Audiobookshelf, because Cloudflare's free plan caps uploads at 100 MB and audiobooks are bigger than that.
+- Uptime Kuma, which is still sitting untracked on my laptop.
+- A password manager, now that the lab has more logins than I can keep in my head.
+
+## Links
+
+- Repo: homelab-kubecraft, full runbook with every command at `docs/runbooks/n8n-authentik.md`
+- n8n docs: https://docs.n8n.io/hosting/
+- Authentik Kubernetes install: https://docs.goauthentik.io/install-config/install/kubernetes
+- Authentik forward auth with Traefik: https://docs.goauthentik.io/add-secure-apps/providers/proxy/server_traefik
+- Traefik ForwardAuth: https://doc.traefik.io/traefik/middlewares/http/forwardauth/
