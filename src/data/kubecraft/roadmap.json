@@ -8,7 +8,7 @@
     { "name": "Cluster upgrades + patching, one node at a time", "status": "next" }
   ]},
   { "goal": "Cluster provisioning & lifecycle", "t": 2, "items": [
-    { "name": "First look at Omni", "status": "next" },
+    { "name": "First look at Omni", "status": "done" },
     { "name": "Cluster architecture, bootstrapping + secrets", "status": "next" },
     { "name": "Provisioning with Ansible", "status": "next" },
     { "name": "Kubernetes from dev containers", "status": "next" }
