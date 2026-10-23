@@ -204,11 +204,11 @@ const fmt = (d: Date) =>
   .labs{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   .lab{background:var(--card);border:1px solid var(--bd);border-radius:7px;overflow:hidden;display:flex;flex-direction:column;position:relative}
   .lab::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--ac)}
-  .lab.one{--ac:var(--a3);--acf:var(--pom);--aco:var(--on-pom)}.lab.two{--ac:var(--a3);--acf:var(--sea);--aco:var(--on-sea)}
-  .lab-h{background:var(--acf);border-bottom:1px solid var(--bd);padding:8px 15px;display:flex;align-items:center;gap:8px}
-  .lab-dot{width:6px;height:6px;border-radius:50%;background:var(--aco);animation:pulse 2.4s ease-in-out infinite}
-  .lab-tag{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--aco);font-weight:700}
-  .lab-path{margin-left:auto;font-size:9px;color:var(--aco)}
+  .lab.one{--ac:var(--a1)}.lab.two{--ac:var(--a2)}
+  .lab-h{background:var(--bg2);border-bottom:1px solid var(--bd);padding:8px 15px;display:flex;align-items:center;gap:8px}
+  .lab-dot{width:6px;height:6px;border-radius:50%;background:var(--ac);animation:pulse 2.4s ease-in-out infinite}
+  .lab-tag{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ac)}
+  .lab-path{margin-left:auto;font-size:9px;color:var(--dimmer)}
   .lab-b{padding:22px;display:flex;flex-direction:column;flex:1}
   .lab-t{font-size:23px;font-weight:700;color:var(--head);line-height:1.2;margin-bottom:5px}
   .lab-t .hl{color:var(--ac)}
@@ -218,7 +218,7 @@ const fmt = (d: Date) =>
   .lab-sh .pr{color:var(--ac)}
   .lab-sh .ln{color:var(--dim);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .lab-sh .ln .b{color:var(--dimmer)}
-  .lab-lk{display:inline-flex;gap:7px;color:var(--on-lime);background:var(--lime);border:1px solid var(--lime);font-weight:700;border-radius:4px;padding:9px 15px;font-size:12px;margin-top:auto;align-self:flex-start;text-decoration:none}
+  .lab-lk{display:inline-flex;gap:7px;color:var(--ac);border:1px solid var(--ac);border-radius:4px;padding:9px 15px;font-size:12px;margin-top:auto;align-self:flex-start;text-decoration:none}
 
   /* post cards */
   .posts{display:grid;grid-template-columns:1fr 1fr;gap:14px}
