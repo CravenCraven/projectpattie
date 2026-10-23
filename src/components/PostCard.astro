@@ -13,22 +13,30 @@ const dateStr = date.toLocaleDateString('en-US', { year:'numeric', month:'short'
 
 <style>
 .post-card {
-  border: 1px solid var(--bd);
-  border-radius: 6px;
-  padding: 24px;
-  transition: border-color 0.2s;
+  --pf: var(--calamine); --po: var(--on-calamine);
+  border: 0;
+  border-radius: 8px;
+  padding: 0 24px 24px;
   display: block;
   color: inherit;
+  background: var(--card);
+  overflow: hidden;
 }
-.post-card:hover { border-color: var(--a1); text-decoration: none; }
+.post-card:nth-child(4n+2) { --pf: var(--cobalt); --po: var(--on-cobalt); }
+.post-card:nth-child(4n+3) { --pf: var(--greenblue); --po: var(--on-greenblue); }
+.post-card:nth-child(4n+4) { --pf: var(--sea); --po: var(--on-sea); }
+.post-card:hover { outline: 3px solid var(--lime); text-decoration: none; }
 .meta {
   font-size: 11px;
-  color: var(--dimmer);
+  font-weight: 700;
+  color: var(--po);
+  background: var(--pf);
   letter-spacing: 1px;
   text-transform: uppercase;
-  margin-bottom: 10px;
+  margin: 0 -24px 16px;
+  padding: 9px 24px;
 }
-.meta .cat { color: var(--a1); }
+.meta .cat { color: var(--on-pom); background: var(--pom); padding: 1px 7px; border-radius: 3px; }
 .post-title {
   font-size: 18px;
   font-weight: 700;
@@ -46,7 +54,11 @@ const dateStr = date.toLocaleDateString('en-US', { year:'numeric', month:'short'
   display: inline-block;
   margin-top: 14px;
   font-size: 12px;
-  color: var(--a1);
+  font-weight: 700;
+  color: var(--on-lime);
+  background: var(--lime);
+  padding: 3px 10px;
+  border-radius: 4px;
 }
 </style>
 

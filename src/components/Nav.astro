@@ -54,11 +54,11 @@ const homelabs = sections.filter(s => s.lab);
     {writing.map(s => (
       <a href={s.href} class={`dwi${isOn(s.href) ? ' on' : ''}`}><span class="ar">{s.icon}</span>{s.label}</a>
     ))}
-    <div class="dw-h">homelabs</div>
+    <div class="dw-h dw-h2">homelabs</div>
     {homelabs.map(s => (
       <a href={s.href} class={`dwi${isOn(s.href) ? ' on' : ''}`}><span class="ar">{s.icon}</span>{s.label}</a>
     ))}
-    <div class="dw-h">site</div>
+    <div class="dw-h dw-h3">site</div>
     {utility.map(u => (
       <a href={u.href} class={`dwi${isOn(u.href) ? ' on' : ''}`}><span class="ar">{u.icon}</span>{u.label}</a>
     ))}
@@ -103,18 +103,20 @@ const homelabs = sections.filter(s => s.lab);
   .sec.lab .dt{width:5px;height:5px;border-radius:50%;background:var(--pom)}
 
   /* drawer */
-  .dw{display:none;border-top:1px solid var(--bd);background:var(--page);padding:8px 0 14px}
+  .dw{display:none;border-top:4px solid var(--sea);background:var(--slate);padding:8px 0 14px}
   .dw.open{display:block}
-  .dw-srch{display:flex;align-items:center;gap:10px;margin:8px 18px 14px;background:var(--bg2);border:1px solid var(--bd2);border-radius:6px;padding:12px 14px;color:var(--dimmer);font-size:13px}
-  .dw-h{font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--dimmer);padding:12px 18px 6px}
-  .dw-h::before{content:'// ';color:var(--bd2)}
+  .dw-srch{display:flex;align-items:center;gap:10px;margin:8px 18px 14px;background:var(--bg2);border:2px solid var(--greenblue);border-radius:6px;padding:12px 14px;color:var(--dimmer);font-size:13px}
+  .dw-h{display:inline-block;margin:14px 18px 4px;font-size:10px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--on-pom);background:var(--pom);padding:3px 10px;border-radius:4px}
+  .dw-h::before{content:'// ';color:inherit}
+  .dw-h2{background:var(--sea)!important;color:var(--on-sea)!important}.dw-h3{background:var(--calamine)!important;color:var(--on-calamine)!important}
+  .dw-h + *{margin-top:2px}
   .dwi{display:flex;align-items:center;gap:12px;padding:12px 18px;font-size:14.5px;color:var(--tx);text-decoration:none}
   .dwi:active{background:var(--card)}
-  .dwi .ar{color:var(--dimmer);font-size:12px;width:12px;flex-shrink:0}
-  .dwi.on{color:var(--a1)}
-  .dwi.on .ar{color:var(--a1)}
+  .dwi .ar{color:var(--lime);font-size:12px;width:12px;flex-shrink:0}
+  .dwi.on{color:var(--on-lime);background:var(--lime);font-weight:700}
+  .dwi.on .ar{color:var(--on-lime)}
   .dw-ft{display:flex;gap:8px;padding:14px 18px 4px;margin-top:8px;border-top:1px solid var(--bd)}
-  .dw-ft a{flex:1;text-align:center;font-size:11px;color:var(--dim);border:1px solid var(--bd2);border-radius:4px;padding:9px 0;text-decoration:none}
+  .dw-ft a{flex:1;text-align:center;font-size:11px;font-weight:700;color:var(--on-calamine);background:var(--calamine);border:0;border-radius:4px;padding:9px 0;text-decoration:none}
 
   @media(max-width:900px){
     .util,.cmdk,.tb2{display:none}

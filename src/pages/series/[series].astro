@@ -28,11 +28,11 @@ const category = posts[0]?.data.category ?? 'sysadmin';
 
 <BaseLayout title={`${seriesName} — projectpattie;`}>
   <div style="max-width:900px; margin:0 auto; padding:60px 24px 100px;">
-    <div style="font-size:12px; color:var(--dimmer); margin-bottom:12px;">
-      // <a href={`/category/${category}`} style="color:var(--a2); text-decoration:none;">{category}</a> / series
-    </div>
-    <h1 style="font-size:28px; margin-bottom:8px;">{seriesName}</h1>
-    <div class="series-count">{posts.length} part{posts.length > 1 ? 's' : ''} &middot; read top to bottom</div>
+    <header class="list-band">
+      <div class="list-kicker"><a href={`/category/${category}`}>// {category}</a> <span>series</span></div>
+      <h1>{seriesName}</h1>
+      <div class="list-count">{posts.length} part{posts.length > 1 ? 's' : ''} &middot; read top to bottom</div>
+    </header>
 
     <div class="series-cards">
       {posts.map((post, i) => (
@@ -55,6 +55,13 @@ const category = posts[0]?.data.category ?? 'sysadmin';
 </BaseLayout>
 
 <style>
+  .list-band { background: var(--pom); box-shadow: 0 0 0 100vmax var(--pom); clip-path: inset(0 -100vmax); margin: -60px 0 36px; padding: 34px 0 30px; }
+  .list-kicker a, .list-kicker span { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; padding: 2px 9px; border-radius: 4px; text-decoration: none; }
+  .list-kicker a { background: var(--lime); color: var(--on-lime); }
+  .list-kicker span { background: var(--calamine); color: var(--on-calamine); margin-left: 4px; }
+  .list-band h1 { color: var(--on-pom); font-size: 32px; margin: 12px 0 4px; }
+  .list-count { color: var(--on-pom-dim); font-size: 12px; letter-spacing: .1em; text-transform: uppercase; }
+
   .series-count {
     color: var(--dimmer);
     font-size: 11px;
