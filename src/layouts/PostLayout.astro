@@ -9,9 +9,10 @@ interface Props {
   date: Date;
   category: string;
   readTime?: number;
+  tags?: string[];
 }
 
-const { title, description, date, category, readTime = 5 } = Astro.props;
+const { title, description, date, category, readTime = 5, tags = [] } = Astro.props;
 const dateStr = date.toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' });
 ---
 
@@ -28,12 +29,18 @@ const dateStr = date.toLocaleDateString('en-US', { year:'numeric', month:'short'
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: var(--bg); color: var(--tx); font-family: 'Source Code Pro', 'JetBrains Mono', monospace; font-size: 15px; line-height: 1.85; -webkit-font-smoothing: antialiased; }
     .pp-article { max-width: 740px; margin: 0 auto; padding: 60px 24px 100px; }
-    .pp-meta { color: var(--on-pom-dim); background: var(--pom); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; margin: 0; padding: 24px 28px 6px; border-radius: 10px 10px 0 0; }
+    .pp-bandtags, .pp-meta, .pp-title, .pp-subtitle { background: var(--pom); box-shadow: 0 0 0 100vmax var(--pom); clip-path: inset(0 -100vmax); }
+    .pp-article { padding-top: 0 !important; }
+    .pp-bandtags { display: flex; flex-wrap: wrap; gap: 6px; padding: 30px 0 4px; margin: 0; }
+    .pp-bandtags ~ .pp-tags { display: none; }
+    .pp-meta { color: var(--on-pom-dim); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; margin: 0; padding: 30px 0 6px; }
+    .pp-bandtags + .pp-meta { padding-top: 10px; }
     .pp-meta span { color: var(--lime); }
-    .pp-title { font-size: clamp(28px, 5vw, 42px); font-weight: 700; color: var(--on-pom); background: var(--pom); line-height: 1.2; margin: 0; padding: 26px 28px 12px; border-radius: 10px 10px 0 0; }
-    .pp-meta + .pp-title { padding-top: 6px; border-radius: 0; }
+    .pp-title { font-size: clamp(28px, 5vw, 42px); font-weight: 700; color: var(--on-pom); line-height: 1.2; margin: 0; padding: 30px 0 12px; }
+    .pp-meta + .pp-title, .pp-bandtags + .pp-title { padding-top: 6px; }
+    .pp-meta, .pp-title, .pp-subtitle { margin-top: -1px !important; border-top: 1px solid var(--pom); }
     .pp-title em { color: var(--lime); font-style: normal; }
-    .pp-subtitle { color: var(--on-pom-dim); background: var(--pom); font-size: 15px; line-height: 1.7; margin: 0 0 44px; padding: 0 28px 26px; border-radius: 0 0 10px 10px; }
+    .pp-subtitle { color: var(--on-pom-dim); font-size: 15px; line-height: 1.7; margin: 0 0 48px; padding: 0 0 32px; }
     /* series nav */
     .pp-series { background: var(--calamine); border: 0; border-radius: 8px; padding: 20px 24px; margin-bottom: 30px; }
     .pp-series, .pp-series li, .pp-series li a, .pp-series li::before { color: var(--on-calamine) !important; }
@@ -73,6 +80,19 @@ const dateStr = date.toLocaleDateString('en-US', { year:'numeric', month:'short'
     .pp-article code { background: var(--lime); border: 1px solid var(--lime); border-radius: 3px; padding: 1px 6px; font-size: 13px; color: var(--on-lime); font-weight: 500; font-family: 'Source Code Pro', monospace; }
     /* code inside a lime heading keeps the heading colours */
     .pp-article h2 code, .pp-h2 code { background: var(--on-lime); color: var(--lime); border-color: var(--on-lime); }
+    /* headings cycle through the palette so a post never reads as one colour */
+    .pp-article h2:nth-of-type(5n+2), .pp-h2:nth-of-type(5n+2) { background: var(--calamine); color: var(--on-calamine); }
+    .pp-article h2:nth-of-type(5n+3), .pp-h2:nth-of-type(5n+3) { background: var(--pom); color: var(--on-pom); }
+    .pp-article h2:nth-of-type(5n+4), .pp-h2:nth-of-type(5n+4) { background: var(--cobalt); color: var(--on-cobalt); }
+    .pp-article h2:nth-of-type(5n+5), .pp-h2:nth-of-type(5n+5) { background: var(--sea); color: var(--on-sea); }
+    .pp-article h3:nth-of-type(4n+2), .pp-h3:nth-of-type(4n+2) { background: var(--lime); color: var(--on-lime); }
+    .pp-article h3:nth-of-type(4n+3), .pp-h3:nth-of-type(4n+3) { background: var(--cobalt); color: var(--on-cobalt); }
+    .pp-article h3:nth-of-type(4n+4), .pp-h3:nth-of-type(4n+4) { background: var(--sea); color: var(--on-sea); }
+    .pp-article li code { background: var(--calamine); border-color: var(--calamine); color: var(--on-calamine); }
+    .pp-article p strong, .pp-article li strong { color: var(--lime); }
+    .pp-article p em, .pp-article li em { color: var(--calamine); font-style: normal; font-weight: 600; }
+    .pp-bandtags .pp-tag:nth-child(4n+4) { background: var(--sea); color: var(--on-sea); }
+    .pp-bandtags .pp-tag { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; padding: 2px 9px; }
     /* tags cycle through the palette */
     .pp-tag:nth-child(4n+2) { background: var(--calamine); color: var(--on-calamine); }
     .pp-tag:nth-child(4n+3) { background: var(--cobalt); color: var(--on-cobalt); }
@@ -149,6 +169,7 @@ const dateStr = date.toLocaleDateString('en-US', { year:'numeric', month:'short'
 <body>
   <Nav />
   <article class="pp-article">
+    {tags.length > 0 && <div class="pp-bandtags">{tags.slice(0, 5).map(t => <span class="pp-tag">{t}</span>)}</div>}
     <slot />
   </article>
   <Footer />
