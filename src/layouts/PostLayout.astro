@@ -107,6 +107,13 @@ const bandTags = [category, ...tags.filter(t => t !== category)].slice(0, 3);
     .pp-article td { background: var(--card); }
     .pp-article blockquote strong, .pp-article blockquote a { color: var(--on-cobalt); }
     .pp-article blockquote code { background: var(--on-cobalt); color: var(--cobalt); border-color: var(--on-cobalt); }
+    /* text on light fills must use the fill's own ink, beating the general .pp-article rules */
+    .pp-article .pp-toc a { color: var(--on-cobalt); text-decoration: none; }
+    .pp-article .pp-toc li:hover a { color: var(--cobalt); }
+    .pp-article blockquote p, .pp-article blockquote li { color: var(--on-cobalt); margin-bottom: 0; }
+    .pp-article .pp-series a { text-decoration: none; }
+    .pp-article .pp-code-body pre { border: 0 !important; padding: 0 !important; margin: 0 !important; background: transparent !important; }
+    .pp-article .pp-code-copy { margin-left: 8px; }
     /* colors */
     .c-pink   { color: var(--a3) !important; font-weight: 600; }
     .c-cyan   { color: var(--a2) !important; font-weight: 600; }
