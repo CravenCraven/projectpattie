@@ -1,34 +1,48 @@
 /* projectpattie — colour and type tokens
+   Palette: "Pomegranate tide", from Sanzo Wada's A Dictionary of Color Combinations
+   (combinations 271 + 291: Deep Slate Green, Pomegranite Purple, Sea Green, Cobalt Green,
+   Light Green Yellow, Green Blue). Previous palette saved in tokens-v1.css.
    Single source of truth. Every page reads from these.
    Change a value here and it changes site-wide. */
 
 :root{
   /* surfaces, darkest to lightest */
-  --bg:     #0c0b09;   /* page background */
-  --bg2:    #080706;   /* recessed: terminal bodies, nav second tier */
-  --page:   #100e0b;   /* raised: hero, page headers */
-  --card:   #14120e;   /* cards, panels */
+  --bg:     #112f2c;   /* page background */
+  --bg2:    #081816;   /* recessed: terminal bodies, nav second tier */
+  --page:   #0f2826;   /* raised: hero, page headers */
+  --card:   #163a36;   /* cards, panels */
 
   /* borders */
-  --bd:     #262833;   /* default hairline */
-  --bd2:    #34405a;   /* emphasis, inputs */
+  --bd:     #1d4440;   /* default hairline */
+  --bd2:    #2a5953;   /* emphasis, inputs */
 
   /* text, brightest to dimmest */
-  --head:   #f5ead2;   /* headings */
-  --tx:     #d4c8b1;   /* body */
-  --dim:    #a08d6c;   /* supporting */
-  --dimmer: #6b6a70;   /* metadata, prompts */
+  --head:   #e6f6ef;   /* headings */
+  --tx:     #d8eee4;   /* body */
+  --dim:    #b9dccb;   /* supporting */
+  --dimmer: #9fc6b8;   /* metadata, prompts */
 
   /* accents */
-  --a1:     #ffb000;   /* primary: links, active nav, $ prompt */
-  --a2:     #5cb8ff;   /* secondary: section labels, scanline */
-  --a3:     #4d8dff;   /* highlight: headline spans */
-  --a4:     #c9a227;   /* attribution, callout rules */
+  --a1:     #96d1aa;   /* primary: links, active nav, $ prompt */
+  --a2:     #c7d14f;   /* secondary: section labels, scanline */
+  --a3:     #f4a9c0;   /* highlight: headline spans */
+  --a4:     #00b49b;   /* attribution, callout rules */
 
-  /* terminal window dots — macOS chrome, fixed by convention */
-  --dot1:   #ff5f57;
-  --dot2:   #febc2e;
-  --dot3:   #28c840;
+  /* solid fills — Wada colours used as blocks, each with the text colour that reads on it */
+  --pom:          #b71f57;   /* Pomegranite Purple: homepage hero, section labels, chips */
+  --on-pom:       #fff0f4;
+  --on-pom-dim:   #fbd0dd;   /* supporting text on --pom */
+  --sea:          #00b49b;   /* Sea Green: nav second tier, card headers */
+  --on-sea:       #062b26;
+  --lime:         #c7d14f;   /* Light Green Yellow: buttons, cursor */
+  --on-lime:      #112f2c;
+  --cobalt:       #96d1aa;   /* Cobalt Green */
+  --on-cobalt:    #112f2c;
+
+  /* terminal window dots — Pomegranite Purple, Light Green Yellow, Sea Green */
+  --dot1:   #b71f57;
+  --dot2:   #c7d14f;
+  --dot3:   #00b49b;
 
   --f: 'JetBrains Mono', ui-monospace, monospace;
 }

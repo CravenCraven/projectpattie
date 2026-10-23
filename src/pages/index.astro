@@ -172,17 +172,17 @@ const fmt = (d: Date) =>
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 
   /* hero */
-  .hero{background:var(--page);border-bottom:1px solid var(--bd);position:relative;overflow:hidden}
+  .hero{background:var(--pom);border-bottom:1px solid var(--bd);position:relative;overflow:hidden}
   .hbg{position:absolute;inset:0;background-image:linear-gradient(color-mix(in srgb,var(--a1) 4%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--a1) 4%,transparent) 1px,transparent 1px);background-size:44px 44px;pointer-events:none}
   .hsc{position:absolute;left:0;right:0;height:1px;background:linear-gradient(90deg,transparent,var(--a2),transparent);animation:scan 7s linear infinite;opacity:.3}
   .hin{max-width:1080px;margin:0 auto;padding:50px 24px 46px;position:relative;display:flex;gap:36px;align-items:flex-start}
   .hl{flex:1;min-width:0}
-  .hpl{color:var(--a1);font-size:12px;margin-bottom:14px}
-  .hpl .t{color:var(--a3)}
+  .hpl{color:var(--on-pom);font-size:12px;margin-bottom:14px}
+  .hpl .t{color:var(--lime)}
   .hh{font-size:clamp(27px,4.6vw,40px);font-weight:700;line-height:1.25;margin-bottom:16px;letter-spacing:-.02em}
-  .hh .ac{color:var(--a3)}
-  .hh .cur{display:inline-block;width:11px;height:.82em;background:var(--a2);margin-left:5px;animation:blink 1.1s step-end infinite}
-  .hd{color:var(--dim);font-size:14px;line-height:1.85;max-width:520px;margin-bottom:0}
+  .hh .ac{color:var(--lime)}
+  .hh .cur{display:inline-block;width:11px;height:.82em;background:var(--lime);margin-left:5px;animation:blink 1.1s step-end infinite}
+  .hd{color:var(--on-pom-dim);font-size:14px;line-height:1.85;max-width:520px;margin-bottom:0}
 
   /* terminal panel */
   .term{width:290px;flex-shrink:0;background:var(--bg2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden}
@@ -193,22 +193,22 @@ const fmt = (d: Date) =>
   .t-s{position:absolute;left:15px;right:15px;top:14px;transition:opacity .45s,transform .45s}
   .t-s.hide{opacity:0;transform:translateY(-9px)}
   .g{color:var(--a1)}.c{color:var(--a2)}.d{color:var(--dimmer)}.m{color:var(--a3)}.o{color:var(--a4)}
-  .tc{display:inline-block;width:7px;height:12px;background:var(--a1);vertical-align:middle;animation:blink 1.1s step-end infinite}
+  .tc{display:inline-block;width:7px;height:12px;background:var(--lime);vertical-align:middle;animation:blink 1.1s step-end infinite}
   .d1{background:var(--dot1)}.d2{background:var(--dot2)}.d3{background:var(--dot3)}
 
   .wrap{max-width:1080px;margin:0 auto;padding:0 24px 72px}
-  .sl{font-size:11px;letter-spacing:.16em;text-transform:uppercase;margin:44px 0 16px;display:flex;align-items:baseline;gap:9px;color:var(--a2)}
-  .sl::before{content:'//';color:var(--dimmer)}
+  .sl{font-size:11px;letter-spacing:.16em;text-transform:uppercase;margin:44px 0 16px;display:flex;width:fit-content;align-items:baseline;gap:9px;color:var(--on-pom);background:var(--pom);padding:3px 12px;border-radius:4px}
+  .sl::before{content:'//';color:var(--on-pom)}
 
   /* homelab panels */
   .labs{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   .lab{background:var(--card);border:1px solid var(--bd);border-radius:7px;overflow:hidden;display:flex;flex-direction:column;position:relative}
   .lab::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--ac)}
-  .lab.one{--ac:var(--a1)}.lab.two{--ac:var(--a2)}
-  .lab-h{background:var(--bg2);border-bottom:1px solid var(--bd);padding:8px 15px;display:flex;align-items:center;gap:8px}
-  .lab-dot{width:6px;height:6px;border-radius:50%;background:var(--ac);animation:pulse 2.4s ease-in-out infinite}
-  .lab-tag{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ac)}
-  .lab-path{margin-left:auto;font-size:9px;color:var(--dimmer)}
+  .lab.one{--ac:var(--a3);--acf:var(--pom);--aco:var(--on-pom)}.lab.two{--ac:var(--a3);--acf:var(--sea);--aco:var(--on-sea)}
+  .lab-h{background:var(--acf);border-bottom:1px solid var(--bd);padding:8px 15px;display:flex;align-items:center;gap:8px}
+  .lab-dot{width:6px;height:6px;border-radius:50%;background:var(--aco);animation:pulse 2.4s ease-in-out infinite}
+  .lab-tag{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--aco);font-weight:700}
+  .lab-path{margin-left:auto;font-size:9px;color:var(--aco)}
   .lab-b{padding:22px;display:flex;flex-direction:column;flex:1}
   .lab-t{font-size:23px;font-weight:700;color:var(--head);line-height:1.2;margin-bottom:5px}
   .lab-t .hl{color:var(--ac)}
@@ -218,14 +218,14 @@ const fmt = (d: Date) =>
   .lab-sh .pr{color:var(--ac)}
   .lab-sh .ln{color:var(--dim);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .lab-sh .ln .b{color:var(--dimmer)}
-  .lab-lk{display:inline-flex;gap:7px;color:var(--ac);border:1px solid var(--ac);border-radius:4px;padding:9px 15px;font-size:12px;margin-top:auto;align-self:flex-start;text-decoration:none}
+  .lab-lk{display:inline-flex;gap:7px;color:var(--on-lime);background:var(--lime);border:1px solid var(--lime);font-weight:700;border-radius:4px;padding:9px 15px;font-size:12px;margin-top:auto;align-self:flex-start;text-decoration:none}
 
   /* post cards */
   .posts{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   .pc{border:1px solid var(--bd);border-radius:7px;padding:22px;display:block;background:var(--card);text-decoration:none}
   .pc:hover{border-color:var(--a1);text-decoration:none}
   .pc-m{font-size:10px;color:var(--dimmer);letter-spacing:.1em;text-transform:uppercase;margin-bottom:11px}
-  .pc-m .c{color:var(--a1)}
+  .pc-m .c{color:var(--on-pom);background:var(--pom);padding:1px 6px;border-radius:3px}
   .pc-t{font-size:17px;font-weight:700;color:var(--head);margin-bottom:9px;line-height:1.35}
   .pc-d{font-size:13px;color:var(--dim);line-height:1.7;margin-bottom:0}
   .pc-r{display:inline-block;margin-top:14px;font-size:12px;color:var(--a1)}

@@ -94,13 +94,13 @@ const homelabs = sections.filter(s => s.lab);
   .burger{display:none;background:none;border:1px solid var(--bd2);border-radius:4px;color:var(--dim);font-size:16px;padding:7px 11px;cursor:pointer;font-family:inherit}
 
   /* tier 2 */
-  .tb2{border-top:1px solid var(--bd);background:var(--bg2)}
+  .tb2{border-top:1px solid var(--bd);background:var(--sea)}
   .tb2-in{max-width:1080px;margin:0 auto;padding:0 24px;display:flex;gap:2px;overflow-x:auto;white-space:nowrap}
   .tb2-in::-webkit-scrollbar{display:none}
-  .sec{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--dim);padding:11px 13px;border-bottom:2px solid transparent;transition:.15s;flex-shrink:0;text-decoration:none}
-  .sec:hover{color:var(--head);text-decoration:none}
-  .sec.on{color:var(--a1);border-bottom-color:var(--a1)}
-  .sec.lab .dt{width:5px;height:5px;border-radius:50%;background:var(--a2)}
+  .sec{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--on-sea);font-weight:500;padding:11px 13px;border-bottom:2px solid transparent;transition:.15s;flex-shrink:0;text-decoration:none}
+  .sec:hover{color:var(--on-sea);text-decoration:underline}
+  .sec.on{color:var(--cobalt);background:var(--bg);border-bottom-color:var(--pom)}
+  .sec.lab .dt{width:5px;height:5px;border-radius:50%;background:var(--pom)}
 
   /* drawer */
   .dw{display:none;border-top:1px solid var(--bd);background:var(--page);padding:8px 0 14px}
