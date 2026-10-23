@@ -1,0 +1,357 @@
+---
+title: "Can a Bot Keep My Homelab Up to Date Without Breaking It?"
+description: "I set up Renovate to check every image in my cluster every hour and open a pull request when something new comes out. It asks before it touches anything. The first thing it found broken was me."
+tags: ["kubernetes", "gitops", "flux", "renovate", "sops", "cronjob", "homelab-kubecraft"]
+date: 2026-10-22
+category: devops
+homelab: kubecraft
+readTime: 11
+draft: false
+---
+
+<div class="pp-meta">2026-10-22 · devops · 11 min read</div>
+
+<h1 class="pp-title">Can a Bot Keep My Homelab<br/><em>Up to Date Without Breaking It?</em></h1>
+
+<p class="pp-subtitle">I set up Renovate to check every image in my cluster every hour and open a pull request when something new comes out. It asks before it touches anything. The first thing it found broken was me.</p>
+
+## The hook
+
+Every app in my homelab runs a container image with a version number on it. Audiobookshelf is pinned to one. n8n is pinned to one. The Cloudflare tunnel is pinned to one. I pinned them on purpose, because `:latest` is how you wake up to a broken cluster and no idea what changed.
+
+The catch is that a pinned version never moves unless somebody moves it. And that somebody was me, opening Docker Hub tabs and comparing numbers by hand. I was not doing it. Nobody does it.
+
+So the KubeCraft module for automated image updates hands that job to a bot. The bot is called Renovate. It checks every hour, and when it finds something newer, it does not change anything. It opens a pull request and waits for me.
+
+## What I built and why
+
+Renovate runs inside my cluster as a CronJob. Once an hour it:
+
+1. Clones my GitOps repo
+2. Reads every `image:` line in my YAML files
+3. Asks each registry if there is a newer version
+4. Opens a pull request for each update it finds
+
+```
+Renovate (every hour) ──► reads my repo ──► checks Docker Hub, ghcr.io
+        │
+        └──► opens a PR: "cloudflared → v2026.10.3"
+                    │
+              I review and merge
+                    │
+                    ▼
+        Flux sees the change ──► cluster updates
+```
+
+I think of it as an assistant who checks the store every hour for newer versions of everything on my shopping list. It never buys anything on its own. It leaves me a note, and I decide.
+
+This is the piece that closes the GitOps loop. Before, Git was the source of truth but I was the one keeping it current. Now the bot proposes, I approve, Flux deploys.
+
+## Before you start
+
+This is my setup. Yours will differ, so swap in your own values.
+
+- A three-node k3s cluster with Flux already watching a Git repo
+- A repo with `apps/` for things people use and `infrastructure/` for cluster-wide tools like monitoring and auth
+- SOPS with age already wired into Flux, with a `decryption` block on each Flux Kustomization
+- My Flux GitRepository is called `flux-system-kubecraft`, not `flux-system` like the course video, because two repos share this cluster
+- Repo used in this post: `your-user/your-repo`
+- Image: `renovate/renovate:44.175.5`
+- I run `kubectl` as `k`
+
+## How I did it
+
+I watched the video once all the way through without building anything. The teacher's repo is not my repo. Different repo name, different Flux names, different folders. If I build along while he talks, I end up typing his values. Watching first meant I could spot the differences calmly and then build with mine.
+
+### Where it lives
+
+Renovate is not an app anyone visits in a browser. It is a worker for the platform, so it goes under `infrastructure/`, next to monitoring and auth, in a `controllers/` folder.
+
+```
+clusters/dev/
+└── infrastructure.yaml                Flux: "go deploy infrastructure/controllers/staging"
+infrastructure/controllers/
+├── base/
+│   ├── kustomization.yaml             lists: renovate
+│   └── renovate/
+│       ├── namespace.yaml
+│       ├── configmap.yaml
+│       ├── cronjob.yaml
+│       └── kustomization.yaml
+└── staging/
+    ├── kustomization.yaml             lists: renovate
+    └── renovate/
+        ├── renovate-container-env.yaml    the encrypted token
+        └── kustomization.yaml             ../../base/renovate + the token
+```
+
+The token goes in `staging`, not `base`. Base is the blueprint every house in the neighborhood can share. Staging is this house's keys. You do not print the keys on the blueprint.
+
+### The token: one key, one door
+
+The video uses a classic GitHub token. I used a fine-grained one.
+
+A classic token with the `repo` scope opens every repo on your account. My website, my other homelab, all of it. A fine-grained token opens the one repo you pick, with only the permissions you tick. This bot runs every hour with nobody watching. If that token ever leaked, I want the damage stuck inside one repo.
+
+It cost me two extra minutes and a renewal reminder. Renovate cannot tell the difference. Nothing else in the module changes.
+
+I got the exact permission list from Renovate's own docs instead of the video: Contents, Pull requests, Issues, Commit statuses and Workflows set to read and write, Dependabot alerts read-only.
+
+### The Secret, without leaving the token lying around
+
+The video pastes the token straight into the `kubectl` command. That works, but everything you type in a terminal gets saved to your shell history. Now the token lives in plain text in a file on your laptop forever.
+
+So I put it in a hidden variable first:
+
+```bash
+read -s RENOVATE_TOKEN
+echo ${#RENOVATE_TOKEN}
+```
+
+`read -s` waits for input and does not show it. `${#...}` prints the length, not the value, so I can check it is not empty without showing the token. Mine printed `0` the first time, which taught me that a prompt with no words on it is still a prompt.
+
+Then build the Secret on my laptop and save it straight into `staging`:
+
+```bash
+kubectl create secret generic renovate-container-env \
+  --namespace=renovate \
+  --from-literal=RENOVATE_TOKEN="$RENOVATE_TOKEN" \
+  --dry-run=client \
+  -o yaml > infrastructure/controllers/staging/renovate/renovate-container-env.yaml
+```
+
+`--dry-run=client` builds it without touching the cluster. `--namespace` puts it in the same room as the CronJob, because a pod can only read Secrets in its own namespace.
+
+And encrypt it right away, before anything else:
+
+```bash
+sops --age=$AGE_PUBLIC --encrypt \
+  --encrypted-regex '^(data|stringData)$' \
+  --in-place infrastructure/controllers/staging/renovate/renovate-container-env.yaml
+unset RENOVATE_TOKEN
+```
+
+Only the `data:` section gets scrambled, so Kubernetes can still read the name and namespace. `unset` wipes the variable.
+
+### The settings
+
+The ConfigMap holds the things that are fine to read on GitHub:
+
+```yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: renovate-configmap
+  namespace: renovate
+data:
+  RENOVATE_AUTODISCOVER: "false"
+  RENOVATE_GIT_AUTHOR: "Renovate Bot <bot@renovateapp.com>"
+  RENOVATE_PLATFORM: "github"
+```
+
+Autodiscover off means only scan the repo I name. Git author is the name on Renovate's commits so they stand out from mine. Platform says which Git host to talk to. Every value is in quotes, because ConfigMap values have to be text and YAML reads a bare `false` as a yes/no.
+
+### The CronJob
+
+A CronJob is a box inside a box inside a box. The CronJob is an alarm clock. Every hour it makes a Job. The Job makes a Pod. The Pod runs Renovate and exits. That is why the file is indented halfway across the screen.
+
+```yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: renovate
+  namespace: renovate
+spec:
+  schedule: "@hourly"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: renovate
+              image: renovate/renovate:44.175.5
+              args:
+                - your-user/your-repo
+              envFrom:
+                - secretRef:
+                    name: renovate-container-env
+                - configMapRef:
+                    name: renovate-configmap
+          restartPolicy: Never
+```
+
+A few lines worth knowing:
+
+- **Why not a Deployment.** A Deployment keeps a pod alive forever. Renovate finishes and exits, so a Deployment would keep restarting it. A Deployment is a night guard. A CronJob is a mail carrier.
+- **`concurrencyPolicy: Forbid`.** If one run is still going, skip the next. Two Renovates at once would fight over the same branch.
+- **`restartPolicy: Never`.** It is supposed to stop. Let it.
+- **A pinned image.** The video uses `:latest`. Running the update bot on an unpinned image felt like hiring a building inspector who refuses to show ID. I checked Docker Hub, picked the newest version, and confirmed it is built for arm64 too, since one of my nodes is a MacBook Air. Bonus: Renovate can now open a PR to update itself.
+- **`secretRef` uses the Kubernetes name.** My token has a label on GitHub and a different name in the cluster. The cluster has never heard of the GitHub one.
+
+### The kustomization files
+
+Four short files. Each one is a table of contents. The ones in `base/` and `staging/` list the `renovate` folder. The one in `base/renovate/` lists the three manifests. The one in `staging/renovate/` lists two things:
+
+```yaml
+resources:
+  - ../../base/renovate
+  - renovate-container-env.yaml
+```
+
+The recipe, plus this cluster's keys. My n8n version of this file also has an Ingress and an auth middleware. Renovate needs neither, because nobody visits it.
+
+Before every push I let Kustomize prove the trail works:
+
+```bash
+k kustomize infrastructure/controllers/staging
+```
+
+### Telling Flux
+
+Every file in `clusters/dev/` points Flux at one folder. I copied my monitoring one and changed the name and the path. When I copy a file, every line is guilty until proven innocent. I kept my own `sourceRef` and the SOPS `decryption` block, because without it Flux would try to apply the scrambled Secret as-is.
+
+```yaml
+metadata:
+  name: infrastructure-controllers
+  namespace: flux-system
+spec:
+  sourceRef:
+    kind: GitRepository
+    name: flux-system-kubecraft
+  path: ./infrastructure/controllers/staging
+  prune: true
+  decryption:
+    provider: sops
+    secretRef:
+      name: sops-age
+```
+
+Then I pushed, using exact paths instead of `git add .` so nothing stray came along.
+
+### The first run
+
+I did not want to wait for the top of the hour:
+
+```bash
+k create job --from=cronjob/renovate renovate-manual -n renovate
+k logs -n renovate -f job/renovate-manual
+```
+
+That makes one Job right now from the CronJob's recipe. It sat in `ContainerCreating` for a minute while my node pulled a 428 MB image, then it ran, and it opened Pull Request #1: **Configure Renovate**.
+
+That first PR is Renovate's day one. It is the new hire handing you "here is how I plan to work, OK?" before touching anything. It adds a `renovate.json` to the repo, and merging it is your sign-off.
+
+The PR also told me my dependencies were already up to date. They were not. The log said `fileCount: 0`. It had looked at nothing.
+
+### Teaching it to read Kubernetes files
+
+Renovate's Kubernetes scanner matches no files out of the box, because there is no standard naming for Kubernetes YAML. You have to tell it which files to read. The video does that with `fileMatch`.
+
+I opened Renovate's current docs to double-check, and the option has been renamed. The pattern is now wrapped in slashes too. The video was out of date.
+
+```json
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "kubernetes": {
+    "managerFilePatterns": ["/\\.yaml$/"]
+  }
+}
+```
+
+`/\\.yaml$/` reads as: any file whose name ends in `.yaml`. I checked it was valid JSON with `python3 -m json.tool renovate.json`, pushed, and ran it again.
+
+Two real pull requests:
+
+- **cloudflared** to a new release. A tag update: the version label changed.
+- **littlelink** to a new digest. Same label, new image behind it. A digest is the image's fingerprint. Think of a book reprinted with fixes but the same edition number.
+
+Only two, because Renovate opens a maximum of two new PRs an hour by default. More are coming.
+
+### Merging one and watching it land
+
+The PR shows exactly what changes, and one line I like: automerge is disabled. A human approves every update.
+
+I checked what was running, merged on GitHub, and told Flux to go look:
+
+```bash
+k get deploy littlelink -n littlelink \
+  -o jsonpath='{.spec.template.spec.containers[0].image}'; echo
+flux reconcile kustomization apps --with-source
+```
+
+The image changed to the new fingerprint, and two fresh pods came up about twenty seconds apart. Kubernetes replaced them one at a time, so the page never went down.
+
+That is the whole loop. The bot proposed it, I approved it, Flux shipped it.
+
+## What broke and how I fixed it
+
+### A file I wrote days ago was blocking everything
+
+I pushed Renovate and it never showed up in Flux. `flux get kustomizations` had a red line, but not for anything I had just built:
+
+```
+failed to decode Kubernetes YAML from clusters/dev/apps.yaml:
+yaml: line 10: mapping values are not allowed in this context
+```
+
+Back when I added Authentik, I put a `dependsOn` block in `apps.yaml` with one space of indentation instead of two. Here is the part I did not know: the Flux Kustomization that reads `clusters/dev/` builds every file in that folder as one batch. If one file cannot be read, none of them get applied. My shiny new `infrastructure.yaml` was sitting in line behind a typo from another week.
+
+Why line 10, when the bad lines were 7 to 9? YAML reads top to bottom. At line 7 it decided "things under `spec` are one space in." Line 10 showed up at two spaces like it was supposed to, and YAML decided that was the wrong one. The error line is where YAML noticed, not where the problem started.
+
+`cat -n` to see the line numbers, one space added to three lines, push, reconcile. Everything went green, including Renovate.
+
+### A missing quote
+
+`k kustomize` threw a wall of text ending in `line 9: found unexpected end of stream`. Read long errors from the end. The end said which file and which line. "End of stream" means the file ended while YAML was still waiting for something to close. My last line was `"github` with no closing quote. YAML kept reading, looking for it, and ran off the end of the file.
+
+### Copy and paste is not my friend
+
+Pasting the git author line from a web page turned the email into a markdown link with `mailto:` in it. Another paste left two stray lines at the top of the ConfigMap. An older attempt left four extra lines at the top of a kustomization file. I typed the email by hand, cleaned up in vim with `dd`, and started `cat`-ing every file after I pasted into it.
+
+### Vim refused to save
+
+`E212: Can't open file for writing`. My terminal was not in the repo, so the short path pointed at a folder that did not exist. `:w` with the full path saved it. Now I run `pwd` before I trust a short path.
+
+### I merged the scary one first
+
+The plan was littlelink first, because it is a link page and if it breaks, nobody cares. I merged cloudflared instead. Every public app in my lab goes through that tunnel. If the new version had been bad, everything public would have gone dark at once.
+
+It was fine. Two new tunnel pods, swapped one at a time, and my phone off WiFi still loaded the sites. I got a bonus test I did not plan for. Part of it was GitHub's UI: the pull request list has no merge button, you have to click into the PR. `git log --oneline -3` after a `git pull` is a faster way to see what actually merged than squinting for purple.
+
+## How I checked it worked
+
+```bash
+flux get kustomizations
+k get cronjob,secret,configmap -n renovate
+k logs -n renovate job/renovate-manual-2
+k get pods -n littlelink
+```
+
+- `infrastructure-controllers` is `READY True`
+- The CronJob, the Secret (one key) and the ConfigMap (three settings) are all in the `renovate` namespace
+- The second run's log ends with `"status": "onboarded"` and `exitCode 0`
+- littlelink is running the new digest on fresh pods
+- New PRs keep arriving on GitHub
+
+## What I learned
+
+- **The bot is only as safe as its review step.** Renovate never deploys anything. It opens a PR, and I decide. Rollback is the Revert button on the merged PR, then let Flux reconcile. Git is the source of truth, so going back is just another commit.
+- **Least privilege applies to bots too.** One repo, only the permissions it needs, a token that never touches my shell history, encrypted before it goes near Git.
+- **Read the docs, not just the video.** The video's config option had been renamed. The video's token type was broader than it needed to be. The docs had the current answer both times.
+
+## What I'd do next
+
+- Point Renovate at my second homelab repo, which means adding it to the token and to the CronJob
+- Check whether it picks up my Helm chart versions, or whether I need to turn on its Flux support for those
+- Decide what, if anything, is safe enough to automerge
+- Set a calendar reminder to renew the token before it expires
+- Review the next batch of PRs as they come in, and leave anything with a database for when I can watch it
+
+## Links
+
+- Full runbook with every command: [docs/runbooks/renovate.md](https://github.com/CravenCraven/homelab-kubecraft/blob/main/docs/runbooks/renovate.md)
+- Repo: [homelab-kubecraft](https://github.com/CravenCraven/homelab-kubecraft)
+- Course: KubeCraft, Automated image updates module
+- Renovate Kubernetes manager: https://docs.renovatebot.com/modules/manager/kubernetes/
+- Renovate token permissions: https://docs.renovatebot.com/modules/platform/github/
