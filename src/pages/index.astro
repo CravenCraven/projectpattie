@@ -185,10 +185,10 @@ const fmt = (d: Date) =>
   .hd{color:var(--on-pom-dim);font-size:14px;line-height:1.85;max-width:520px;margin-bottom:0}
 
   /* terminal panel */
-  .term{width:290px;flex-shrink:0;background:var(--bg2);border:1px solid var(--bd2);border-radius:6px;overflow:hidden}
-  .t-h{background:var(--card);border-bottom:1px solid var(--bd);padding:7px 12px;display:flex;align-items:center;gap:5px}
+  .term{width:290px;flex-shrink:0;background:var(--slate);border:1px solid var(--bd2);border-radius:6px;overflow:hidden}
+  .t-h{background:var(--greenblue);border-bottom:0;padding:7px 12px;display:flex;align-items:center;gap:5px}
   .t-d{width:7px;height:7px;border-radius:50%}
-  .t-t{color:var(--dimmer);font-size:9px;margin-left:7px}
+  .t-t{color:var(--on-greenblue);font-weight:700;font-size:9px;margin-left:7px}
   .t-b{padding:14px 15px;font-size:11.5px;line-height:2;position:relative;height:148px;overflow:hidden}
   .t-s{position:absolute;left:15px;right:15px;top:14px;transition:opacity .45s,transform .45s}
   .t-s.hide{opacity:0;transform:translateY(-9px)}
@@ -204,42 +204,43 @@ const fmt = (d: Date) =>
   .labs{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   .lab{background:var(--card);border:1px solid var(--bd);border-radius:7px;overflow:hidden;display:flex;flex-direction:column;position:relative}
   .lab::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--ac)}
-  .lab.one{--ac:var(--a1)}.lab.two{--ac:var(--a2)}
-  .lab-h{background:var(--bg2);border-bottom:1px solid var(--bd);padding:8px 15px;display:flex;align-items:center;gap:8px}
-  .lab-dot{width:6px;height:6px;border-radius:50%;background:var(--ac);animation:pulse 2.4s ease-in-out infinite}
-  .lab-tag{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ac)}
-  .lab-path{margin-left:auto;font-size:9px;color:var(--dimmer)}
+  .lab.one{--ac:var(--a3);--acf:var(--pom);--aco:var(--on-pom)}.lab.two{--ac:var(--a2);--acf:var(--greenblue);--aco:var(--on-greenblue)}
+  .lab-h{background:var(--acf);border-bottom:1px solid var(--bd);padding:8px 15px;display:flex;align-items:center;gap:8px}
+  .lab-dot{width:6px;height:6px;border-radius:50%;background:var(--aco);animation:pulse 2.4s ease-in-out infinite}
+  .lab-tag{font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--aco);font-weight:700}
+  .lab-path{margin-left:auto;font-size:9px;color:var(--aco)}
   .lab-b{padding:22px;display:flex;flex-direction:column;flex:1}
   .lab-t{font-size:23px;font-weight:700;color:var(--head);line-height:1.2;margin-bottom:5px}
   .lab-t .hl{color:var(--ac)}
   .lab-s{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dimmer);margin-bottom:14px}
   .lab-d{color:var(--dim);font-size:12.5px;line-height:1.75;margin-bottom:18px}
-  .lab-sh{background:var(--bg2);border:1px solid var(--bd);border-radius:5px;padding:13px 15px;margin-bottom:18px;font-size:11.5px;line-height:1.95}
+  .lab-sh{background:var(--slate);border:1px solid var(--bd);border-radius:5px;padding:13px 15px;margin-bottom:18px;font-size:11.5px;line-height:1.95}
   .lab-sh .pr{color:var(--ac)}
   .lab-sh .ln{color:var(--dim);display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .lab-sh .ln .b{color:var(--dimmer)}
-  .lab-lk{display:inline-flex;gap:7px;color:var(--ac);border:1px solid var(--ac);border-radius:4px;padding:9px 15px;font-size:12px;margin-top:auto;align-self:flex-start;text-decoration:none}
+  .lab-lk{display:inline-flex;gap:7px;color:var(--on-lime);background:var(--lime);border:1px solid var(--lime);font-weight:700;border-radius:4px;padding:9px 15px;font-size:12px;margin-top:auto;align-self:flex-start;text-decoration:none}
 
   /* post cards */
   .posts{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-  .pc{border:1px solid var(--bd);border-radius:7px;padding:22px;display:block;background:var(--card);text-decoration:none}
-  .pc:hover{border-color:var(--a1);text-decoration:none}
-  .pc-m{font-size:10px;color:var(--dimmer);letter-spacing:.1em;text-transform:uppercase;margin-bottom:11px}
+  .pc{border:0;border-radius:8px;padding:0 22px 22px;display:block;background:var(--card);text-decoration:none;overflow:hidden;--pf:var(--calamine);--po:var(--on-calamine)}
+  .pc:nth-child(4n+2){--pf:var(--cobalt);--po:var(--on-cobalt)}.pc:nth-child(4n+3){--pf:var(--greenblue);--po:var(--on-greenblue)}.pc:nth-child(4n+4){--pf:var(--sea);--po:var(--on-sea)}
+  .pc:hover{outline:3px solid var(--lime);text-decoration:none}
+  .pc-m{font-size:10px;color:var(--po);background:var(--pf);font-weight:700;letter-spacing:.1em;text-transform:uppercase;margin:0 -22px 16px;padding:9px 22px}
   .pc-m .c{color:var(--on-pom);background:var(--pom);padding:1px 6px;border-radius:3px}
   .pc-t{font-size:17px;font-weight:700;color:var(--head);margin-bottom:9px;line-height:1.35}
   .pc-d{font-size:13px;color:var(--dim);line-height:1.7;margin-bottom:0}
-  .pc-r{display:inline-block;margin-top:14px;font-size:12px;color:var(--a1)}
+  .pc-r{display:inline-block;margin-top:14px;font-size:12px;font-weight:700;color:var(--on-lime);background:var(--lime);padding:3px 10px;border-radius:4px}
 
   /* quote rotator */
-  .q{background:var(--card);border:1px solid var(--bd);border-radius:7px;overflow:hidden;margin-top:44px}
-  .q-h{background:var(--bg2);border-bottom:1px solid var(--bd);padding:7px 15px;display:flex;align-items:center;gap:5px}
+  .q{background:var(--cobalt);border:0;border-radius:7px;overflow:hidden;margin-top:44px}
+  .q-h{background:var(--greenblue);border-bottom:0;padding:7px 15px;display:flex;align-items:center;gap:5px}
   .q-d{width:7px;height:7px;border-radius:50%}
-  .q-t{color:var(--dimmer);font-size:9px;margin-left:7px}
+  .q-t{color:var(--on-greenblue);font-weight:700;font-size:9px;margin-left:7px}
   .q-b{padding:20px;position:relative;min-height:104px}
   .q-s{position:absolute;left:20px;right:20px;top:20px;transition:opacity .55s,transform .55s}
   .q-s.hide{opacity:0;transform:translateY(-8px)}
-  .q-x{color:var(--head);font-size:13.5px;line-height:1.65;font-style:italic;margin-bottom:7px}
-  .q-a{color:var(--a4);font-size:11px}
+  .q-x{color:var(--on-cobalt);font-size:13.5px;line-height:1.65;font-style:italic;margin-bottom:7px}
+  .q-a{color:var(--pom);font-size:11px;font-weight:700}
 
   @media(max-width:900px){
     .hin{flex-direction:column;gap:26px;padding:40px 18px 36px}

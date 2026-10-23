@@ -23,7 +23,7 @@
   --dimmer: #c6e2d6;   /* metadata, prompts */
 
   /* accents */
-  --a1:     #96d1aa;   /* primary: links, active nav, $ prompt */
+  --a1:     #85d3d6;   /* primary: links, active nav, $ prompt */
   --a2:     #c7d14f;   /* secondary: section labels, scanline */
   --a3:     #f9c2d3;   /* highlight: headline spans */
   --a4:     #8fd8db;   /* attribution, callout rules */
@@ -38,8 +38,14 @@
   --on-lime:      #112f2c;
   --note:         #3d2836;   /* deep Pomegranite: note callouts */
   --on-note:      #fde9ef;
-  --cobalt:       #96d1aa;   /* Cobalt Green */
+  --cobalt:       #96d1aa;   /* Cobalt Green: contents box, pull quotes */
   --on-cobalt:    #112f2c;
+  --greenblue:    #099197;   /* Green Blue: code header bars, table headers, tips */
+  --on-greenblue: #04201d;
+  --calamine:     #78cdd0;   /* Calamine Blue: subheadings, links */
+  --on-calamine:  #112f2c;
+  --slate:        #112f2c;   /* Deep Slate Green: top nav, footer, code bodies */
+  --on-slate:     #c7d14f;
 
   /* terminal window dots — Pomegranite Purple, Light Green Yellow, Sea Green */
   --dot1:   #b71f57;
