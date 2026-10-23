@@ -14,6 +14,8 @@ interface Props {
 
 const { title, description, date, category, readTime = 5, tags = [] } = Astro.props;
 const dateStr = date.toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' });
+const isoDate = date.toISOString().slice(0, 10);
+const bandTags = [category, ...tags.filter(t => t !== category)].slice(0, 3);
 ---
 
 <!doctype html>
@@ -27,17 +29,18 @@ const dateStr = date.toLocaleDateString('en-US', { year:'numeric', month:'short'
   <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
   <style is:global>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: var(--bg); color: var(--tx); font-family: 'Source Code Pro', 'JetBrains Mono', monospace; font-size: 15px; line-height: 1.85; -webkit-font-smoothing: antialiased; }
+    body { background: var(--bg); color: var(--tx); font-family: 'JetBrains Mono', 'Source Code Pro', monospace; font-size: 15px; line-height: 1.85; -webkit-font-smoothing: antialiased; }
     .pp-article { max-width: 740px; margin: 0 auto; padding: 60px 24px 100px; }
     .pp-bandtags, .pp-meta, .pp-title, .pp-subtitle { background: var(--pom); box-shadow: 0 0 0 100vmax var(--pom); clip-path: inset(0 -100vmax); }
     .pp-article { padding-top: 0 !important; }
-    .pp-bandtags { display: flex; flex-wrap: wrap; gap: 6px; padding: 30px 0 4px; margin: 0; }
-    .pp-bandtags ~ .pp-tags { display: none; }
+    .pp-bandtags { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 30px 0 10px; margin: 0; }
+    .pp-bandtags ~ .pp-tags, .pp-bandtags ~ .pp-meta { display: none; }
+    .pp-band-date { color: var(--on-pom-dim); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; align-self: center; margin-left: 4px; }
     .pp-meta { color: var(--on-pom-dim); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; margin: 0; padding: 30px 0 6px; }
     .pp-bandtags + .pp-meta { padding-top: 10px; }
     .pp-meta span { color: var(--lime); }
-    .pp-title { font-size: clamp(28px, 5vw, 42px); font-weight: 700; color: var(--on-pom); line-height: 1.2; margin: 0; padding: 30px 0 12px; }
-    .pp-meta + .pp-title, .pp-bandtags + .pp-title { padding-top: 6px; }
+    .pp-title { font-size: clamp(24px, 3.6vw, 32px); font-weight: 700; color: var(--on-pom); line-height: 1.2; margin: 0; padding: 30px 0 12px; }
+    .pp-meta + .pp-title, .pp-bandtags + .pp-title, .pp-bandtags ~ .pp-title { padding-top: 6px; }
     .pp-meta, .pp-title, .pp-subtitle { margin-top: -1px !important; border-top: 1px solid var(--pom); }
     .pp-title em { color: var(--lime); font-style: normal; }
     .pp-subtitle { color: var(--on-pom-dim); font-size: 15px; line-height: 1.7; margin: 0 0 48px; padding: 0 0 32px; }
@@ -78,6 +81,9 @@ const dateStr = date.toLocaleDateString('en-US', { year:'numeric', month:'short'
     .pp-article p { margin-bottom: 20px; color: var(--tx); font-size: 15px; line-height: 1.85; }
     /* inline code */
     .pp-article code { background: var(--lime); border: 1px solid var(--lime); border-radius: 3px; padding: 1px 6px; font-size: 13px; color: var(--on-lime); font-weight: 500; font-family: 'Source Code Pro', monospace; }
+    /* markdown-style heading markers */
+    .pp-article h2::before, .pp-h2::before { content: '# '; }
+    .pp-article h3::before, .pp-h3::before { content: '## '; }
     /* code inside a lime heading keeps the heading colours */
     .pp-article h2 code, .pp-h2 code { background: var(--on-lime); color: var(--lime); border-color: var(--on-lime); }
     /* headings cycle through the palette so a post never reads as one colour */
@@ -92,7 +98,8 @@ const dateStr = date.toLocaleDateString('en-US', { year:'numeric', month:'short'
     .pp-article p strong, .pp-article li strong { color: var(--lime); }
     .pp-article p em, .pp-article li em { color: var(--calamine); font-style: normal; font-weight: 600; }
     .pp-bandtags .pp-tag:nth-child(4n+4) { background: var(--sea); color: var(--on-sea); }
-    .pp-bandtags .pp-tag { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; padding: 2px 9px; }
+    .pp-bandtags .pp-tag { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; padding: 3px 10px; border-radius: 4px; }
+    .pp-bandtags .pp-tag:nth-child(4n+1) { background: var(--lime); color: var(--on-lime); }
     /* tags cycle through the palette */
     .pp-tag:nth-child(4n+2) { background: var(--calamine); color: var(--on-calamine); }
     .pp-tag:nth-child(4n+3) { background: var(--cobalt); color: var(--on-cobalt); }
@@ -110,11 +117,11 @@ const dateStr = date.toLocaleDateString('en-US', { year:'numeric', month:'short'
     .pp-code { background: var(--slate); border: 0; border-radius: 6px; margin: 20px 0; overflow: hidden; display: block; }
     .pp-code-head { background: var(--greenblue); border-bottom: 0; padding: 7px 14px; display: flex; align-items: center; gap: 10px; }
     .pp-code-dots { display: flex; gap: 5px; flex-shrink: 0; }
-    .pp-code-dot { width: 7px; height: 7px; border-radius: 50%; }
+    .pp-code-dot { width: 11px; height: 11px; border-radius: 50%; }
     .pp-code-dot:nth-child(1) { background: var(--dot1); }
     .pp-code-dot:nth-child(2) { background: var(--dot2); }
     .pp-code-dot:nth-child(3) { background: var(--dot3); }
-    .pp-code-lang { color: var(--calamine); background: var(--slate); font-size: 11px; font-weight: 700; padding: 0 7px; border-radius: 3px; flex: 0 0 auto; }
+    .pp-code-lang { margin-left: auto; color: var(--cobalt); background: var(--slate); font-size: 11px; font-weight: 700; padding: 0 7px; border-radius: 3px; flex: 0 0 auto; }
     .pp-code-copy { color: var(--on-lime); font-size: 9px; font-weight: 700; border: 1px solid var(--lime); border-radius: 3px; padding: 2px 8px; background: var(--lime); cursor: pointer; margin-left: auto; transition: all .2s; font-family: 'Source Code Pro', monospace; }
     .pp-code-copy:hover { color: var(--lime); background: var(--slate); border-color: var(--slate); }
     .pp-code-body { padding: 16px 18px; overflow-x: auto; display: block; }
@@ -137,9 +144,10 @@ const dateStr = date.toLocaleDateString('en-US', { year:'numeric', month:'short'
     .pp-article a { color: var(--a1); text-decoration: underline; text-decoration-color: var(--sea); text-underline-offset: 3px; }
     .pp-article blockquote { border-left: 5px solid var(--sea); padding: 14px 18px; background: var(--cobalt); border-radius: 0 8px 8px 0; margin: 1.5rem 0; color: var(--on-cobalt); font-size: 13px; }
     .pp-article pre { background: var(--bg2); border: 1px solid var(--bd); border-radius: 6px; padding: 16px 18px; overflow-x: auto; margin: 20px 0; }
-    .pp-article pre.astro-code { background-color: var(--slate) !important; border: 0; position: relative; padding-top: 46px; }
-    .pp-article pre.astro-code::before { content: attr(data-language); position: absolute; top: 0; left: 0; right: 0; background: var(--greenblue); color: var(--on-greenblue); font-size: 11px; font-weight: 700; padding: 5px 16px 5px 58px; text-transform: lowercase; }
-    .pp-article pre.astro-code::after { content: ''; position: absolute; top: 12px; left: 16px; width: 8px; height: 8px; border-radius: 50%; background: var(--dot1); box-shadow: 13px 0 0 var(--dot2), 26px 0 0 var(--dot3); }
+    .pp-article pre.astro-code { background: linear-gradient(var(--greenblue) 0 38px, var(--slate) 38px) !important; border: 0; position: relative; padding-top: 54px; border-radius: 8px; }
+    .pp-article pre.astro-code::before { content: attr(data-language); position: absolute; top: 6px; right: 10px; background: var(--slate); color: var(--cobalt); font-size: 12px; font-weight: 700; padding: 1px 10px; border-radius: 5px; text-transform: lowercase; }
+    .pp-article pre.astro-code[data-language="plaintext"]::before { content: 'text'; }
+    .pp-article pre.astro-code::after { content: ''; position: absolute; top: 14px; left: 18px; width: 11px; height: 11px; border-radius: 50%; background: var(--dot1); box-shadow: 18px 0 0 var(--dot2), 36px 0 0 var(--dot3); }
     .pp-article pre code { background: none; border: none; padding: 0; color: var(--head); font-size: 13px; }
     /* RHCSA EX200 series additions (.pp-h3 skipped — already defined above) — recolored to site theme */
     .pp-series-badge { display:inline-block; font-family:'JetBrains Mono',monospace; font-size:.72rem; letter-spacing:.06em; text-transform:uppercase; color:var(--a3); border:1px solid var(--bd); background:var(--card); border-radius:6px; padding:.35rem .7rem; margin:0 0 1.2rem; }
@@ -169,7 +177,7 @@ const dateStr = date.toLocaleDateString('en-US', { year:'numeric', month:'short'
 <body>
   <Nav />
   <article class="pp-article">
-    {tags.length > 0 && <div class="pp-bandtags">{tags.slice(0, 5).map(t => <span class="pp-tag">{t}</span>)}</div>}
+    <div class="pp-bandtags">{bandTags.map(t => <span class="pp-tag">{t}</span>)}<span class="pp-band-date">{isoDate} · {readTime} min read</span></div>
     <slot />
   </article>
   <Footer />
