@@ -7,26 +7,26 @@
 
 :root{
   /* surfaces, darkest to lightest */
-  --bg:     #112f2c;   /* page background */
-  --bg2:    #081816;   /* recessed: terminal bodies, nav second tier */
-  --page:   #0f2826;   /* raised: hero, page headers */
-  --card:   #163a36;   /* cards, panels */
+  --bg:     #2a5953;   /* page background */
+  --bg2:    #112f2c;   /* recessed: terminal bodies, nav second tier */
+  --page:   #1f4742;   /* raised: hero, page headers */
+  --card:   #24514b;   /* cards, panels */
 
   /* borders */
-  --bd:     #1d4440;   /* default hairline */
-  --bd2:    #2a5953;   /* emphasis, inputs */
+  --bd:     #3d6e67;   /* default hairline */
+  --bd2:    #4c7f77;   /* emphasis, inputs */
 
   /* text, brightest to dimmest */
-  --head:   #e6f6ef;   /* headings */
-  --tx:     #d8eee4;   /* body */
-  --dim:    #b9dccb;   /* supporting */
-  --dimmer: #9fc6b8;   /* metadata, prompts */
+  --head:   #f2fbf7;   /* headings */
+  --tx:     #e6f6ef;   /* body */
+  --dim:    #cde8dc;   /* supporting */
+  --dimmer: #c6e2d6;   /* metadata, prompts */
 
   /* accents */
   --a1:     #96d1aa;   /* primary: links, active nav, $ prompt */
   --a2:     #c7d14f;   /* secondary: section labels, scanline */
-  --a3:     #f4a9c0;   /* highlight: headline spans */
-  --a4:     #00b49b;   /* attribution, callout rules */
+  --a3:     #f9c2d3;   /* highlight: headline spans */
+  --a4:     #8fd8db;   /* attribution, callout rules */
 
   /* solid fills — Wada colours used as blocks, each with the text colour that reads on it */
   --pom:          #b71f57;   /* Pomegranite Purple: homepage hero, section labels, chips */
@@ -36,6 +36,8 @@
   --on-sea:       #062b26;
   --lime:         #c7d14f;   /* Light Green Yellow: buttons, cursor */
   --on-lime:      #112f2c;
+  --note:         #3d2836;   /* deep Pomegranite: note callouts */
+  --on-note:      #fde9ef;
   --cobalt:       #96d1aa;   /* Cobalt Green */
   --on-cobalt:    #112f2c;
 

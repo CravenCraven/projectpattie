@@ -28,11 +28,12 @@ const dateStr = date.toLocaleDateString('en-US', { year:'numeric', month:'short'
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: var(--bg); color: var(--tx); font-family: 'Source Code Pro', 'JetBrains Mono', monospace; font-size: 15px; line-height: 1.85; -webkit-font-smoothing: antialiased; }
     .pp-article { max-width: 740px; margin: 0 auto; padding: 60px 24px 100px; }
-    .pp-meta { color: var(--dimmer); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 40px; }
-    .pp-meta span { color: var(--a1); }
-    .pp-title { font-size: clamp(28px, 5vw, 42px); font-weight: 700; color: var(--head); line-height: 1.2; margin-bottom: 12px; }
-    .pp-title em { color: var(--a3); font-style: normal; }
-    .pp-subtitle { color: var(--dim); font-size: 15px; line-height: 1.7; margin-bottom: 50px; }
+    .pp-meta { color: var(--on-pom-dim); background: var(--pom); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; margin: 0; padding: 24px 28px 6px; border-radius: 10px 10px 0 0; }
+    .pp-meta span { color: var(--lime); }
+    .pp-title { font-size: clamp(28px, 5vw, 42px); font-weight: 700; color: var(--on-pom); background: var(--pom); line-height: 1.2; margin: 0; padding: 26px 28px 12px; border-radius: 10px 10px 0 0; }
+    .pp-meta + .pp-title { padding-top: 6px; border-radius: 0; }
+    .pp-title em { color: var(--lime); font-style: normal; }
+    .pp-subtitle { color: var(--on-pom-dim); background: var(--pom); font-size: 15px; line-height: 1.7; margin: 0 0 44px; padding: 0 28px 26px; border-radius: 0 0 10px 10px; }
     /* series nav */
     .pp-series { background: var(--bg2); border: 1px solid var(--bd); border-radius: 6px; padding: 20px 24px; margin-bottom: 30px; }
     .pp-series-label { color: var(--a3); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 14px; font-weight: 600; }
@@ -46,12 +47,12 @@ const dateStr = date.toLocaleDateString('en-US', { year:'numeric', month:'short'
     .pp-series li a:hover { color: var(--a1); text-decoration: none; }
     /* toc — styled like a terminal card with mac dots */
     .pp-toc { background: var(--bg2); border: 1px solid var(--bd); border-radius: 6px; padding: 0; margin: 30px 0 50px; overflow: hidden; }
-    .pp-toc-label { background: var(--card); border-bottom: 1px solid var(--bd); padding: 11px 18px 11px 56px; margin: 0; color: var(--dimmer); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; font-family: 'Source Code Pro', monospace; position: relative; }
+    .pp-toc-label { background: var(--card); border-bottom: 1px solid var(--bd); padding: 11px 18px 11px 56px; margin: 0; color: var(--on-sea); font-weight: 700; background: var(--sea) !important; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; font-family: 'Source Code Pro', monospace; position: relative; }
     .pp-toc-label::before { content: ''; position: absolute; top: 50%; left: 18px; width: 7px; height: 7px; border-radius: 50%; background: var(--dot1); transform: translateY(-50%); box-shadow: 12px 0 0 var(--dot2), 24px 0 0 var(--dot3); }
-    .pp-toc-label span { color: var(--a1); }
+    .pp-toc-label span { color: var(--on-sea); }
     .pp-toc ol { padding: 18px 22px; margin: 0; counter-reset: toc; list-style: none; }
     .pp-toc li { counter-increment: toc; margin: 0; padding: 5px 8px 5px 0; position: relative; transition: padding-left .18s ease, background .18s ease; border-radius: 3px; }
-    .pp-toc li::before { content: counter(toc, decimal-leading-zero); color: var(--dimmer); margin-right: 14px; font-size: 12px; font-family: 'Source Code Pro', monospace; transition: color .18s ease; }
+    .pp-toc li::before { content: counter(toc, decimal-leading-zero); color: var(--a3); margin-right: 14px; font-size: 12px; font-family: 'Source Code Pro', monospace; transition: color .18s ease; }
     .pp-toc li:hover { padding-left: 10px; background: var(--card); }
     .pp-toc li:hover::before { color: var(--a3); }
     .pp-toc li::after { content: ''; position: absolute; right: 12px; top: 50%; width: 0; height: 0; border-left: 5px solid var(--a1); border-top: 4px solid transparent; border-bottom: 4px solid transparent; opacity: 0; transform: translateY(-50%) translateX(-4px); transition: opacity .18s ease, transform .18s ease; }
@@ -59,13 +60,15 @@ const dateStr = date.toLocaleDateString('en-US', { year:'numeric', month:'short'
     .pp-toc a { color: var(--tx); font-size: 13px; text-decoration: none; font-family: 'Source Code Pro', monospace; transition: color .18s ease; }
     .pp-toc a:hover { color: var(--a1); }
     /* headings */
-    .pp-article h2 { font-size: 22px; font-weight: 700; color: var(--head); margin: 56px 0 20px; padding-bottom: 8px; border-bottom: 1px solid var(--bd); scroll-margin-top: 30px; line-height: 1.3; }
-    .pp-h2 { font-size: 22px; font-weight: 700; color: var(--head); margin: 56px 0 20px; padding-bottom: 8px; border-bottom: 1px solid var(--bd); scroll-margin-top: 30px; line-height: 1.3; }
+    .pp-article h2 { display: table; font-size: 22px; font-weight: 700; color: var(--on-lime); background: var(--lime); margin: 56px 0 20px; padding: 4px 14px; border-radius: 6px; scroll-margin-top: 30px; line-height: 1.3; }
+    .pp-h2 { display: table; font-size: 22px; font-weight: 700; color: var(--on-lime); background: var(--lime); margin: 56px 0 20px; padding: 4px 14px; border-radius: 6px; scroll-margin-top: 30px; line-height: 1.3; }
     .pp-h3 { font-size: 17px; font-weight: 600; color: var(--a1); margin: 36px 0 14px; line-height: 1.3; font-family: 'Source Code Pro', monospace; }
     /* paragraphs */
     .pp-article p { margin-bottom: 20px; color: var(--tx); font-size: 15px; line-height: 1.85; }
     /* inline code */
-    .pp-article code { background: var(--card); border: 1px solid var(--bd); border-radius: 3px; padding: 1px 6px; font-size: 13px; color: var(--a2); font-family: 'Source Code Pro', monospace; }
+    .pp-article code { background: var(--lime); border: 1px solid var(--lime); border-radius: 3px; padding: 1px 6px; font-size: 13px; color: var(--on-lime); font-weight: 500; font-family: 'Source Code Pro', monospace; }
+    /* code inside a lime heading keeps the heading colours */
+    .pp-article h2 code, .pp-h2 code { background: var(--on-lime); color: var(--lime); border-color: var(--on-lime); }
     /* colors */
     .c-pink   { color: var(--a3) !important; font-weight: 600; }
     .c-cyan   { color: var(--a2) !important; font-weight: 600; }
@@ -80,14 +83,14 @@ const dateStr = date.toLocaleDateString('en-US', { year:'numeric', month:'short'
     .pp-code-dot:nth-child(1) { background: var(--dot1); }
     .pp-code-dot:nth-child(2) { background: var(--dot2); }
     .pp-code-dot:nth-child(3) { background: var(--dot3); }
-    .pp-code-lang { color: var(--a3); font-size: 11px; flex: 1; }
+    .pp-code-lang { color: var(--on-sea); background: var(--sea); font-size: 11px; font-weight: 700; padding: 0 7px; border-radius: 3px; flex: 0 0 auto; }
     .pp-code-copy { color: var(--a3); font-size: 9px; border: 1px solid var(--bd); border-radius: 3px; padding: 2px 8px; background: none; cursor: pointer; margin-left: auto; transition: all .2s; font-family: 'Source Code Pro', monospace; }
     .pp-code-copy:hover { color: var(--a1); border-color: var(--a1); }
     .pp-code-body { padding: 16px 18px; overflow-x: auto; display: block; }
     .pp-code-body pre { font-size: 13px; line-height: 1.75; color: var(--head); white-space: pre; margin: 0; padding: 0; background: transparent; display: block; font-family: 'Source Code Pro', monospace; }
     /* note */
-    .pp-note { background: var(--page); border-left: 3px solid var(--a4); padding: 14px 18px; margin: 20px 0; font-size: 13px; color: var(--dim); border-radius: 0 6px 6px 0; }
-    .pp-note strong { color: var(--a4); }
+    .pp-note { background: var(--note); border-left: 3px solid var(--pom); padding: 14px 18px; margin: 20px 0; font-size: 13px; color: var(--on-note); border-radius: 0 6px 6px 0; }
+    .pp-note strong { color: var(--on-pom); background: var(--pom); padding: 0 6px; border-radius: 3px; }
     /* next post */
     .pp-next { margin-top: 60px; padding-top: 30px; border-top: 1px solid var(--bd); }
     .pp-next-label { color: var(--dimmer); font-size: 10px; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; }
@@ -102,6 +105,7 @@ const dateStr = date.toLocaleDateString('en-US', { year:'numeric', month:'short'
     .pp-article a { color: var(--a1); }
     .pp-article blockquote { border-left: 3px solid var(--a4); padding: 14px 18px; background: var(--page); border-radius: 0 6px 6px 0; margin: 1.5rem 0; color: var(--dim); font-size: 13px; }
     .pp-article pre { background: var(--bg2); border: 1px solid var(--bd); border-radius: 6px; padding: 16px 18px; overflow-x: auto; margin: 20px 0; }
+    .pp-article pre.astro-code { background-color: var(--bg2) !important; }
     .pp-article pre code { background: none; border: none; padding: 0; color: var(--head); font-size: 13px; }
     /* RHCSA EX200 series additions (.pp-h3 skipped — already defined above) — recolored to site theme */
     .pp-series-badge { display:inline-block; font-family:'JetBrains Mono',monospace; font-size:.72rem; letter-spacing:.06em; text-transform:uppercase; color:var(--a3); border:1px solid var(--bd); background:var(--card); border-radius:6px; padding:.35rem .7rem; margin:0 0 1.2rem; }
