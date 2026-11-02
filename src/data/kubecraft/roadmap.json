@@ -9,7 +9,7 @@
   ]},
   { "goal": "Cluster provisioning & lifecycle", "t": 2, "items": [
     { "name": "First look at Omni", "status": "done" },
-    { "name": "Cluster architecture, bootstrapping + secrets", "status": "next" },
+    { "name": "Cluster architecture, bootstrapping + secrets", "status": "done" },
     { "name": "Provisioning with Ansible", "status": "next" },
     { "name": "Kubernetes from dev containers", "status": "next" }
   ]},
@@ -24,7 +24,7 @@
     { "name": "Scoping the first AWS project", "status": "next" }
   ]},
   { "goal": "Cloud: Azure", "t": 6, "items": [
-    { "name": "Setting up the repo + Azure", "status": "next" },
+    { "name": "Setting up the repo + Azure", "status": "done" },
     { "name": "Azure Kubernetes Service", "status": "next" },
     { "name": "Best practices for AKS ops", "status": "next" },
     { "name": "Fixing the new staging environment", "status": "next" },
@@ -85,8 +85,8 @@
     { "name": "Capacity notes per node", "status": "next" }
   ]},
   { "goal": "Bare-metal networking", "t": 4, "items": [
-    { "name": "Bootstrapping + installing Cilium", "status": "next" },
-    { "name": "Cilium LoadBalancer IPAM", "status": "next" },
+    { "name": "Bootstrapping + installing Cilium", "status": "done" },
+    { "name": "Cilium LoadBalancer IPAM", "status": "done" },
     { "name": "External DNS", "status": "next" }
   ]},
   { "goal": "Ingress & TLS", "t": 6, "items": [
