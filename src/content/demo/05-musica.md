@@ -7,6 +7,7 @@ section: "midia"
 status: "running"
 color: "c3"
 order: 5
+href: "https://musica.projectpattie.com"
 ---
 
 ## What it is
