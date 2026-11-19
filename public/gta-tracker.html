@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#140A28">
+<title>GTA Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow+Condensed:wght@400;500;600&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* Themes: every color on the page comes from these variables. "vice" is the default. */
+  :root, [data-theme="vice"] {
+    --bg: #140A28; --surface: #1E1140; --text: #F4EEFF; --muted: #B9A8E0; --line: #6B5A99; --dim: #8F7FBF;
+    --a1: #FF3D8A; --a1l: #FF9EC4; --a2: #35E8DB; --a2l: #8EE6DE; --a3: #FFA14A; --a3l: #FFCD9E;
+    --a4: #9B5CFF; --a4l: #CDB3FF; --a5: #5EB0FF; --a5l: #A8D2FF; --barbg: #0E2B27; --barhover: #10332F;
+  }
+  [data-theme="cyberpunk"] {
+    --bg: #0A0A0F; --surface: #16161F; --text: #E0FFE8; --muted: #8FB5A8; --line: #2F5A50; --dim: #6F9486;
+    --a1: #00FFC8; --a1l: #9DFFE6; --a2: #FFE600; --a2l: #FFF27A; --a3: #FF2A6D; --a3l: #FF8FB0;
+    --a4: #05D9E8; --a4l: #8CEEF5; --a5: #B967FF; --a5l: #D9B0FF; --barbg: #0C1F1A; --barhover: #12302A;
+  }
+  [data-theme="synthwave"] {
+    --bg: #1A0B2E; --surface: #2A1248; --text: #FDF0FF; --muted: #C3A6E0; --line: #6D4A9C; --dim: #9C80C0;
+    --a1: #FF6AD5; --a1l: #FFB3E8; --a2: #72F1FF; --a2l: #B5F7FF; --a3: #FFD319; --a3l: #FFE77A;
+    --a4: #C774E8; --a4l: #E2B5F5; --a5: #FF8B5A; --a5l: #FFC0A3; --barbg: #152A3A; --barhover: #1D3A50;
+  }
+  [data-theme="neon"] {
+    --bg: #050505; --surface: #141414; --text: #F5F5F5; --muted: #A8A8A8; --line: #4A4A4A; --dim: #808080;
+    --a1: #39FF14; --a1l: #A6FF94; --a2: #00E5FF; --a2l: #8CF3FF; --a3: #FFEA00; --a3l: #FFF47A;
+    --a4: #FF4DF0; --a4l: #FFA6F7; --a5: #FF7A1A; --a5l: #FFB885; --barbg: #06201F; --barhover: #0A302E;
+  }
+  [data-theme="midnight"] {
+    --bg: #0D1420; --surface: #172233; --text: #E8EEF7; --muted: #9FB0C8; --line: #3D5270; --dim: #7C91AC;
+    --a1: #7CC4FF; --a1l: #B8DEFF; --a2: #7EE0C0; --a2l: #B5EDDB; --a3: #FFC56B; --a3l: #FFDDA6;
+    --a4: #B49CFF; --a4l: #D6C8FF; --a5: #FF9DB0; --a5l: #FFC6D1; --barbg: #10282A; --barhover: #173A3C;
+  }
+  [data-theme="terminal"] {
+    --bg: #000000; --surface: #0D150D; --text: #C8FFC8; --muted: #7FBF7F; --line: #2E5A2E; --dim: #5E9A5E;
+    --a1: #33FF33; --a1l: #99FF99; --a2: #B6FF00; --a2l: #DBFF80; --a3: #FFB000; --a3l: #FFD780;
+    --a4: #00FFAA; --a4l: #80FFD4; --a5: #66D9FF; --a5l: #B3ECFF; --barbg: #0A1F0A; --barhover: #123012;
+  }
+  [data-theme="sunset"] {
+    --bg: #2B0F1E; --surface: #3D1628; --text: #FFF1E6; --muted: #E0B0A8; --line: #8A4A5A; --dim: #B58088;
+    --a1: #FF7A59; --a1l: #FFB8A3; --a2: #FFD166; --a2l: #FFE6A8; --a3: #FF4F79; --a3l: #FFA3B8;
+    --a4: #F7A072; --a4l: #FBCDB3; --a5: #C08BFF; --a5l: #DDC2FF; --barbg: #3A2416; --barhover: #4D3020;
+  }
+  [data-theme="ocean"] {
+    --bg: #06202B; --surface: #0C3040; --text: #E6F7FA; --muted: #9CC4CF; --line: #2F6577; --dim: #6F9FAC;
+    --a1: #2EC4FF; --a1l: #96E0FF; --a2: #5EEAD4; --a2l: #A8F3E7; --a3: #FFB86B; --a3l: #FFD8A8;
+    --a4: #7DA2FF; --a4l: #B8CBFF; --a5: #F78FB3; --a5l: #FBC3D6; --barbg: #0A3331; --barhover: #104542;
+  }
+  [data-theme="forest"] {
+    --bg: #101C14; --surface: #1A2B1F; --text: #EEF5E9; --muted: #A9BFA5; --line: #44604A; --dim: #7D9A80;
+    --a1: #9BE564; --a1l: #C8F2A8; --a2: #F2C14E; --a2l: #F8DD9A; --a3: #F78154; --a3l: #FBB8A0;
+    --a4: #6FD6A8; --a4l: #B0EACF; --a5: #C9A0DC; --a5l: #E2CCEC; --barbg: #14301F; --barhover: #1C422B;
+  }
+  /* The one light theme: accents are darker so text stays readable on white. */
+  [data-theme="daylight"] {
+    --bg: #F6F3FB; --surface: #FFFFFF; --text: #1E1433; --muted: #5B4E78; --line: #B5A8D0; --dim: #7A6E96;
+    --a1: #D81B6A; --a1l: #A3134F; --a2: #007A72; --a2l: #00615A; --a3: #B85C00; --a3l: #8F4700;
+    --a4: #6B35D9; --a4l: #5226B0; --a5: #1565C0; --a5l: #0F4C91; --barbg: #E3F5F2; --barhover: #CFEDE8;
+  }
+  .code { text-align: center; padding-top: 4px; }
+  .code .cl { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; letter-spacing: 3px; color: var(--muted); }
+  .code .ct { font-size: 15px; margin-top: 4px; color: var(--muted); }
+  .code a { color: var(--a2); }
+  .code a:hover { color: var(--a2l); }
+  .code a:focus-visible { outline: 2px solid var(--a1); outline-offset: 2px; }
+  .themes { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .themes .tlbl { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; letter-spacing: 2px; color: var(--a2l); margin-right: 4px; }
+  .themes button { display: flex; align-items: center; gap: 6px; }
+  .themes i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font-family: 'Barlow', sans-serif; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 36px 20px 48px; display: flex; flex-direction: column; gap: 20px; }
+  h1 { margin: 0; font-family: 'Anton', sans-serif; font-size: clamp(42px, 7vw, 60px); line-height: 1; color: var(--a1); letter-spacing: 1px; font-weight: 400; }
+  .sub { font-family: 'Barlow Condensed', sans-serif; font-size: 16px; letter-spacing: 4px; color: var(--a2); margin-top: 8px; }
+  .stars { display: flex; gap: 5px; margin-top: 12px; align-items: center; }
+  .stars .lbl { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; letter-spacing: 2px; color: var(--muted); margin-right: 6px; }
+  .tiles { display: flex; gap: 10px; flex-wrap: wrap; }
+  .tile { flex: 1 1 150px; background: var(--surface); border: 1px solid var(--tc); border-radius: 12px; padding: 12px 16px; min-width: 140px; display: flex; flex-direction: column; justify-content: space-between; }
+  .tile .tl { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; letter-spacing: 2px; color: var(--tl); text-transform: uppercase; overflow-wrap: anywhere; }
+  .tile .tv { font-family: 'Anton', sans-serif; font-size: 30px; color: var(--tc); margin-top: 2px; }
+  .tile .tv small { font-size: 17px; color: var(--muted); }
+  .days { display: flex; flex-direction: column; gap: 10px; }
+  .dayrow { background: var(--surface); border-left: 4px solid var(--dc); padding: 14px 18px; display: flex; gap: 18px; flex-wrap: wrap; }
+  .meta { min-width: 86px; }
+  .meta .dn { font-family: 'Anton', sans-serif; font-size: 20px; color: var(--dc); }
+  .meta .dd { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; letter-spacing: 1px; color: var(--muted); }
+  .tasks { flex: 1 1 360px; display: flex; flex-direction: column; gap: 8px; }
+  .task { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .task input[type=checkbox] { appearance: none; -webkit-appearance: none; width: 18px; height: 18px; border: 2px solid var(--line); border-radius: 4px; background: transparent; cursor: pointer; flex-shrink: 0; margin: 0; position: relative; }
+  .task input[type=checkbox]:checked { background: var(--a2); border-color: var(--a2); }
+  .task input[type=checkbox]:checked::after { content: ""; position: absolute; left: 4px; top: 1px; width: 4px; height: 8px; border: solid var(--bg); border-width: 0 2.5px 2.5px 0; transform: rotate(45deg); }
+  .task input[type=checkbox]:focus-visible { outline: 2px solid var(--a1); outline-offset: 2px; }
+  .tag { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; letter-spacing: 1px; border: 1px solid var(--gc); color: var(--gl); border-radius: 4px; padding: 1px 6px; text-transform: uppercase; }
+  .task label { font-size: 15px; cursor: pointer; }
+  .task.done label { color: var(--dim); text-decoration: line-through; }
+  .task .from { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; letter-spacing: 1px; color: var(--a3l); margin-left: 6px; }
+  .head { display: flex; justify-content: space-between; align-items: center; gap: 20px; flex-wrap: wrap; }
+  .side { display: flex; flex-direction: column; gap: 10px; min-width: 260px; max-width: 400px; }
+  .fsbtn { font-family: 'Barlow Condensed', sans-serif; font-size: 14px; letter-spacing: 2px; background: transparent; border: 1px solid var(--a2); color: var(--a2); border-radius: 8px; padding: 9px 14px; cursor: pointer; }
+  .fsbtn:hover { background: var(--barhover); }
+  .pomo { background: var(--surface); border: 1px solid var(--a3); border-radius: 14px; padding: 14px 20px; text-align: center; }
+  .plabel { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; letter-spacing: 3px; color: var(--a3l); }
+  .pchips { display: flex; gap: 6px; justify-content: center; margin-top: 8px; flex-wrap: wrap; }
+  .pchip { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; letter-spacing: 2px; background: transparent; border: 1px solid var(--line); color: var(--muted); border-radius: 999px; padding: 3px 10px; cursor: pointer; }
+  .pchip.on { border-color: var(--a3); color: var(--a3); }
+  .ptime { font-family: 'Anton', sans-serif; font-size: 46px; color: var(--a3); letter-spacing: 2px; margin: 4px 0; }
+  .ptime.run { color: var(--a2); }
+  .pbtns { display: flex; gap: 6px; justify-content: center; flex-wrap: wrap; }
+  .pbtn { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; letter-spacing: 2px; background: transparent; border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 5px 12px; cursor: pointer; }
+  .pbtn.main { border-color: var(--a2); color: var(--a2); }
+  .pbtn.warn { border-color: var(--a1); color: var(--a1l); }
+  .pbtn:hover { border-color: var(--text); }
+  .pbtn:focus-visible, .pchip:focus-visible, .fsbtn:focus-visible { outline: 2px solid var(--a1); outline-offset: 1px; }
+  .pnote { font-size: 12px; color: var(--muted); margin-top: 8px; min-height: 15px; }
+  .pomo select { width: 100%; max-width: 320px; margin: 8px 0 6px; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font-family: 'Barlow Condensed', sans-serif; font-size: 14px; letter-spacing: 1px; }
+  .pomo select:focus-visible { outline: 2px solid var(--a1); outline-offset: 1px; }
+  .psets { display: flex; flex-wrap: wrap; gap: 6px 12px; justify-content: center; margin-top: 10px; }
+  .pset { display: flex; align-items: center; gap: 5px; font-family: 'Barlow Condensed', sans-serif; font-size: 12px; letter-spacing: 1px; color: var(--muted); }
+  .pset button, .step button { width: 22px; height: 22px; border-radius: 6px; border: 1px solid var(--line); background: transparent; color: var(--text); font-size: 13px; line-height: 1; cursor: pointer; padding: 0; }
+  .pset button:focus-visible, .step button:focus-visible { outline: 2px solid var(--a1); outline-offset: 1px; }
+  .pset .pv { color: var(--text); min-width: 18px; text-align: center; }
+  .away, .ask { margin-top: 10px; border: 1px solid var(--a1); border-radius: 10px; padding: 8px 10px; font-size: 13px; color: var(--a1l); display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; align-items: center; }
+  .ask { margin-top: 0; justify-content: flex-start; }
+  .ask span { flex: 1; min-width: 200px; }
+  .setup { background: var(--surface); border: 1px dashed var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 12px; }
+  .setuphead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .setuphead .ttl { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; letter-spacing: 3px; color: var(--a3l); flex: 1; min-width: 160px; }
+  .step { display: flex; align-items: center; gap: 8px; font-family: 'Barlow Condensed', sans-serif; font-size: 13px; letter-spacing: 2px; color: var(--a2l); }
+  .step button { width: 28px; height: 28px; font-size: 16px; }
+  .step .gv { font-family: 'Anton', sans-serif; font-size: 20px; color: var(--a2); min-width: 32px; text-align: center; letter-spacing: 0; }
+  .cats { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .cat { flex: 1 1 220px; min-width: 0; display: flex; gap: 4px; }
+  .cat input { flex: 1; min-width: 0; background: var(--bg); color: var(--cl); border: 1px solid var(--cc); border-radius: 8px; padding: 7px 10px; font-family: 'Barlow Condensed', sans-serif; font-size: 15px; letter-spacing: 1px; }
+  .cat button { width: 34px; flex-shrink: 0; background: transparent; border: 1px solid var(--line); color: var(--text); border-radius: 8px; font-size: 16px; line-height: 1; cursor: pointer; }
+  .cat button:hover { border-color: var(--a1); color: var(--a1l); }
+  .cat input:focus-visible, .cat button:focus-visible { outline: 2px solid var(--a1); outline-offset: 1px; }
+  .bar { background: var(--barbg); border: 1px solid var(--a2); border-radius: 12px; padding: 12px 18px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--a2); flex-shrink: 0; }
+  .dot.err { background: var(--a1); }
+  .bar .st { font-size: 14px; color: var(--a2l); flex: 1; min-width: 200px; }
+  .bar button { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; letter-spacing: 2px; color: var(--a2); background: transparent; border: 1px solid var(--a2); border-radius: 999px; padding: 4px 14px; cursor: pointer; }
+  .bar button:hover { background: var(--barhover); }
+  .bar button:focus-visible { outline: 2px solid var(--a1); outline-offset: 1px; }
+  .wnav { display: flex; align-items: center; gap: 12px; }
+  .wbtn { background: transparent; border: 1px solid var(--line); color: var(--text); width: 40px; height: 40px; border-radius: 10px; font-size: 26px; line-height: 1; cursor: pointer; }
+  .wbtn:hover { border-color: var(--text); }
+  .wbtn:focus-visible { outline: 2px solid var(--a1); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+  .addtask { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; background: var(--surface); border: 1px dashed var(--line); border-radius: 12px; padding: 12px 14px; }
+  .addtask input, .addtask select { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; font-family: 'Barlow', sans-serif; font-size: 14px; max-width: 100%; }
+  .addtask input { flex: 1 1 220px; min-width: 0; }
+  .addtask input:focus-visible, .addtask select:focus-visible { outline: 2px solid var(--a1); outline-offset: 1px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div>
+      <div class="wnav">
+        <button id="wprev" class="wbtn" aria-label="Previous week">&lsaquo;</button>
+        <h1 id="wtitle">WEEK</h1>
+        <button id="wnext" class="wbtn" aria-label="Next week">&rsaquo;</button>
+      </div>
+      <div class="sub" id="wsub">&nbsp;</div>
+      <div class="stars"><span class="lbl">DAYS CLEARED</span><span id="stars"></span></div>
+    </div>
+    <div class="side">
+      <button id="fsbtn" class="fsbtn" type="button">FULL SCREEN</button>
+      <div class="pomo">
+        <div class="plabel">GRIND TIMER</div>
+        <div class="pchips">
+          <button id="pmFocus" class="pchip on">FOCUS</button>
+          <button id="pmShort" class="pchip">SHORT BREAK</button>
+          <button id="pmLong" class="pchip">LONG BREAK</button>
+        </div>
+        <select id="pfocus" aria-label="What you are working on"></select>
+        <div class="ptime" id="ptime">25:00</div>
+        <div class="pbtns">
+          <button id="pstart" class="pbtn main">START</button>
+          <button id="ppause" class="pbtn">PAUSE</button>
+          <button id="pskip" class="pbtn">SKIP</button>
+          <button id="plog" class="pbtn">LOG NOW</button>
+          <button id="preset" class="pbtn">RESET</button>
+        </div>
+        <div class="psets" id="psets"></div>
+        <div class="pnote" id="pnote">Focus time logs to today's HRS when it ends</div>
+        <div class="away" id="away" hidden>
+          <span id="awaytxt"></span>
+          <button id="awaylog" class="pbtn main">LOG IT</button>
+          <button id="awayskip" class="pbtn">SKIP</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="tiles" id="tiles"></div>
+  <div class="setup">
+    <div class="setuphead">
+      <span class="ttl">SET UP YOUR WEEK</span>
+      <span class="step">WEEKLY HOURS GOAL
+        <button id="goaldn" type="button" aria-label="Lower the weekly hours goal">&minus;</button>
+        <span class="gv" id="goalv">28</span>
+        <button id="goalup" type="button" aria-label="Raise the weekly hours goal">+</button>
+      </span>
+      <button id="fresh" type="button" class="pbtn">START FRESH</button>
+    </div>
+    <div class="themes" id="themes"><span class="tlbl">THEME</span></div>
+    <div class="cats" id="cats"></div>
+    <div class="ask" id="ask" hidden>
+      <span id="asktxt"></span>
+      <button id="askyes" type="button" class="pbtn warn">REMOVE</button>
+      <button id="askno" type="button" class="pbtn">KEEP</button>
+    </div>
+  </div>
+  <div class="days" id="days"></div>
+  <form class="addtask" id="addtask">
+    <input id="at-text" placeholder="New task, like Module 2 - Arch Linux - Introduction" aria-label="New task" autocomplete="off" maxlength="140">
+    <select id="at-cat" aria-label="Category"></select>
+    <select id="at-day" aria-label="Day">
+      <option>Mon</option><option>Tue</option><option>Wed</option><option>Thu</option>
+      <option>Fri</option><option>Sat</option><option>Sun</option>
+    </select>
+    <button type="submit" class="pbtn main">+ ADD TASK</button>
+    <span class="pnote" id="at-err" style="margin:0"></span>
+  </form>
+  <div class="bar">
+    <span class="dot" id="dot"></span>
+    <span class="st" id="barmsg">Saved in this browser &middot; nothing leaves your device</span>
+    <button id="csv" type="button">EXPORT CSV</button>
+  </div>
+  <div class="code">
+    <div class="cl">// the code</div>
+    <div class="ct"><a href="https://projectpattie.com/gta-tracker.html">run the finished app</a> &middot; <a href="https://github.com/CravenCraven/projectpattie/blob/main/public/gta-tracker.html">read the full source on GitHub</a></div>
+  </div>
+</div>
+<script>
+// Everything saves to this browser's localStorage. No account, no server.
+const KEY = "gtaTracker.v1", PKEY = "gtaTracker.pomo";
+const DAY_KEYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const DAY_COLORS = ["var(--a1)", "var(--a4)", "var(--a1)", "var(--a4)", "var(--a1)", "var(--a4)", "var(--a3)"];
+const MON = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+// Category colors, handed out in order as categories are added.
+const PAL = [
+  { c: "var(--a3)", l: "var(--a3l)" },
+  { c: "var(--a2)", l: "var(--a2l)" },
+  { c: "var(--a4)", l: "var(--a4l)" },
+  { c: "var(--a5)", l: "var(--a5l)" },
+  { c: "var(--a1)", l: "var(--a1l)" }
+];
+
+// Dates are "YYYY-MM-DD" strings in local time. A week is named by its Monday.
+function iso(d) { return d.toLocaleDateString("sv"); }
+function parse(s) { const p = s.split("-").map(Number); return new Date(p[0], p[1] - 1, p[2]); }
+function addDays(s, n) { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); }
+function todayIso() { return iso(new Date()); }
+function mondayOf(s) { return addDays(s, -((parse(s).getDay() + 6) % 7)); }
+// Calendar (ISO) week number, so the page opens on the real week of the year.
+function weekNum(s) {
+  const d = parse(s);
+  const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
+  return Math.ceil(((t - Date.UTC(t.getUTCFullYear(), 0, 1)) / 86400000 + 1) / 7);
+}
+function fmtDate(s) { return MON[+s.slice(5, 7) - 1] + " " + (+s.slice(8)); }
+function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+
+// First visit: sample categories and tasks so people can see how it works.
+function seed() {
+  const wk = mondayOf(todayIso());
+  const s = {
+    goal: 28, firstWeek: wk, nextCat: 6, nextId: 13, done: {}, hours: {}, sessions: [],
+    cats: [
+      { id: "c1", name: "Kubernetes in the Cloud", p: 0 },
+      { id: "c2", name: "Containers", p: 1 },
+      { id: "c3", name: "Linux Advanced", p: 2 },
+      { id: "c4", name: "Kubernetes Fundamentals", p: 3 },
+      { id: "c5", name: "Networking", p: 4 }
+    ],
+    tasks: [
+      ["Mon", "c3", "Module 1 - Linux Foundations - Review"],
+      ["Mon", "c5", "Module 1 - IP Addressing and Subnets"],
+      ["Tue", "c4", "Module 1 - Pods and Deployments"],
+      ["Tue", "c2", "Module 1 - Containers - Building Images"],
+      ["Wed", "c3", "Module 2 - Arch Linux - Introduction"],
+      ["Wed", "c5", "Module 2 - DNS Basics"],
+      ["Thu", "c4", "Module 2 - Services"],
+      ["Thu", "c2", "Module 2 - Container Registries"],
+      ["Fri", "c3", "Module 3 - Arch Linux - Installation"],
+      ["Fri", "c1", "Module 1 - Managed Kubernetes - Introduction"],
+      ["Sat", "c4", "Module 3 - ConfigMaps and Secrets"],
+      ["Sun", "c1", "Module 2 - Cloud Load Balancers"]
+    ].map((r, i) => ({ id: i + 1, wk: wk, day: r[0], cat: r[1], t: r[2] }))
+  };
+  return s;
+}
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(KEY) || "null");
+    if (s && Array.isArray(s.cats) && Array.isArray(s.tasks) && s.firstWeek) {
+      s.done = s.done || {}; s.hours = s.hours || {}; s.sessions = s.sessions || [];
+      if (typeof s.goal !== "number") s.goal = 28;
+      return s;
+    }
+  } catch (e) {}
+  return seed();
+}
+let S = load();
+let saveOk = true;
+function save() {
+  try { localStorage.setItem(KEY, JSON.stringify(S)); saveOk = true; }
+  catch (e) { saveOk = false; }
+  setBar();
+}
+let barTimer = null;
+function setBar(msg) {
+  document.getElementById("dot").className = "dot" + (saveOk ? "" : " err");
+  const base = saveOk ? "Saved in this browser · nothing leaves your device"
+                      : "This browser is blocking saving · your changes last until you close the page";
+  document.getElementById("barmsg").textContent = msg || base;
+  clearTimeout(barTimer);
+  if (msg) barTimer = setTimeout(() => setBar(), 5000);
+}
+
+const curWeek = () => mondayOf(todayIso());
+let viewW = curWeek();
+if (viewW < S.firstWeek) S.firstWeek = viewW;
+
+function catOf(id) {
+  const c = S.cats.find(x => x.id === id);
+  return c ? { name: c.name, c: PAL[c.p % PAL.length].c, l: PAL[c.p % PAL.length].l }
+           : { name: "Other", c: "var(--line)", l: "var(--muted)" };
+}
+function weekDays(w) { return DAY_KEYS.map((k, i) => ({ k, i, date: addDays(w, i), c: DAY_COLORS[i] })); }
+function doneOf(w) { return S.done[w] || {}; }
+function hoursOf(w) { return S.hours[w] || {}; }
+
+// Anything not ticked by the end of a week rolls into the next week's carried-over row.
+function carryIn(w) { return w <= S.firstWeek ? [] : openAtEnd(addDays(w, -7)); }
+function openAtEnd(w) {
+  const d = doneOf(w);
+  const carried = carryIn(w).filter(c => !d[c.key]);
+  const own = S.tasks.filter(t => t.wk === w && !d[String(t.id)])
+    .map(t => Object.assign({}, t, { key: "c" + t.id }));
+  return carried.concat(own);
+}
+function itemsFor(w) {
+  return {
+    carry: carryIn(w),
+    own: S.tasks.filter(t => t.wk === w).map(t => Object.assign({}, t, { key: String(t.id) }))
+  };
+}
+
+function star(fill) {
+  const p = "M12 17.3l-6.2 3.6 1.6-7-5.4-4.7 7.1-.6L12 2l2.9 6.6 7.1.6-5.4 4.7 1.6 7z";
+  return '<svg width="24" height="24" viewBox="0 0 24 24" aria-hidden="true" style="vertical-align:middle">' +
+    (fill ? '<path d="' + p + '" style="fill:var(--a3)"></path>'
+          : '<path d="' + p + '" style="fill:none;stroke:var(--line);stroke-width:1.5"></path>') + '</svg>';
+}
+function taskHtml(it, w) {
+  const cat = catOf(it.cat);
+  const done = !!doneOf(w)[it.key];
+  const id = "t" + w + "_" + it.key;
+  return '<div class="task' + (done ? " done" : "") + '" style="--gc:' + cat.c + ';--gl:' + cat.l + '">' +
+    '<input type="checkbox" id="' + id + '" data-key="' + it.key + '"' + (done ? " checked" : "") + '>' +
+    '<span class="tag">' + esc(cat.name) + '</span>' +
+    '<label for="' + id + '">' + esc(it.t) + (it.wk !== w ? '<span class="from">FROM WK ' + weekNum(it.wk) + '</span>' : '') + '</label></div>';
+}
+
+function render() {
+  const w = viewW, d = doneOf(w), days = weekDays(w);
+  const parts = itemsFor(w);
+  const all = parts.carry.concat(parts.own);
+  const r1 = n => Math.round(n * 10) / 10;
+
+  document.title = "Week " + weekNum(w) + " — GTA Tracker";
+  document.getElementById("wtitle").textContent = "WEEK " + weekNum(w);
+  document.getElementById("wsub").innerHTML = fmtDate(days[0].date) + " — " + fmtDate(days[6].date) +
+    " &middot; " + r1(S.goal / 7) + " HRS A DAY &middot; EVERYTHING IN ONE PLACE";
+  document.getElementById("wprev").style.visibility = w > S.firstWeek ? "visible" : "hidden";
+  document.getElementById("goalv").textContent = S.goal;
+
+  document.getElementById("stars").innerHTML = days.map(day => {
+    const dt = parts.own.filter(t => t.day === day.k);
+    return star(dt.length > 0 && dt.every(t => d[t.key]));
+  }).join("");
+
+  const h = hoursOf(w);
+  const hoursSum = DAY_KEYS.reduce((a, k) => a + (h[k] || 0), 0);
+  const tiles = [["HOURS", r1(hoursSum), S.goal, "var(--a2)", "var(--a2l)"]].concat(S.cats.map(c => {
+    const list = all.filter(t => t.cat === c.id), ci = catOf(c.id);
+    return [c.name, list.filter(t => d[t.key]).length, list.length, ci.c, ci.l];
+  }));
+  document.getElementById("tiles").innerHTML = tiles.map(t =>
+    '<div class="tile" style="--tc:' + t[3] + ';--tl:' + t[4] + '"><div class="tl">' + esc(t[0]) +
+    '</div><div class="tv">' + t[1] + '<small>/' + t[2] + '</small></div></div>').join("");
+
+  let html = "";
+  if (parts.carry.length) {
+    html += '<div class="dayrow" style="--dc:var(--a3)">' +
+      '<div class="meta"><div class="dn">CARRIED</div><div class="dd">OVER</div></div>' +
+      '<div class="tasks">' + parts.carry.map(it => taskHtml(it, w)).join("") + '</div></div>';
+  }
+  html += days.map(day => {
+    const rows = parts.own.filter(t => t.day === day.k).map(it => taskHtml(it, w)).join("");
+    return '<div class="dayrow" style="--dc:' + day.c + '">' +
+      '<div class="meta"><div class="dn">' + day.k.toUpperCase() + '</div><div class="dd">' + fmtDate(day.date) + '</div></div>' +
+      '<div class="tasks">' + rows + '</div></div>';
+  }).join("");
+  document.getElementById("days").innerHTML = html;
+
+  const sel = document.getElementById("at-cat"), keep = sel.value;
+  sel.innerHTML = S.cats.map(c => '<option value="' + c.id + '">' + esc(c.name) + '</option>').join("");
+  if (S.cats.some(c => c.id === keep)) sel.value = keep;
+
+  rebuildSelect();
+}
+
+// The category boxes are drawn separately so typing a new name doesn't lose your cursor.
+let ask = null;
+function renderSetup() {
+  document.getElementById("cats").innerHTML = S.cats.map((c, i) => {
+    const ci = catOf(c.id);
+    return '<div class="cat" style="--cc:' + ci.c + ';--cl:' + ci.l + '">' +
+      '<input data-cat="' + c.id + '" value="' + esc(c.name) + '" maxlength="40" autocomplete="off" aria-label="Category ' + (i + 1) + ' name">' +
+      '<button type="button" data-rm="' + c.id + '" aria-label="Remove ' + esc(c.name) + '">&times;</button></div>';
+  }).join("") + '<button type="button" id="addcat" class="pbtn main">+ ADD CATEGORY</button>';
+  const box = document.getElementById("ask");
+  box.hidden = !ask;
+  if (ask && ask.type === "cat") {
+    const n = S.tasks.filter(t => t.cat === ask.id).length;
+    document.getElementById("asktxt").textContent = "Remove " + catOf(ask.id).name + " and its " + n + " task" + (n === 1 ? "" : "s") + "?";
+    document.getElementById("askyes").textContent = "REMOVE";
+  } else if (ask) {
+    document.getElementById("asktxt").textContent = "Clear every task and all logged hours? Your categories and goal stay.";
+    document.getElementById("askyes").textContent = "CLEAR";
+  }
+}
+document.getElementById("cats").addEventListener("input", e => {
+  const id = e.target.dataset && e.target.dataset.cat;
+  const c = id && S.cats.find(x => x.id === id);
+  if (!c) return;
+  c.name = e.target.value;
+  save(); render();
+});
+document.getElementById("cats").addEventListener("focusout", e => {
+  const id = e.target.dataset && e.target.dataset.cat;
+  const c = id && S.cats.find(x => x.id === id);
+  if (c && !c.name.trim()) { c.name = "Category"; save(); render(); renderSetup(); }
+});
+document.getElementById("cats").addEventListener("click", e => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  if (b.id === "addcat") {
+    const id = "c" + S.nextCat;
+    S.cats.push({ id: id, name: "New category", p: S.nextCat - 1 });
+    S.nextCat++;
+    save(); render(); renderSetup();
+    const inp = document.querySelector('input[data-cat="' + id + '"]');
+    if (inp) { inp.focus(); inp.select(); }
+  } else if (b.dataset.rm) {
+    ask = { type: "cat", id: b.dataset.rm };
+    renderSetup();
+  }
+});
+document.getElementById("fresh").addEventListener("click", () => { ask = { type: "fresh" }; renderSetup(); });
+document.getElementById("askno").addEventListener("click", () => { ask = null; renderSetup(); });
+document.getElementById("askyes").addEventListener("click", () => {
+  if (!ask) return;
+  if (ask.type === "cat") {
+    S.cats = S.cats.filter(c => c.id !== ask.id);
+    S.tasks = S.tasks.filter(t => t.cat !== ask.id);
+  } else {
+    S.tasks = []; S.done = {}; S.hours = {}; S.sessions = [];
+    S.firstWeek = curWeek(); viewW = S.firstWeek;
+  }
+  ask = null;
+  save(); render(); renderSetup();
+});
+// Themes: the choice is saved with everything else and set on <html data-theme="...">.
+const THEMES = [["vice", "VICE", "#FF3D8A"], ["cyberpunk", "CYBERPUNK", "#00FFC8"], ["synthwave", "SYNTHWAVE", "#FF6AD5"], ["neon", "NEON", "#39FF14"], ["midnight", "MIDNIGHT", "#7CC4FF"],
+  ["terminal", "TERMINAL", "#33FF33"], ["sunset", "SUNSET", "#FF7A59"], ["ocean", "OCEAN", "#2EC4FF"], ["forest", "FOREST", "#9BE564"], ["daylight", "DAYLIGHT", "#F6F3FB"]];
+function applyTheme() {
+  const cur = THEMES.some(t => t[0] === S.theme) ? S.theme : "vice";
+  document.documentElement.dataset.theme = cur;
+  document.getElementById("themes").innerHTML = '<span class="tlbl">THEME</span>' + THEMES.map(t =>
+    '<button type="button" class="pchip' + (t[0] === cur ? " on" : "") + '" data-theme-pick="' + t[0] + '" aria-pressed="' + (t[0] === cur) + '">' +
+    '<i style="background:' + t[2] + '"></i>' + t[1] + '</button>').join("");
+}
+document.getElementById("themes").addEventListener("click", e => {
+  const b = e.target.closest("button[data-theme-pick]");
+  if (!b) return;
+  S.theme = b.dataset.themePick;
+  save(); applyTheme();
+});
+function bumpGoal(d) { S.goal = Math.max(1, Math.min(100, S.goal + d)); save(); render(); }
+document.getElementById("goaldn").addEventListener("click", () => bumpGoal(-1));
+document.getElementById("goalup").addEventListener("click", () => bumpGoal(1));
+
+document.getElementById("wprev").addEventListener("click", () => { if (viewW > S.firstWeek) { viewW = addDays(viewW, -7); render(); } });
+document.getElementById("wnext").addEventListener("click", () => { viewW = addDays(viewW, 7); render(); });
+
+document.getElementById("days").addEventListener("change", e => {
+  const key = e.target.dataset && e.target.dataset.key;
+  if (!key) return;
+  const d = S.done[viewW] || (S.done[viewW] = {});
+  if (e.target.checked) d[key] = true; else delete d[key];
+  save(); render();
+});
+
+document.getElementById("addtask").addEventListener("submit", e => {
+  e.preventDefault();
+  const err = document.getElementById("at-err");
+  const input = document.getElementById("at-text");
+  const text = input.value.trim();
+  if (!text) { err.textContent = "Type a task first"; return; }
+  const cat = document.getElementById("at-cat").value;
+  if (!S.cats.some(c => c.id === cat)) { err.textContent = "Add a category first"; return; }
+  err.textContent = "";
+  S.tasks.push({ id: S.nextId++, wk: viewW, day: document.getElementById("at-day").value, cat: cat, t: text });
+  input.value = "";
+  save(); render();
+});
+document.getElementById("at-text").addEventListener("input", () => { document.getElementById("at-err").textContent = ""; });
+
+// Full screen: hides the browser so only the tracker shows.
+const fsBtn = document.getElementById("fsbtn");
+const root = document.documentElement;
+const fsOn = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+if (!(root.requestFullscreen || root.webkitRequestFullscreen)) fsBtn.hidden = true;
+fsBtn.addEventListener("click", () => {
+  try {
+    if (fsOn()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    else {
+      const p = (root.requestFullscreen || root.webkitRequestFullscreen).call(root);
+      if (p && p.catch) p.catch(() => {});
+    }
+  } catch (e) {}
+});
+function fsLabel() { fsBtn.textContent = fsOn() ? "EXIT FULL SCREEN" : "FULL SCREEN"; }
+document.addEventListener("fullscreenchange", fsLabel);
+document.addEventListener("webkitfullscreenchange", fsLabel);
+
+// Export CSV: one file with every task, the hours per day, and each focus session.
+function csvCell(v) { v = String(v == null ? "" : v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+document.getElementById("csv").addEventListener("click", () => {
+  const rows = [["Type", "Week", "Date", "Day", "Category", "Task", "Done", "Hours", "Minutes", "Start"]];
+  S.tasks.forEach(t => {
+    const done = !!doneOf(t.wk)[String(t.id)] || Object.keys(S.done).some(w => S.done[w]["c" + t.id]);
+    rows.push(["task", weekNum(t.wk), addDays(t.wk, DAY_KEYS.indexOf(t.day)), t.day, catOf(t.cat).name, t.t, done ? "yes" : "no", "", "", ""]);
+  });
+  Object.keys(S.hours).sort().forEach(w => DAY_KEYS.forEach((k, i) => {
+    if (S.hours[w][k]) rows.push(["hours", weekNum(w), addDays(w, i), k, "", "", "", S.hours[w][k], "", ""]);
+  }));
+  S.sessions.forEach(x => rows.push(["session", weekNum(x.wk), x.date, x.day, x.cat, x.label, "", "", x.min, x.start]));
+  const csv = rows.map(r => r.map(csvCell).join(",")).join("\r\n");
+  try {
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = "gta-tracker-" + todayIso() + ".csv";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setBar("Downloaded gta-tracker-" + todayIso() + ".csv");
+  } catch (e) { setBar("Could not create the file in this browser"); }
+});
+
+// Grind timer: focus, short break, long break, with adjustable lengths
+// and a long break after every N focus blocks.
+const DEF_CFG = { focus: 25, short: 5, long: 15, interval: 4 };
+function cfgOf() { return Object.assign({}, DEF_CFG, pomo.cfg || {}); }
+function len(mode) { return cfgOf()[mode] * 60; }
+function normPomo() {
+  if (["focus", "short", "long"].indexOf(pomo.mode) < 0) pomo.mode = "focus";
+  pomo.cfg = cfgOf();
+  if (typeof pomo.count !== "number") pomo.count = 0;
+}
+let beepCtx = null;
+function beep() {
+  try {
+    beepCtx = beepCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (beepCtx.state === "suspended") beepCtx.resume();
+    const o = beepCtx.createOscillator(), g = beepCtx.createGain();
+    o.frequency.value = 880; g.gain.value = 0.15;
+    o.connect(g); g.connect(beepCtx.destination);
+    o.start(); o.stop(beepCtx.currentTime + 0.4);
+  } catch (e) {}
+}
+// Only the tab that started the timer logs it, so two open tabs never double-log.
+const TAB_ID = Math.random().toString(36).slice(2);
+function freshPomo() { return { mode: "focus", running: false, endsAt: 0, left: DEF_CFG.focus * 60, cfg: Object.assign({}, DEF_CFG), count: 0 }; }
+function loadPomo() {
+  let p = freshPomo();
+  try {
+    const saved = JSON.parse(localStorage.getItem(PKEY) || "null");
+    if (saved && saved.mode) {
+      p = saved;
+      if (p.running) p.left = Math.max(0, Math.round((p.endsAt - Date.now()) / 1000));
+    }
+  } catch (e) {}
+  return p;
+}
+let pomo = loadPomo();
+normPomo();
+function pSave() {
+  pomo.updatedAt = Date.now();
+  try { localStorage.setItem(PKEY, JSON.stringify(pomo)); } catch (e) {}
+}
+// If the page was closed or asleep past the end of a block, stop and ask before logging that time.
+function checkAway() {
+  if (!pomo.running || pomo.away) return false;
+  if (Date.now() <= pomo.endsAt + 60000) return false;
+  const startMs = pomo.mode === "focus" ? (pomo.startedAt || pomo.endsAt - len("focus") * 1000) : pomo.endsAt;
+  pomo.away = { sec: Math.max(0, Math.round((Date.now() - startMs) / 1000)), startMs };
+  pomo.running = false;
+  pomo.mode = "focus";
+  pomo.left = len("focus");
+  pomo.startedAt = 0;
+  return true;
+}
+function fmtDur(sec) {
+  const h = Math.floor(sec / 3600), m = Math.round((sec % 3600) / 60);
+  return h ? h + "h " + m + "m" : m + " min";
+}
+function fmt(s) { return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); }
+let noteTimer = null;
+function pNote(msg) {
+  document.getElementById("pnote").textContent = msg;
+  clearTimeout(noteTimer);
+  noteTimer = setTimeout(() => {
+    document.getElementById("pnote").textContent = "Focus time logs to today's HRS when it ends";
+  }, 6000);
+}
+
+// Dropdown lists this week's open tasks plus anything carried over into it.
+let lastSelHtml = "";
+function rebuildSelect() {
+  const w = curWeek();
+  const parts = itemsFor(w), d = doneOf(w);
+  const all = parts.carry.concat(parts.own);
+  let html = '<option value="x">OTHER GRIND</option>';
+  S.cats.forEach(c => {
+    const opts = all.filter(t => t.cat === c.id && !d[t.key]).map(t =>
+      '<option value="' + t.id + '">' + esc(t.t) + "</option>").join("");
+    if (opts) html += '<optgroup label="' + esc(c.name) + '">' + opts + "</optgroup>";
+  });
+  const sel = document.getElementById("pfocus");
+  if (html !== lastSelHtml) { sel.innerHTML = html; lastSelHtml = html; }
+  const v = pomo.sel || "";
+  if (v && Array.from(sel.options).some(o => o.value === v)) sel.value = v;
+}
+document.getElementById("pfocus").addEventListener("change", e => { pomo.sel = e.target.value; pSave(); });
+function focusInfo() {
+  const v = document.getElementById("pfocus").value;
+  const t = v && v !== "x" && S.tasks.find(x => String(x.id) === v);
+  return t ? { cat: catOf(t.cat).name, label: t.t } : { cat: "Other", label: "Other" };
+}
+let lastSets = "";
+function pRender() {
+  const t = document.getElementById("ptime");
+  t.textContent = fmt(pomo.left);
+  t.className = "ptime" + (pomo.running ? " run" : "");
+  document.getElementById("pmFocus").className = "pchip" + (pomo.mode === "focus" ? " on" : "");
+  document.getElementById("pmShort").className = "pchip" + (pomo.mode === "short" ? " on" : "");
+  document.getElementById("pmLong").className = "pchip" + (pomo.mode === "long" ? " on" : "");
+  const c = cfgOf();
+  const setsHtml = [["focus", "FOCUS"], ["short", "SHORT"], ["long", "LONG"], ["interval", "INTERVAL"]].map(p =>
+    '<span class="pset">' + p[1] + ' <button data-set="' + p[0] + '" data-d="-1" aria-label="Less ' + p[1] + '">&minus;</button>' +
+    '<span class="pv">' + c[p[0]] + '</span><button data-set="' + p[0] + '" data-d="1" aria-label="More ' + p[1] + '">+</button></span>').join("");
+  if (setsHtml !== lastSets) { document.getElementById("psets").innerHTML = setsHtml; lastSets = setsHtml; }
+  const away = document.getElementById("away");
+  away.hidden = !pomo.away;
+  if (pomo.away) document.getElementById("awaytxt").textContent = "You were away " + fmtDur(pomo.away.sec) + " — log it?";
+}
+document.getElementById("awaylog").addEventListener("click", () => {
+  if (!pomo.away) return;
+  const a = pomo.away;
+  pomo.away = null;
+  if (a.sec >= 60) { pomo.startedAt = a.startMs; logFocus(a.sec); }
+  pSave(); pRender();
+});
+document.getElementById("awayskip").addEventListener("click", () => {
+  pomo.away = null;
+  pSave(); pRender();
+  pNote("Skipped — nothing logged");
+});
+// Focus time goes to today's hours, and the session is kept for the CSV export.
+function logFocus(seconds) {
+  const today = todayIso(), w = mondayOf(today);
+  const k = DAY_KEYS[(parse(today).getDay() + 6) % 7];
+  const h = S.hours[w] || (S.hours[w] = {});
+  const add = Math.round((seconds / 3600) * 100) / 100;
+  h[k] = Math.round(((h[k] || 0) + add) * 100) / 100;
+  const info = focusInfo();
+  const st = new Date(pomo.startedAt || (Date.now() - seconds * 1000));
+  const hhmm = String(st.getHours()).padStart(2, "0") + ":" + String(st.getMinutes()).padStart(2, "0");
+  S.sessions.push({ wk: w, date: today, day: k, start: hhmm, min: Math.round(seconds / 60), cat: info.cat, label: info.label });
+  if (w < S.firstWeek) S.firstWeek = w;
+  save(); render();
+  pomo.startedAt = 0;
+  pNote("Logged " + Math.round(seconds / 60) + " min on " + info.label + " — " + k.toUpperCase() + " total " + h[k] + "h");
+}
+function pSwitch(mode) {
+  if (pomo.running) return;
+  pomo.mode = mode;
+  pomo.left = len(mode);
+  pomo.startedAt = 0;
+  pSave(); pRender();
+}
+document.getElementById("pmFocus").addEventListener("click", () => pSwitch("focus"));
+document.getElementById("pmShort").addEventListener("click", () => pSwitch("short"));
+document.getElementById("pmLong").addEventListener("click", () => pSwitch("long"));
+document.getElementById("psets").addEventListener("click", e => {
+  const b = e.target.closest ? e.target.closest("button[data-set]") : null;
+  if (!b) return;
+  const which = b.getAttribute("data-set"), d = Number(b.getAttribute("data-d"));
+  const c = cfgOf();
+  if (which === "interval") c.interval = Math.max(2, Math.min(8, c.interval + d));
+  else c[which] = Math.max(1, Math.min(90, c[which] + d));
+  pomo.cfg = c;
+  if (pomo.mode === which) { pomo.running = false; pomo.left = len(which); pomo.startedAt = 0; }
+  pSave(); pRender();
+});
+// Move to the next block: after a focus block, a short break (or a long break every N focus blocks); after a break, focus.
+function nextBlock() {
+  if (pomo.mode === "focus") {
+    pomo.count = (pomo.count || 0) + 1;
+    if (pomo.count >= cfgOf().interval) { pomo.count = 0; pomo.mode = "long"; }
+    else pomo.mode = "short";
+    pomo.startedAt = 0;
+  } else {
+    pomo.mode = "focus";
+    pomo.startedAt = Date.now();
+  }
+  pomo.left = len(pomo.mode);
+  pomo.endsAt = Date.now() + pomo.left * 1000;
+  pomo.running = true;
+  pomo.owner = TAB_ID;
+}
+document.getElementById("pstart").addEventListener("click", () => {
+  if (pomo.running) return;
+  try { beepCtx = beepCtx || new (window.AudioContext || window.webkitAudioContext)(); beepCtx.resume(); } catch (e) {}
+  if (pomo.left <= 0) pomo.left = len(pomo.mode);
+  if (pomo.mode === "focus" && pomo.left === len("focus")) pomo.startedAt = Date.now();
+  pomo.endsAt = Date.now() + pomo.left * 1000;
+  pomo.running = true;
+  pomo.owner = TAB_ID;
+  pSave(); pRender();
+});
+document.getElementById("ppause").addEventListener("click", () => {
+  if (!pomo.running) return;
+  pomo.left = Math.max(0, Math.round((pomo.endsAt - Date.now()) / 1000));
+  pomo.running = false;
+  pSave(); pRender();
+});
+document.getElementById("pskip").addEventListener("click", () => {
+  if (pomo.mode === "focus") {
+    const left = pomo.running ? Math.max(0, Math.round((pomo.endsAt - Date.now()) / 1000)) : pomo.left;
+    const elapsed = len("focus") - left;
+    if (elapsed >= 60) logFocus(elapsed);
+  }
+  nextBlock();
+  pSave(); pRender();
+});
+document.getElementById("plog").addEventListener("click", () => {
+  if (pomo.mode !== "focus") { pNote("Breaks are free — nothing to log"); return; }
+  const left = pomo.running ? Math.max(0, Math.round((pomo.endsAt - Date.now()) / 1000)) : pomo.left;
+  const elapsed = len("focus") - left;
+  if (elapsed < 60) { pNote("Less than a minute — keep going"); return; }
+  logFocus(elapsed);
+  pomo.running = false;
+  pomo.left = len("focus");
+  pSave(); pRender();
+});
+document.getElementById("preset").addEventListener("click", () => {
+  pomo.running = false;
+  pomo.left = len(pomo.mode);
+  pomo.startedAt = 0;
+  pSave(); pRender();
+  pNote("Timer reset — nothing logged");
+});
+setInterval(() => {
+  if (!pomo.running) return;
+  if (checkAway()) { pSave(); pRender(); return; }
+  if (!pomo.owner) { pomo.owner = TAB_ID; pSave(); }
+  pomo.left = Math.max(0, Math.round((pomo.endsAt - Date.now()) / 1000));
+  if (pomo.owner === TAB_ID && pomo.left === 0) {
+    if (pomo.mode === "focus") logFocus(len("focus"));
+    else pNote("Break over — back to the grind");
+    beep();
+    nextBlock();
+    pSave();
+  }
+  pRender();
+}, 500);
+
+// A second tab open on the same page picks up changes made in the first.
+window.addEventListener("storage", e => {
+  if (e.key === KEY) { S = load(); applyTheme(); render(); renderSetup(); }
+  if (e.key === PKEY) { pomo = loadPomo(); normPomo(); rebuildSelect(); pRender(); }
+});
+
+if (checkAway()) pSave();
+save();
+applyTheme();
+render();
+renderSetup();
+pRender();
+</script>
+</body>
+</html>

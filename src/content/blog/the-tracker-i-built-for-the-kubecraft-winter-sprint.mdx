@@ -1,0 +1,204 @@
+---
+title: "The tracker I built for the KubeCraft winter sprint. one file, ten themes, yours to take."
+description: "My 60-day sprint was living in a notebook, three browser tabs, a spreadsheet, and my head. So I built one screen to hold all of it."
+date: 2026-11-18
+category: thoughts
+readTime: 8
+draft: false
+---
+
+<div class="pp-meta"><span>thoughts</span> · Nov 18, 2026 · 8 min read</div>
+
+<h1 class="pp-title">The tracker I built for the KubeCraft winter sprint.<br /><em>one file, ten themes, yours to take.</em></h1>
+
+<p class="pp-subtitle">My 60-day sprint was living in a notebook, three browser tabs, a spreadsheet, and my head. So I built one screen to hold all of it.</p>
+
+<img class="pp-figure" src="/images/gta-tracker/hero.png" alt="The tracker showing Week 47 with a pink title, a row of stars, the Grind Timer, and a tile for each category." loading="lazy" style="width:100%;height:auto;display:block;border-radius:8px;border:1px solid rgba(128,128,128,.35);margin:24px 0 8px" />
+
+<div class="pp-toc">
+  <div class="pp-toc-label">// <span>the route</span></div>
+  <ol>
+    <li><a href="#four-places-at-once">Four places at once</a></li>
+    <li><a href="#why-it-looks-like-that">Why it looks like that</a></li>
+    <li><a href="#the-board">The board</a></li>
+    <li><a href="#the-week-that-didnt-carry-over">The week that didn't carry over</a></li>
+    <li><a href="#the-timer-that-lied">The timer that lied</a></li>
+    <li><a href="#making-it-yours">Making it yours</a></li>
+    <li><a href="#ten-paint-jobs">Ten paint jobs</a></li>
+    <li><a href="#what-changed-for-me">What changed for me</a></li>
+    <li><a href="#under-the-hood">Under the hood</a></li>
+  </ol>
+</div>
+
+<h2 class="pp-h2" id="four-places-at-once">Four places at once</h2>
+
+<p>The KubeCraft winter sprint lasts 60 days. Mine was living in four places: a notebook, three browser tabs, a spreadsheet, and my head.</p>
+
+<p>That's not a system. That's a scavenger hunt. And of the four, my head was the least reliable.</p>
+
+<p>I didn't want a fifth place to check. I wanted one. Everything in the same place, on one screen. Open it, see the week, start.</p>
+
+<h2 class="pp-h2" id="why-it-looks-like-that">Why it looks like that</h2>
+
+<p>GTA 6 finally arrives this week, 13 years after the last one. Thirteen years. That's a pretty big deal.</p>
+
+<p>So when I sat down to build a tracker for a 60-day grind, I already knew what it was going to feel like. Loud colors. A mission board. Stars for every day I clear. If I'm going to look at something every day for two months, it can at least look like it's having a good time.</p>
+
+<h2 class="pp-h2" id="the-board">The board</h2>
+
+<p>Here's the whole thing.</p>
+
+<img class="pp-figure" src="/images/gta-tracker/board-full.png" alt="The full tracker: header and timer on top, category tiles, a setup box, then one row for each day of the week with its tasks." loading="lazy" style="width:100%;height:auto;display:block;border-radius:8px;border:1px solid rgba(128,128,128,.35);margin:24px 0 8px" />
+
+<p style="font-size:12px;opacity:.75;margin:0 0 28px">One week, top to bottom. This is the sample week the page opens with.</p>
+
+<ul><li><strong>Every task gets a day and a category.</strong> Tick it and it crosses itself out.</li><li><strong>The tiles keep score.</strong> One for hours, one for each category, so you can see what's getting attention and what isn't.</li><li><strong>Clear a whole day and you earn a star.</strong> Seven stars is a perfect week.</li><li><strong>The Grind Timer</strong> runs focus blocks and logs the time to today's hours.</li></ul>
+
+<img class="pp-figure" src="/images/gta-tracker/timer.png" alt="The Grind Timer mid-block, counting down in teal with a task picked from the menu." loading="lazy" style="width:100%;height:auto;display:block;border-radius:8px;border:1px solid rgba(128,128,128,.35);margin:24px 0 8px" />
+
+<p style="font-size:12px;opacity:.75;margin:0 0 28px">Pick what you're working on, press start, and the time lands in today's hours when the block ends.</p>
+
+<p>It even says it right under the week number: <strong>everything in one place.</strong></p>
+
+<h2 class="pp-h2" id="the-week-that-didnt-carry-over">The week that didn't carry over</h2>
+
+<p>The first version had a problem. A new week started, and the tasks I hadn't finished stayed behind in the old one. Fresh week, clean board, nothing carried over.</p>
+
+<p>A clean board feels great for about ten seconds. Then you remember it's only clean because it forgot.</p>
+
+<p>So now nothing gets left behind. Whatever you didn't tick shows up at the top of next week in an orange CARRIED OVER row, tagged with the week it came from. Ignore it again and it follows you into the week after that.</p>
+
+<img class="pp-figure" src="/images/gta-tracker/carried.png" alt="The start of Week 48 with an orange Carried Over row listing seven unfinished tasks, each tagged From Week 47." loading="lazy" style="width:100%;height:auto;display:block;border-radius:8px;border:1px solid rgba(128,128,128,.35);margin:24px 0 8px" />
+
+<p style="font-size:12px;opacity:.75;margin:0 0 28px">Week 48, before I've done anything. Week 47 has opinions.</p>
+
+<p>Like a wanted level, the only way to lose it is to deal with it.</p>
+
+<h2 class="pp-h2" id="the-timer-that-lied">The timer that lied</h2>
+
+<p>The hours are the whole point of a sprint. So the timer that counts them has one job.</p>
+
+<p>And it lied. Close the laptop in the middle of a focus block, come back later, and the time it wanted to log had nothing to do with the time I'd actually worked.</p>
+
+<p>A tracker that pads your hours is worse than no tracker at all. So the timer got two fixes. It stopped counting seconds by itself and started checking the real clock. And when you vanish in the middle of a block, it doesn't guess. It stops and asks.</p>
+
+<img class="pp-figure" src="/images/gta-tracker/away.png" alt="The Grind Timer showing a pink prompt that reads: You were away 2 hours 11 minutes, log it? with Log It and Skip buttons." loading="lazy" style="width:100%;height:auto;display:block;border-radius:8px;border:1px solid rgba(128,128,128,.35);margin:24px 0 8px" />
+
+<p style="font-size:12px;opacity:.75;margin:0 0 28px">Two hours and eleven minutes of deep focus. Sure.</p>
+
+<p>You decide what counts.</p>
+
+<h2 class="pp-h2" id="making-it-yours">Making it yours</h2>
+
+<p>My own copy writes everything to a spreadsheet, so I end up with real data from the sprint. That's great for me and useless for you, because it's my spreadsheet.</p>
+
+<p>So the version on this site is cut loose from my stuff. It's one page. There's no sign in. It saves in your own browser, and an Export button hands you a spreadsheet file whenever you want one.</p>
+
+<p>It opens with a sample week so there's something to click. After that it's yours: rename the categories, add your own, set your weekly hours goal, and hit Start Fresh when you're done playing with my samples.</p>
+
+<img class="pp-figure" src="/images/gta-tracker/setup.png" alt="The Set Up Your Week box with the weekly hours goal, ten theme buttons, and an editable box for each category." loading="lazy" style="width:100%;height:auto;display:block;border-radius:8px;border:1px solid rgba(128,128,128,.35);margin:24px 0 8px" />
+
+<p style="font-size:12px;opacity:.75;margin:0 0 28px">Categories are just text boxes. Type over mine.</p>
+
+<p>It fits on a phone too.</p>
+
+<img class="pp-figure" src="/images/gta-tracker/phone.png" alt="The tracker at phone size, stacked into a single column." loading="lazy" style="width:100%;max-width:300px;height:auto;display:block;border-radius:14px;border:1px solid rgba(128,128,128,.35);margin:24px auto 28px" />
+
+<h2 class="pp-h2" id="ten-paint-jobs">Ten paint jobs</h2>
+
+<p>Not everybody wants pink and teal. Fine. There are ten themes, and picking one repaints the entire board.</p>
+
+<p>The one at the top of this post is Vice, the default. Here are the other nine.</p>
+
+<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:24px 0 28px">
+  <div><img class="pp-figure" src="/images/gta-tracker/theme-cyberpunk.png" alt="The tracker in the Cyberpunk theme." loading="lazy" style="width:100%;height:auto;display:block;border-radius:6px;border:1px solid rgba(128,128,128,.35)" /><p style="font-size:12px;opacity:.75;margin:6px 0 0">Cyberpunk</p></div>
+  <div><img class="pp-figure" src="/images/gta-tracker/theme-synthwave.png" alt="The tracker in the Synthwave theme." loading="lazy" style="width:100%;height:auto;display:block;border-radius:6px;border:1px solid rgba(128,128,128,.35)" /><p style="font-size:12px;opacity:.75;margin:6px 0 0">Synthwave</p></div>
+  <div><img class="pp-figure" src="/images/gta-tracker/theme-neon.png" alt="The tracker in the Neon theme." loading="lazy" style="width:100%;height:auto;display:block;border-radius:6px;border:1px solid rgba(128,128,128,.35)" /><p style="font-size:12px;opacity:.75;margin:6px 0 0">Neon</p></div>
+  <div><img class="pp-figure" src="/images/gta-tracker/theme-midnight.png" alt="The tracker in the Midnight theme." loading="lazy" style="width:100%;height:auto;display:block;border-radius:6px;border:1px solid rgba(128,128,128,.35)" /><p style="font-size:12px;opacity:.75;margin:6px 0 0">Midnight</p></div>
+  <div><img class="pp-figure" src="/images/gta-tracker/theme-terminal.png" alt="The tracker in the Terminal theme." loading="lazy" style="width:100%;height:auto;display:block;border-radius:6px;border:1px solid rgba(128,128,128,.35)" /><p style="font-size:12px;opacity:.75;margin:6px 0 0">Terminal</p></div>
+  <div><img class="pp-figure" src="/images/gta-tracker/theme-sunset.png" alt="The tracker in the Sunset theme." loading="lazy" style="width:100%;height:auto;display:block;border-radius:6px;border:1px solid rgba(128,128,128,.35)" /><p style="font-size:12px;opacity:.75;margin:6px 0 0">Sunset</p></div>
+  <div><img class="pp-figure" src="/images/gta-tracker/theme-ocean.png" alt="The tracker in the Ocean theme." loading="lazy" style="width:100%;height:auto;display:block;border-radius:6px;border:1px solid rgba(128,128,128,.35)" /><p style="font-size:12px;opacity:.75;margin:6px 0 0">Ocean</p></div>
+  <div><img class="pp-figure" src="/images/gta-tracker/theme-forest.png" alt="The tracker in the Forest theme." loading="lazy" style="width:100%;height:auto;display:block;border-radius:6px;border:1px solid rgba(128,128,128,.35)" /><p style="font-size:12px;opacity:.75;margin:6px 0 0">Forest</p></div>
+  <div><img class="pp-figure" src="/images/gta-tracker/theme-daylight.png" alt="The tracker in the Daylight theme." loading="lazy" style="width:100%;height:auto;display:block;border-radius:6px;border:1px solid rgba(128,128,128,.35)" /><p style="font-size:12px;opacity:.75;margin:6px 0 0">Daylight</p></div>
+</div>
+
+<p>Terminal is for the green-on-black people. Daylight is for the ones who code with the lights on. No judgment.</p>
+
+<h2 class="pp-h2" id="what-changed-for-me">What changed for me</h2>
+
+<p>Everything is in one place. I don't open a million apps to find out what today is supposed to be. I open one.</p>
+
+<p>And I have a spreadsheet with real data in it. Not a feeling about how the week went. The actual hours.</p>
+
+<p>If you've got your own sprint, a semester, or just a messy week, <a href="/gta-tracker.html">take it for a spin</a>. It's one file, and it's yours to take.</p>
+
+<img class="pp-figure" src="/images/gta-tracker/days.png" alt="The seven day rows of the tracker with tasks ticked off for Monday and Tuesday." loading="lazy" style="width:100%;height:auto;display:block;border-radius:8px;border:1px solid rgba(128,128,128,.35);margin:24px 0 8px" />
+
+<h2 class="pp-h2" id="under-the-hood">Under the hood</h2>
+
+<p>For the curious. This is the real code behind everything above, lifted straight from the page. If you came for the story, you can stop here and go <a href="/gta-tracker.html">open the app</a>.</p>
+
+<p><strong>A week is just a Monday</strong></p>
+
+<p>Week numbers break in January, when 52 becomes 1. So each week is known by the date of its Monday, written year first so it sorts as plain text.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`// Dates are "YYYY-MM-DD" strings in local time. A week is named by its Monday.\nfunction iso(d) { return d.toLocaleDateString("sv"); }\nfunction parse(s) { const p = s.split("-").map(Number); return new Date(p[0], p[1] - 1, p[2]); }\nfunction addDays(s, n) { const d = parse(s); d.setDate(d.getDate() + n); return iso(d); }\nfunction todayIso() { return iso(new Date()); }\nfunction mondayOf(s) { return addDays(s, -((parse(s).getDay() + 6) % 7)); }`}</pre></div></div>
+
+<p><strong>Saving without an account</strong></p>
+
+<p>Everything goes into the browser's own storage. If saving is blocked, the page keeps working and tells you.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`const KEY = "gtaTracker.v1", PKEY = "gtaTracker.pomo";\n\nfunction load() {\n  try {\n    const s = JSON.parse(localStorage.getItem(KEY) || "null");\n    if (s && Array.isArray(s.cats) && Array.isArray(s.tasks) && s.firstWeek) {\n      s.done = s.done || {}; s.hours = s.hours || {}; s.sessions = s.sessions || [];\n      if (typeof s.goal !== "number") s.goal = 28;\n      return s;\n    }\n  } catch (e) {}\n  return seed();\n}\nlet S = load();\nlet saveOk = true;\nfunction save() {\n  try { localStorage.setItem(KEY, JSON.stringify(S)); saveOk = true; }\n  catch (e) { saveOk = false; }\n  setBar();\n}`}</pre></div></div>
+
+<p><strong>A tick belongs to a week</strong></p>
+
+<p>A task finished late shouldn't make last week look better than it was. So each week keeps its own list of what got ticked.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`document.getElementById("days").addEventListener("change", e => {\n  const key = e.target.dataset && e.target.dataset.key;\n  if (!key) return;\n  const d = S.done[viewW] || (S.done[viewW] = {});\n  if (e.target.checked) d[key] = true; else delete d[key];\n  save(); render();\n});`}</pre></div></div>
+
+<p><strong>Carried over</strong></p>
+
+<p>Two functions that ask each other about the week before, all the way back to the first week. Nothing is copied or stored. The orange row is worked out fresh every time.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`function doneOf(w) { return S.done[w] || {}; }\n\n// Anything not ticked by the end of a week rolls into the next week's carried-over row.\nfunction carryIn(w) { return w <= S.firstWeek ? [] : openAtEnd(addDays(w, -7)); }\nfunction openAtEnd(w) {\n  const d = doneOf(w);\n  const carried = carryIn(w).filter(c => !d[c.key]);\n  const own = S.tasks.filter(t => t.wk === w && !d[String(t.id)])\n    .map(t => Object.assign({}, t, { key: "c" + t.id }));\n  return carried.concat(own);\n}`}</pre></div></div>
+
+<p><strong>Renaming a category</strong></p>
+
+<p>Tasks store a short id, not the category's name, so one rename updates everything.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`document.getElementById("cats").addEventListener("input", e => {\n  const id = e.target.dataset && e.target.dataset.cat;\n  const c = id && S.cats.find(x => x.id === id);\n  if (!c) return;\n  c.name = e.target.value;\n  save(); render();\n});`}</pre></div></div>
+
+<p><strong>The timer that checks the clock</strong></p>
+
+<p>Pressing START writes down when the block should end. Every tick after that is just the distance between now and then.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`document.getElementById("pstart").addEventListener("click", () => {\n  if (pomo.running) return;\n  try { beepCtx = beepCtx || new (window.AudioContext || window.webkitAudioContext)(); beepCtx.resume(); } catch (e) {}\n  if (pomo.left <= 0) pomo.left = len(pomo.mode);\n  if (pomo.mode === "focus" && pomo.left === len("focus")) pomo.startedAt = Date.now();\n  pomo.endsAt = Date.now() + pomo.left * 1000;\n  pomo.running = true;\n  pomo.owner = TAB_ID;\n  pSave(); pRender();\n});\n\nsetInterval(() => {\n  if (!pomo.running) return;\n  if (checkAway()) { pSave(); pRender(); return; }\n  if (!pomo.owner) { pomo.owner = TAB_ID; pSave(); }\n  pomo.left = Math.max(0, Math.round((pomo.endsAt - Date.now()) / 1000));\n  if (pomo.owner === TAB_ID && pomo.left === 0) {\n    if (pomo.mode === "focus") logFocus(len("focus"));\n    else pNote("Break over — back to the grind");\n    beep();\n    nextBlock();\n    pSave();\n  }\n  pRender();\n}, 500);`}</pre></div></div>
+
+<p><strong>The away check</strong></p>
+
+<p>If a block ended more than a minute ago and nobody was there, stop and ask.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`// If the page was closed or asleep past the end of a block, stop and ask before logging that time.\nfunction checkAway() {\n  if (!pomo.running || pomo.away) return false;\n  if (Date.now() <= pomo.endsAt + 60000) return false;\n  const startMs = pomo.mode === "focus" ? (pomo.startedAt || pomo.endsAt - len("focus") * 1000) : pomo.endsAt;\n  pomo.away = { sec: Math.max(0, Math.round((Date.now() - startMs) / 1000)), startMs };\n  pomo.running = false;\n  pomo.mode = "focus";\n  pomo.left = len("focus");\n  pomo.startedAt = 0;\n  return true;\n}`}</pre></div></div>
+
+<p><strong>Themes</strong></p>
+
+<p>The styles never name a real color. They name slots, and each theme fills the slots.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">css</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`:root, [data-theme="vice"] {\n  --bg: #140A28; --surface: #1E1140; --text: #F4EEFF; --muted: #B9A8E0; --line: #6B5A99; --dim: #8F7FBF;\n  --a1: #FF3D8A; --a1l: #FF9EC4; --a2: #35E8DB; --a2l: #8EE6DE; --a3: #FFA14A; --a3l: #FFCD9E;\n  --a4: #9B5CFF; --a4l: #CDB3FF; --a5: #5EB0FF; --a5l: #A8D2FF; --barbg: #0E2B27; --barhover: #10332F;\n}\n[data-theme="cyberpunk"] {\n  --bg: #0A0A0F; --surface: #16161F; --text: #E0FFE8; --muted: #8FB5A8; --line: #2F5A50; --dim: #6F9486;\n  --a1: #00FFC8; --a1l: #9DFFE6; --a2: #FFE600; --a2l: #FFF27A; --a3: #FF2A6D; --a3l: #FF8FB0;\n  --a4: #05D9E8; --a4l: #8CEEF5; --a5: #B967FF; --a5l: #D9B0FF; --barbg: #0C1F1A; --barhover: #12302A;\n}\n\nbody { margin: 0; background: var(--bg); color: var(--text); font-family: 'Barlow', sans-serif; }\nh1 { margin: 0; font-family: 'Anton', sans-serif; font-size: clamp(42px, 7vw, 60px); line-height: 1; color: var(--a1); letter-spacing: 1px; font-weight: 400; }`}</pre></div></div>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`// Themes: the choice is saved with everything else and set on <html data-theme="...">.\nconst THEMES = [["vice", "VICE", "#FF3D8A"], ["cyberpunk", "CYBERPUNK", "#00FFC8"], ["synthwave", "SYNTHWAVE", "#FF6AD5"], ["neon", "NEON", "#39FF14"], ["midnight", "MIDNIGHT", "#7CC4FF"],\n  ["terminal", "TERMINAL", "#33FF33"], ["sunset", "SUNSET", "#FF7A59"], ["ocean", "OCEAN", "#2EC4FF"], ["forest", "FOREST", "#9BE564"], ["daylight", "DAYLIGHT", "#F6F3FB"]];\nfunction applyTheme() {\n  const cur = THEMES.some(t => t[0] === S.theme) ? S.theme : "vice";\n  document.documentElement.dataset.theme = cur;\n  document.getElementById("themes").innerHTML = '<span class="tlbl">THEME</span>' + THEMES.map(t =>\n    '<button type="button" class="pchip' + (t[0] === cur ? " on" : "") + '" data-theme-pick="' + t[0] + '" aria-pressed="' + (t[0] === cur) + '">' +\n    '<i style="background:' + t[2] + '"></i>' + t[1] + '</button>').join("");\n}\ndocument.getElementById("themes").addEventListener("click", e => {\n  const b = e.target.closest("button[data-theme-pick]");\n  if (!b) return;\n  S.theme = b.dataset.themePick;\n  save(); applyTheme();\n});`}</pre></div></div>
+
+<p><strong>Full screen</strong></p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`// Full screen: hides the browser so only the tracker shows.\nconst fsBtn = document.getElementById("fsbtn");\nconst root = document.documentElement;\nconst fsOn = () => !!(document.fullscreenElement || document.webkitFullscreenElement);\nif (!(root.requestFullscreen || root.webkitRequestFullscreen)) fsBtn.hidden = true;\nfsBtn.addEventListener("click", () => {\n  try {\n    if (fsOn()) (document.exitFullscreen || document.webkitExitFullscreen).call(document);\n    else {\n      const p = (root.requestFullscreen || root.webkitRequestFullscreen).call(root);\n      if (p && p.catch) p.catch(() => {});\n    }\n  } catch (e) {}\n});\nfunction fsLabel() { fsBtn.textContent = fsOn() ? "EXIT FULL SCREEN" : "FULL SCREEN"; }\ndocument.addEventListener("fullscreenchange", fsLabel);\ndocument.addEventListener("webkitfullscreenchange", fsLabel);`}</pre></div></div>
+
+<p><strong>Export</strong></p>
+
+<p>The spreadsheet file is built right in the page and handed over as a download.</p>
+
+<div class="pp-code"><div class="pp-code-head"><div class="pp-code-dots"><div class="pp-code-dot"></div><div class="pp-code-dot"></div><div class="pp-code-dot"></div></div><div class="pp-code-lang">javascript</div><button class="pp-code-copy" onclick="navigator.clipboard.writeText(this.closest('.pp-code').querySelector('pre').textContent);this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button></div><div class="pp-code-body"><pre>{`// Export CSV: one file with every task, the hours per day, and each focus session.\nfunction csvCell(v) { v = String(v == null ? "" : v); return /[",\\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }\ndocument.getElementById("csv").addEventListener("click", () => {\n  const rows = [["Type", "Week", "Date", "Day", "Category", "Task", "Done", "Hours", "Minutes", "Start"]];\n  S.tasks.forEach(t => {\n    const done = !!doneOf(t.wk)[String(t.id)] || Object.keys(S.done).some(w => S.done[w]["c" + t.id]);\n    rows.push(["task", weekNum(t.wk), addDays(t.wk, DAY_KEYS.indexOf(t.day)), t.day, catOf(t.cat).name, t.t, done ? "yes" : "no", "", "", ""]);\n  });\n  Object.keys(S.hours).sort().forEach(w => DAY_KEYS.forEach((k, i) => {\n    if (S.hours[w][k]) rows.push(["hours", weekNum(w), addDays(w, i), k, "", "", "", S.hours[w][k], "", ""]);\n  }));\n  S.sessions.forEach(x => rows.push(["session", weekNum(x.wk), x.date, x.day, x.cat, x.label, "", "", x.min, x.start]));\n  const csv = rows.map(r => r.map(csvCell).join(",")).join("\\r\\n");\n  try {\n    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));\n    const a = document.createElement("a");\n    a.href = url; a.download = "gta-tracker-" + todayIso() + ".csv";\n    document.body.appendChild(a); a.click(); a.remove();\n    setTimeout(() => URL.revokeObjectURL(url), 1000);\n    setBar("Downloaded gta-tracker-" + todayIso() + ".csv");\n  } catch (e) { setBar("Could not create the file in this browser"); }\n});`}</pre></div></div>
+
+<div class="pp-next">
+  <div class="pp-next-label">// the code</div>
+  <div class="pp-next-title"><a href="/gta-tracker.html">run the finished app</a> · <a href="https://github.com/CravenCraven/projectpattie/blob/main/public/gta-tracker.html">read the full source on GitHub</a></div>
+</div>
