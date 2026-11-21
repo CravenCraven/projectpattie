@@ -5,7 +5,7 @@ sub: "Navidrome"
 blurb: "Samba, MPB, choro"
 section: "midia"
 status: "running"
-color: "c3"
+color: "c5"
 order: 5
 href: "https://musica.projectpattie.com"
 ---

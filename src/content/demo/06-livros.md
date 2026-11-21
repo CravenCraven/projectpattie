@@ -5,7 +5,7 @@ sub: "Audiobookshelf"
 blurb: "Podcasts and audiobooks"
 section: "midia"
 status: "planned"
-color: "c5"
+color: "c1"
 order: 6
 ---
 

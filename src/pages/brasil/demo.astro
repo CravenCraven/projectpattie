@@ -1,6 +1,13 @@
 ---
 import { getCollection } from 'astro:content';
 import corpus from '../../data/corpus-sample.json';
+import roadmap from '../../data/roadmap.json';
+const rmGroup = (s: string) => s === 'Done' ? 'done' : (s === 'Partly' || s === 'In progress') ? 'now' : s === 'Dropped' ? 'dropped' : 'next';
+const rmItems = roadmap.phases.flatMap(p => p.items);
+const rmTotal = rmItems.length;
+const rmDone = rmItems.filter(m => m.status === 'Done').length;
+const rmNow = rmItems.filter(m => rmGroup(m.status) === 'now').length;
+const rmUpdated = new Date(roadmap.updated + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 
 const BLOG_COLLECTION = 'blog';
 const postUrl = (slug) => `/blog/${slug}`;
@@ -36,10 +43,10 @@ const featuredCourse = corpus.courses.find(c => c.slug === featured.course);
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Laboratório Brasil — a Kubernetes homelab for learning Portuguese</title>
-<meta name="description" content="A self-hosted Portuguese learning platform running on a two-node k3s cluster. GitOps with Flux, local LLM inference, Prometheus monitoring.">
+<meta name="description" content="A self-hosted Portuguese learning platform running on a three-node k3s cluster. GitOps with Flux, local LLM inference, Prometheus monitoring.">
 
 <meta property="og:title" content="Laboratório Brasil">
-<meta property="og:description" content="A self-hosted Portuguese learning platform on a two-node k3s cluster.">
+<meta property="og:description" content="A self-hosted Portuguese learning platform on a three-node k3s cluster.">
 <meta property="og:type" content="website">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -159,8 +166,8 @@ header{
 .streak .lab{font-family:var(--mono);font-size:.64rem;letter-spacing:.2em;
   text-transform:uppercase;color:var(--areia-dim);margin-top:8px}
 .bars{display:flex;gap:4px;align-items:flex-end;height:52px;flex:1;min-width:240px}
-.bar{flex:1;background:var(--turquesa);min-height:4px}
-.bar.off{background:rgba(240,227,204,.16)}
+:global(.bar){flex:1;background:var(--turquesa);min-height:4px}
+:global(.bar.off){background:rgba(240,227,204,.16)}
 
 .nodes{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:3px;margin-top:3px}
 .node{background:var(--petrol);padding:22px 26px}
@@ -202,7 +209,7 @@ header{
   text-transform:uppercase;color:var(--turquesa)}
 .corpus h4{font-family:var(--display);font-size:1.3rem;line-height:1.1;
   letter-spacing:-.02em;margin:8px 0 14px}
-.corpus .lines{display:grid;grid-template-columns:2.4rem 1fr;row-gap:6px;font-size:.92rem}
+.corpus .lines{display:grid;grid-template-columns:max-content 1fr;column-gap:14px;row-gap:6px;font-size:.92rem}
 .corpus .who{font-family:var(--mono);font-size:.72rem;font-weight:700;color:var(--amarelo);padding-top:.15rem}
 .corpus .who.a{color:var(--laranja)}
 .corpus .dir{font-style:italic;color:var(--areia-dim)}
@@ -222,14 +229,130 @@ footer a:hover{color:var(--laranja)}
   .clocks{gap:22px}.clock{text-align:left}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.broke{background:var(--petrol)}
+.broke article{display:grid;grid-template-columns:230px minmax(0,1fr) auto;gap:16px;padding:16px 20px;border-bottom:1px solid rgba(240,227,204,.08);font-size:.84rem;align-items:start}
+.broke article>*{min-width:0}
+.broke h4{font-family:var(--display);font-size:.98rem;line-height:1.15;letter-spacing:-.02em}
+.broke p{opacity:.8}
+.broke p b{font-family:var(--mono);font-size:.7rem;color:var(--amarelo);opacity:1}
+.broke a{font-family:var(--mono);font-size:.68rem;color:var(--laranja);white-space:nowrap}
+@media (max-width:760px){.broke article{grid-template-columns:1fr}}
+.tblwrap{overflow-x:auto;background:var(--petrol)}
+.tblwrap table{border-collapse:collapse;width:100%;min-width:620px;font-size:.84rem}
+.tblwrap th{font-family:var(--mono);font-size:.62rem;letter-spacing:.18em;text-transform:uppercase;color:var(--amarelo);text-align:left;padding:12px 14px;border-bottom:2px solid rgba(240,227,204,.14)}
+.tblwrap td{padding:10px 14px;border-bottom:1px solid rgba(240,227,204,.08);vertical-align:top}
+td.layer{font-family:var(--mono);font-size:.7rem;color:var(--areia-dim)}
+td.tool{font-weight:600}
+td.job{opacity:.78}
+td.since{font-family:var(--mono);font-size:.7rem;color:var(--areia-dim);white-space:nowrap}
+tr.next td{opacity:.55}
+tr.next td.tool{opacity:.8}
+.pill{font-family:var(--mono);font-size:.56rem;letter-spacing:.14em;padding:3px 7px;white-space:nowrap}
+.pill.done{background:var(--turquesa);color:var(--petrol-deep)}
+.pill.now{background:var(--laranja);color:var(--petrol-deep)}
+.pill.next{border:1px solid var(--areia-dim);color:var(--areia)}
+.two{display:grid;grid-template-columns:3fr 2fr;gap:3px;align-items:start}
+.two>div{min-width:0}
+.flow{background:var(--petrol);padding:20px;display:flex;flex-direction:column}
+.box{padding:12px 14px;text-align:center;font-size:.76rem}
+.box b{display:block;font-family:var(--mono);font-size:.78rem;margin-bottom:2px}
+.box.gh{background:var(--amarelo);color:var(--petrol-deep)}
+.box.flux{background:var(--laranja);color:var(--petrol-deep)}
+.box.cf{background:var(--magenta);color:var(--areia)}
+.box.net{background:var(--petrol-deep);color:var(--areia)}
+.box.apps{background:var(--areia);color:var(--petrol-deep)}
+.box.mon{background:var(--turquesa);color:var(--petrol-deep)}
+.arrow{height:26px;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:.62rem;color:var(--areia-dim);position:relative}
+.arrow::before{content:"";position:absolute;top:0;bottom:0;left:50%;width:2px;background:var(--turquesa)}
+.arrow span{background:var(--petrol);padding:0 8px;position:relative}
+.cl{border:2px dashed var(--turquesa);padding:12px;display:flex;flex-direction:column;gap:8px}
+.cl .lab{font-family:var(--mono);font-size:.58rem;letter-spacing:.18em;color:var(--turquesa)}
+.nd3{display:grid;grid-template-columns:repeat(3,1fr);gap:3px}
+.nd3 div{background:var(--petrol-deep);padding:10px 6px;text-align:center;font-family:var(--mono);font-size:.62rem;color:var(--areia-dim)}
+.nd3 div b{display:block;color:var(--areia);font-size:.7rem}
+.ns2{display:grid;grid-template-columns:1fr 1fr;gap:3px}
+.capt{font-family:var(--mono);font-size:.68rem;color:var(--areia-dim);margin-top:10px}
+@media (max-width:760px){.two{grid-template-columns:1fr}}
+.banner{margin-top:52px;background:var(--amarelo);color:var(--petrol-deep);padding:30px 28px}
+.banner .k{font-family:var(--mono);font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;opacity:.7}
+.banner h2{font-family:var(--display);font-size:clamp(1.6rem,4vw,2.2rem);letter-spacing:-.03em;margin:8px 0 6px}
+.banner p{font-size:.92rem;font-weight:500;max-width:60ch}
+.banner .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.banner a{font-family:var(--mono);font-size:.72rem;padding:10px 16px;text-decoration:none;border:2px solid var(--petrol-deep);color:var(--petrol-deep)}
+.banner a.solid{background:var(--petrol-deep);color:var(--areia)}
+.rmhead{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:10px;margin-bottom:3px}
+.rmhead .meta{font-family:var(--mono);font-size:.66rem;color:var(--areia-dim)}
+.filters{display:flex;gap:3px}
+.filters button{background:var(--petrol);border:0;color:var(--areia);font-family:var(--mono);font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;padding:8px 14px;cursor:pointer}
+.filters button[aria-pressed="true"]{background:var(--amarelo);color:var(--petrol-deep);font-weight:700}
+.progress{height:9px;background:rgba(240,227,204,.12);display:flex;margin-bottom:3px}
+.progress i{background:var(--turquesa)}
+.progress em{background:var(--laranja)}
+.phases{columns:320px;column-gap:3px}
+.phase{break-inside:avoid;margin-bottom:3px;background:var(--petrol);min-width:0}
+.phase header{display:flex;justify-content:space-between;gap:10px;padding:12px 16px;border:0;margin:0;font-family:var(--display);font-size:.98rem;letter-spacing:-.02em;color:var(--petrol-deep)}
+.phase header span{font-family:var(--mono);font-size:.74rem}
+.phase ul{list-style:none;padding:8px 10px}
+.phase li{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;padding:6px;font-size:.84rem;border-bottom:1px solid rgba(240,227,204,.06)}
+.phase li.next{opacity:.6}
+.phase li.dropped{opacity:.45}
+.phase li.hidden{display:none}
+.phase .cap{padding:10px 16px;font-family:var(--mono);font-size:.66rem;color:var(--areia-dim);border-top:2px solid rgba(240,227,204,.1)}
+.phase .cap b{color:var(--turquesa);font-weight:400}
+.pill.dropped{border:1px dashed var(--areia-dim);color:var(--areia-dim)}
+.ph1{background:var(--laranja)}
+.ph2{background:var(--turquesa)}
+.ph3{background:var(--amarelo)}
+.ph4{background:var(--areia)}
+.ph5{background:var(--magenta)}
+.phase header.ph5{color:var(--areia)}
+</style>
+<style is:global>
+div.try{background:var(--petrol);padding:22px 24px;display:grid;grid-template-columns:2fr 1fr;gap:24px}
+.try[hidden]{display:none}
+.tryhead{font-family:var(--display);font-size:clamp(1.6rem,4vw,2.2rem);letter-spacing:-.03em;text-transform:uppercase;color:var(--magenta);margin:44px 0 12px}
+.tryhead span{display:block;font-family:var(--mono);font-size:.7rem;letter-spacing:.14em;color:var(--areia-dim);text-transform:none;margin-top:6px}
+.try>div{min-width:0}
+.try h4{font-family:var(--mono);font-size:.64rem;letter-spacing:.2em;text-transform:uppercase;color:var(--amarelo);margin-bottom:10px}
+.try p{font-size:.86rem;opacity:.85;margin-bottom:8px}
+.try ul{list-style:none;font-size:.84rem;padding:0}
+.try li{padding:5px 0;border-bottom:1px solid rgba(240,227,204,.08)}
+.try li b{color:var(--amarelo);font-family:var(--mono);font-size:.74rem}
+.try .capt{font-family:var(--mono);font-size:.68rem;color:var(--areia-dim);margin-top:10px}
+.chat{background:var(--petrol-deep);padding:18px;display:flex;flex-direction:column;gap:10px;font-size:1rem;min-height:320px}
+.msg{padding:8px 10px;max-width:92%}
+.msg.t{background:var(--petrol);align-self:flex-start}
+.msg.u{background:var(--areia);color:var(--petrol-deep);align-self:flex-end}
+.msg .fix{display:block;color:var(--amarelo);font-family:var(--mono);font-size:.72rem;margin-top:4px}
+.chat form{display:flex;gap:6px;margin-top:4px}
+.chat input{flex:1;min-width:0;background:var(--petrol);border:0;color:var(--areia);font:inherit;padding:8px}
+.chat button{background:var(--turquesa);color:var(--petrol-deep);border:0;font-family:var(--mono);font-weight:700;padding:8px 12px;cursor:pointer}
+.tabs{display:flex;gap:3px;flex-wrap:wrap;margin-bottom:3px}
+.tabs button{background:var(--petrol);border:0;color:var(--areia);font-family:var(--mono);font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;padding:10px 16px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--turquesa);color:var(--petrol-deep);font-weight:700}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:3px}
+.card{background:var(--areia);color:var(--petrol-deep);min-height:110px;padding:14px;cursor:pointer;display:flex;flex-direction:column;justify-content:center;text-align:center;font-weight:600;font-size:.92rem}
+.card .k{font-family:var(--mono);font-size:.56rem;letter-spacing:.16em;text-transform:uppercase;opacity:.6;margin-bottom:6px}
+.card.flip{background:var(--turquesa)}
+.player{background:var(--petrol-deep);padding:14px}
+.np{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:8px;font-size:.84rem}
+.np b{font-family:var(--display);font-weight:400;font-size:1rem}
+.np span{font-family:var(--mono);font-size:.64rem;color:var(--areia-dim)}
+.ptrack{height:9px;background:rgba(240,227,204,.12);overflow:hidden}
+.ptrack i{display:block;height:100%;background:var(--amarelo)}
+.lyric{padding:8px 10px;margin-top:3px;background:var(--petrol);font-size:.9rem}
+.lyric.on{background:var(--amarelo);color:var(--petrol-deep)}
+.lyric .en{display:block;font-size:.74rem;opacity:.7}
+.wordbtn{background:var(--amarelo);color:var(--petrol-deep);border:0;font:inherit;padding:1px 6px;cursor:pointer}
+@media (max-width:760px){.try{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 
 <div class="context">
   <span class="tag">Static demo</span>
-  <span><strong>A self-hosted Portuguese learning platform</strong> running on a two-node k3s cluster at home. This page is a snapshot; the live version reads pod status from the Kubernetes API and node metrics from Prometheus.</span>
-  <span>· <a href="/">Write-ups</a> · <a href="https://github.com/CravenCraven/homelab">Repo</a></span>
+  <span><strong>A self-hosted Portuguese learning platform</strong> running on a three-node k3s cluster at home. This page is a snapshot; the live version reads pod status from the Kubernetes API and node metrics from Prometheus.</span>
+  <span>· <a href="/">Write-ups</a> · <a href="https://github.com/CravenCraven/homelab-brasil">Repo</a></span>
 </div>
 
 <div class="wave-band" aria-hidden="true">
@@ -249,7 +372,7 @@ footer a:hover{color:var(--laranja)}
   <header>
     <div class="brand">
       <h1>Labora<em>tório</em><br>Brasil</h1>
-      <p>k3s · two nodes · qwen2.5 7b local</p>
+      <p>k3s · three nodes · qwen2.5 7b local</p>
     </div>
     <div class="clocks">
       <div class="clock"><div class="t" id="t-local">--:--</div><div class="l">Miami</div></div>
@@ -303,6 +426,126 @@ footer a:hover{color:var(--laranja)}
     ))}
   </div>
 
+  <h2 class="tryhead">Try it <span>scripted samples of the tiles that will be public</span></h2>
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-tab="tutor">Tutor</button>
+    <button role="tab" aria-selected="false" data-tab="coach">Coach</button>
+    <button role="tab" aria-selected="false" data-tab="fichas">Fichas</button>
+    <button role="tab" aria-selected="false" data-tab="giria">Gíria</button>
+    <button role="tab" aria-selected="false" data-tab="musica">Música</button>
+  </div>
+
+  <div class="try" data-pane="tutor">
+    <div>
+      <h4>Carioca mode · type a sentence with a mistake</h4>
+      <div class="chat" id="chat">
+        <div class="msg t">E aí! Como foi seu fim de semana?</div>
+        <div class="msg u">Eu foi na praia com meus amigos.</div>
+        <div class="msg t">Que legal!<span class="fix">→ Eu <b>fui</b> à praia. "foi" is he/she; with "eu" it's "fui".</span>E o mar, tava bom?</div>
+        <form id="chatform"><input id="chatin" placeholder="Nós vai pra Lapa hoje à noite." aria-label="Your reply" /><button type="submit">enviar</button></form>
+      </div>
+    </div>
+    <div>
+      <h4>What the tile does</h4>
+      <p>Three modes on top of a local qwen2.5 7B. Nothing leaves the network.</p>
+      <ul>
+        <li><b>carioca</b> · opens with a question, Rio Portuguese, fixes you as you go, wraps up with a summary</li>
+        <li><b>corretor</b> · paste your writing, get it back fixed with a short reason</li>
+        <li><b>drill</b> · FSI-style substitution drills from the corpus and your topics</li>
+      </ul>
+      <p class="capt">Once Tutor is public, this block links to the real app with a demo login.</p>
+    </div>
+  </div>
+
+  <div class="try" data-pane="coach" hidden>
+    <div>
+      <h4>Writing prompt · sample</h4>
+      <div class="chat">
+        <div class="msg t"><b>Prompt:</b> Escreve uma mensagem pra um amigo convidando ele pra um churrasco no sábado.</div>
+        <div class="msg u">Oi! Vou fazer um churrasco no sabado. Você quer vir? Vai ter muito comida.</div>
+        <div class="msg t">Boa! Três coisas:<span class="fix">→ <b>sábado</b> (accent)</span><span class="fix">→ <b>muita</b> comida ("comida" is feminine)</span><span class="fix">→ Sounds like Rio? Try: "Cola lá no sábado, vai ter churrasco!"</span></div>
+      </div>
+    </div>
+    <div>
+      <h4>What the tile does</h4>
+      <ul>
+        <li><b>writing prompts</b> · messages, journal entries, emails, short stories</li>
+        <li><b>feedback</b> · fix plus reason, sounds natural, sounds like Rio, better words</li>
+        <li><b>vocab drills</b> · by topic, mixed types, voice or text</li>
+        <li><b>sentence builders</b> · order the words, finish the sentence, build around a word</li>
+        <li><b>progress</b> · mistakes you keep making, ones you've stopped making</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="try" data-pane="fichas" hidden>
+    <div>
+      <h4>Flip a card</h4>
+      <div class="cards">
+        <div class="card" data-front="praia" data-back="beach"><div class="k">frente</div><span>praia</span></div>
+        <div class="card" data-front="Eu fui à ___ ontem." data-back="praia"><div class="k">frente</div><span>Eu fui à ___ ontem.</span></div>
+        <div class="card" data-front="maneiro" data-back="cool, nice (Rio)"><div class="k">frente</div><span>maneiro</span></div>
+        <div class="card" data-front="ficar bolado" data-back="to get annoyed"><div class="k">frente</div><span>ficar bolado</span></div>
+        <div class="card" data-front="churrasco" data-back="barbecue"><div class="k">frente</div><span>churrasco</span></div>
+        <div class="card" data-front="Vai ter ___ comida." data-back="muita"><div class="k">frente</div><span>Vai ter ___ comida.</span></div>
+      </div>
+      <p class="capt">Click a card to flip. Real decks sync to Anki automatically.</p>
+    </div>
+    <div>
+      <h4>What the tile does</h4>
+      <ul>
+        <li><b>sources</b> · Tutor and Coach wrap-ups, FSI material, lyrics, videos, reading</li>
+        <li><b>cards</b> · word ↔ meaning, sentence with a gap, audio</li>
+        <li><b>decks</b> · by topic</li>
+        <li><b>loop</b> · cards you keep failing feed Coach vocab drills</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="try" data-pane="giria" hidden>
+    <div>
+      <h4>Look up a word</h4>
+      <div class="chat">
+        <form id="giriaform"><input id="giriain" placeholder="maneiro" aria-label="Slang word" /><button type="submit">buscar</button></form>
+        <div class="msg t" id="giriaout">Try: maneiro, treta, partiu, bolado, coé</div>
+      </div>
+    </div>
+    <div>
+      <h4>What the tile does</h4>
+      <ul>
+        <li><b>palavra do dia</b> · a new slang word each day (the orange block at the top)</li>
+        <li><b>entry</b> · meaning, example, how casual, audio, where you heard it</li>
+        <li><b>sources</b> · you add them, the corpus, Tutor adds slang it used</li>
+        <li><b>loop</b> · looked-up slang becomes a Fichas card</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="try" data-pane="musica" hidden>
+    <div>
+      <h4>Lyrics while you listen · coming soon</h4>
+      <div class="player">
+        <div class="np"><b>Ciranda, Cirandinha</b><span>traditional · cantiga de roda</span></div>
+        <div class="ptrack"><i style="width:38%"></i></div>
+        <div class="lyric"><span>Ciranda, cirandinha</span><span class="en">Little circle, little circle dance</span></div>
+        <div class="lyric on"><span>Vamos todos cirandar</span><span class="en">Let's all dance in a circle</span></div>
+        <div class="lyric"><span>Vamos dar a meia volta</span><span class="en">Let's make a half turn</span></div>
+        <p class="capt">Click a word in a lyric → saved to Fichas (sample: click <button class="wordbtn" id="wordbtn">volta</button>)</p>
+<p><a class="realbtn" href="https://musica.projectpattie.com" target="_blank" rel="noopener" style="display:inline-block;margin-top:12px;padding:8px 14px;background:var(--turquesa);color:var(--petrol-deep);font-weight:600;text-decoration:none">Open the real Música (Navidrome) →</a></p>
+      </div>
+    </div>
+    <div>
+      <h4>What the tile does</h4>
+      <ul>
+        <li><b>Navidrome</b> · browser and phone app</li>
+        <li><b>lyrics</b> · shown while a song plays; words go to Fichas</li>
+        <li><b>Tutor</b> · talks about a song with you</li>
+        <li><b>Lidarr</b> · watches artists you follow, fetches new albums</li>
+        <li><b>public</b> · first tile to go public, with login</li>
+      </ul>
+    </div>
+  </div>
+
   <div class="sec">Corpus <span class="en">— from fsi-scraper</span></div>
   <div class="corpus">
     <div class="k">{featuredCourse?.title} · Lesson {featured.number} · {featured.location}</div>
@@ -326,14 +569,27 @@ footer a:hover{color:var(--laranja)}
     </div>
   </div>
 
-  <div class="streak">
-    <div>
-      <div class="big">9</div>
-      <div class="lab">dias seguidos · study streak</div>
-    </div>
-    <div class="bars" id="bars" aria-label="Last 14 days"></div>
-  </div>
 
+  <div class="two">
+    <div>
+      <div class="sec">How it deploys</div>
+      <div class="flow">
+        <div class="box gh"><b>GitHub · homelab-brasil</b>source of truth · SOPS secrets (next)</div>
+        <div class="arrow"><span>Flux pulls every 1 to 10 min</span></div>
+        <div class="box flux"><b>Flux</b>Kustomize + HelmRelease</div>
+        <div class="arrow"><span></span></div>
+        <div class="cl"><div class="lab">K3S · 3 NODES</div>
+          <div class="nd3"><div><b>control plane</b>amd64 · light</div><div><b>worker</b>amd64 · heavy</div><div><b>worker</b>arm64 · compute</div></div>
+          <div class="ns2"><div class="box apps"><b>brasil</b>ollama · open-webui · navidrome · corpus-db · fsi-scraper (next)</div><div class="box mon"><b>monitoring</b>kube-prometheus-stack · Brasil dashboards (next)</div></div>
+        </div>
+        <div class="arrow"><span></span></div>
+        <div class="box cf"><b>cloudflared</b>outbound tunnel · Access login · no open ports</div>
+        <div class="arrow"><span></span></div>
+        <div class="box net"><b>Internet</b>you, through Cloudflare</div>
+      </div>
+      <p class="capt">Nothing is applied by hand. Every box is a folder in the repo.</p>
+    </div>
+    <div>
   <div class="sec">Nós <span class="en">— cluster nodes</span></div>
   <div class="nodes">
     <div class="node">
@@ -361,6 +617,8 @@ footer a:hover{color:var(--laranja)}
       </div>
     </div>
   </div>
+    </div>
+  </div>
 
   <div class="stack">
     <div class="sec">Stack</div>
@@ -368,10 +626,9 @@ footer a:hover{color:var(--laranja)}
       <div class="sc">
         <h4>Platform</h4>
         <ul>
-          <li>k3s<span>two nodes, bare metal, flannel VXLAN</span></li>
+          <li>k3s<span>three nodes, bare metal, flannel VXLAN</span></li>
           <li>Flux<span>GitOps, whole cluster from one repo</span></li>
           <li>Traefik<span>ingress, hostname per service</span></li>
-          <li>Sealed Secrets<span>credentials committed safely</span></li>
         </ul>
       </div>
       <div class="sc">
@@ -385,20 +642,56 @@ footer a:hover{color:var(--laranja)}
       <div class="sc">
         <h4>Built here</h4>
         <ul>
-          <li>coach<span>Python CLI, typed corrections via Pydantic</span></li>
           <li>fsi-scraper<span>corpus pipeline, 5 stages, ruff + pytest</span></li>
-          <li>This portal<span>ConfigMap-served, hash-triggered rollouts</span></li>
         </ul>
       </div>
       <div class="sc">
         <h4>Next</h4>
         <ul>
+          <li>Coach<span>writing corrections, on Ollama</span></li>
+          <li>Live portal<span>real pod status and node metrics</span></li>
+          <li>SOPS + age<span>encrypted secrets in Git</span></li>
           <li>Terraform + AKS<span>portal to cloud, then torn down</span></li>
           <li>CloudNativePG<span>backup and a tested restore</span></li>
           <li>Shared storage<span>local-path pins pods to disks</span></li>
         </ul>
       </div>
     </div>
+  </div>
+
+  <div class="sec">Stack <span class="en">— by layer</span></div>
+  <div class="tblwrap">
+    <table>
+      <thead><tr><th>Layer</th><th>Tool</th><th>Job</th><th>Since</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td class="layer">distro</td><td class="tool">k3s</td><td class="job">lightweight Kubernetes on three mixed-arch laptops</td><td class="since">Jul 2026</td><td><span class="pill done">done</span></td></tr>
+        <tr><td class="layer">gitops</td><td class="tool">Flux</td><td class="job">reconciles the cluster from homelab-brasil; also watches kubecraft</td><td class="since">Jul 2026</td><td><span class="pill done">done</span></td></tr>
+        <tr><td class="layer">inference</td><td class="tool">Ollama + Open WebUI</td><td class="job">local 7B model on the heavy worker, 20Gi limit</td><td class="since">Aug 2026</td><td><span class="pill done">done</span></td></tr>
+        <tr><td class="layer">media</td><td class="tool">Navidrome</td><td class="job">music library on a local-path volume, loaded by rsync</td><td class="since">Aug 2026</td><td><span class="pill done">done</span></td></tr>
+        <tr><td class="layer">storage</td><td class="tool">local-path</td><td class="job">k3s default; pinned to one node, no expansion</td><td class="since">Aug 2026</td><td><span class="pill done">done</span></td></tr>
+        <tr><td class="layer">ci</td><td class="tool">GitHub Actions</td><td class="job">validates every manifest on push</td><td class="since">Sep 2026</td><td><span class="pill done">done</span></td></tr>
+        <tr><td class="layer">database</td><td class="tool">CloudNativePG</td><td class="job">operator via HelmRelease; corpus-db cluster next</td><td class="since">Oct 2026</td><td><span class="pill now">now</span></td></tr>
+        <tr><td class="layer">data</td><td class="tool">fsi-scraper</td><td class="job">Python, Postgres, 32 tests, non-root container, CronJob</td><td class="since">Oct 2026</td><td><span class="pill now">now</span></td></tr>
+        <tr class="next"><td class="layer">secrets</td><td class="tool">SOPS + age</td><td class="job">encrypted secrets in git, decrypted by Flux</td><td class="since">—</td><td><span class="pill next">next</span></td></tr>
+        <tr class="next"><td class="layer">ingress</td><td class="tool">Traefik</td><td class="job">a hostname per tile, none on NodePort</td><td class="since">—</td><td><span class="pill next">next</span></td></tr>
+        <tr class="next"><td class="layer">exposure</td><td class="tool">Cloudflare Tunnel + Access</td><td class="job">Música public first, login in front</td><td class="since">—</td><td><span class="pill next">next</span></td></tr>
+        <tr class="next"><td class="layer">dashboards</td><td class="tool">Grafana</td><td class="job">Brasil dashboards in the KubeCraft stack</td><td class="since">—</td><td><span class="pill next">next</span></td></tr>
+        <tr class="next"><td class="layer">remote</td><td class="tool">Tailscale</td><td class="job">kubectl from anywhere</td><td class="since">—</td><td><span class="pill next">next</span></td></tr>
+        <tr class="next"><td class="layer">registry</td><td class="tool">GHCR + Trivy</td><td class="job">scanned images, pushed on release</td><td class="since">—</td><td><span class="pill next">next</span></td></tr>
+        <tr class="next"><td class="layer">tls</td><td class="tool">cert-manager</td><td class="job">real certificates</td><td class="since">—</td><td><span class="pill next">next</span></td></tr>
+        <tr class="next"><td class="layer">git</td><td class="tool">Forgejo</td><td class="job">self-hosted mirror of both repos</td><td class="since">—</td><td><span class="pill next">next</span></td></tr>
+        <tr class="next"><td class="layer">iac</td><td class="tool">Terraform + AKS</td><td class="job">portal provisioned in Azure and torn down</td><td class="since">—</td><td><span class="pill next">next</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="sec">Things that broke</div>
+  <div class="broke">
+    <article><h4>Five ways I broke port-forward in one night</h4><p><b>Impact</b> Connection reset on the Mac. <b>Cause</b> port-forward binds to the machine it runs on; I ran it inside an SSH session. <b>Fix</b> Run it where the browser is. <b>Lesson</b> Two numbers, one host, read them in order.</p><a href="https://projectpattie.com/blog/five-ways-i-broke-port-forward">read the post →</a></article>
+    <article><h4>My daily driver was talking to the wrong cluster</h4><p><b>Impact</b> kubectl showed Rancher Desktop, not k3s. <b>Cause</b> Stale kubeconfig. <b>Fix</b> Copied the server kubeconfig, fixed the address, renamed the context. <b>Lesson</b> Check current-context before trusting any output.</p></article>
+    <article><h4>The macOS update that ate Rosetta</h4><p><b>Impact</b> git, node and Homebrew died at once. <b>Cause</b> A macOS update removed Rosetta 2. <b>Fix</b> Reinstalled it. <b>Lesson</b> Many failures at once usually have one cause.</p></article>
+    <article><h4>Navidrome never rescanned</h4><p><b>Impact</b> New albums never showed. <b>Cause</b> Scanner env vars had the wrong names. <b>Fix</b> ND_SCANNER_SCHEDULE, ND_SCANNER_SCANONSTARTUP, TZ. <b>Lesson</b> Logs, then docs, then YAML.</p></article>
+    <article><h4>Volume%201 is not Volume1</h4><p><b>Impact</b> fsi-scraper skipped a whole volume. <b>Cause</b> The CDN URL-encodes the space. <b>Fix</b> Regex Volume[ _]?(\d+). <b>Lesson</b> The second source tells you if your design was right.</p><a href="https://projectpattie.com/blog/the-second-source">read the post →</a></article>
   </div>
 
   <div class="sec">Write-ups</div>
@@ -414,9 +707,54 @@ footer a:hover{color:var(--laranja)}
     ))}
   </div>
 
+  <div class="sec">Roadmap <span class="en">— from my tracker · updated {rmUpdated}</span></div>
+  <div class="rmhead">
+    <span class="meta">{rmDone}/{rmTotal} done · {rmNow} in progress</span>
+    <div class="filters" role="group" aria-label="Filter roadmap"><button aria-pressed="true" data-f="all">all</button><button aria-pressed="false" data-f="done">done</button><button aria-pressed="false" data-f="now">in progress</button><button aria-pressed="false" data-f="next">to do</button></div>
+  </div>
+  <div class="progress"><i style={`width:${rmDone / rmTotal * 100}%`}></i><em style={`width:${rmNow / rmTotal * 100}%`}></em></div>
+  <div class="phases">
+    {roadmap.phases.map((ph, i) => (
+      <div class="phase">
+        <header class={`ph${i % 5 + 1}`}><div>{ph.title}</div><span>{ph.items.filter(m => m.status === 'Done').length}/{ph.items.length}</span></header>
+        <ul>
+          {ph.items.map(m => (
+            <li class={rmGroup(m.status)} data-s={rmGroup(m.status)}><span class={`pill ${rmGroup(m.status)}`}>{m.status.toLowerCase()}</span><span>{m.name}</span></li>
+          ))}
+        </ul>
+        {ph.capstone && <div class="cap"><b>capstone</b> · {ph.capstone}</div>}
+      </div>
+    ))}
+    {roadmap.acrossAll.map((x, j) => (
+      <div class="phase">
+        <header class={`ph${(roadmap.phases.length + j) % 5 + 1}`}><div>{x.title}</div><span>across all phases</span></header>
+        <div class="cap"><b>capstone</b> · {x.capstone}</div>
+      </div>
+    ))}
+  </div>
+
+  <div class="sec">Study streak <span class="en">— sample data</span></div>
+  <div class="streak" style="margin-top:0">
+    <div>
+      <div class="big">9</div>
+      <div class="lab">dias seguidos · study streak</div>
+    </div>
+    <div class="bars" id="bars" aria-label="Last 14 days"></div>
+  </div>
+  <div class="banner">
+    <div class="k">Craven Craven · DevOps / SRE</div>
+    <h2>Open to DevOps and SRE roles.</h2>
+    <p>Happy to walk through the cluster live and show you how a change gets from git to running, and what I learned in Portuguese on the way.</p>
+    <div class="btns">
+      <a class="solid" href="https://www.linkedin.com/in/craven-craven/">LinkedIn</a>
+      <a href="https://github.com/CravenCraven">GitHub</a>
+      <a href="mailto:nicolecraven@gmail.com" id="copyemail">Email · nicolecraven@gmail.com</a>
+    </div>
+  </div>
+
   <footer>
     <span>Laboratório Brasil · static demo</span>
-    <span><a href="/">projectpattie.com</a> · <a href="https://github.com/CravenCraven/homelab">github</a></span>
+    <span><a href="/">projectpattie.com</a> · <a href="https://github.com/CravenCraven/homelab-brasil">github</a></span>
   </footer>
 
 </div>
@@ -463,6 +801,70 @@ const max=Math.max(...dias);
 document.getElementById('bars').innerHTML=dias.map(d=>
   `<div class="bar${d===0?' off':''}" style="height:${d===0?8:(d/max)*100}%"></div>`
 ).join('');
+document.getElementById('copyemail')?.addEventListener('click', e => {
+  e.preventDefault();
+  const a = e.currentTarget;
+  navigator.clipboard.writeText('nicolecraven@gmail.com').then(() => {
+    a.textContent = 'Copied · nicolecraven@gmail.com';
+    setTimeout(() => { a.textContent = 'Email · nicolecraven@gmail.com'; }, 2000);
+  });
+});
+document.querySelectorAll('.filters button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.filters button').forEach(x => x.setAttribute('aria-pressed', 'false'));
+  b.setAttribute('aria-pressed', 'true');
+  const f = b.dataset.f;
+  document.querySelectorAll('.phase li').forEach(li => {
+    const show = f === 'all' || li.dataset.s === f;
+    li.classList.toggle('hidden', show === false);
+  });
+}));
+// Try it: tabs
+document.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.setAttribute('aria-selected', 'false'));
+  b.setAttribute('aria-selected', 'true');
+  document.querySelectorAll('.try').forEach(pane => { pane.hidden = pane.dataset.pane !== b.dataset.tab; });
+}));
+// Try it: Tutor chat (scripted replies only)
+const TUTOR_SCRIPT = [
+  [/n[óo]s vai/i, 'Nós <b>vamos</b> pra Lapa. "vai" is ele/ela; with "nós" it\'s "vamos".', 'Boa! Lapa de sexta é outra coisa. Vai de metrô ou de Uber?'],
+  [/eu foi/i, 'Eu <b>fui</b>. "foi" is he/she; with "eu" it\'s "fui".', 'Entendi. E foi bom?'],
+];
+document.getElementById('chatform')?.addEventListener('submit', e => {
+  e.preventDefault();
+  const inp = document.getElementById('chatin');
+  const txt = inp.value.trim() || inp.placeholder;
+  inp.value = '';
+  const chat = document.getElementById('chat');
+  const form = e.currentTarget;
+  const u = document.createElement('div'); u.className = 'msg u'; u.textContent = txt; chat.insertBefore(u, form);
+  const hit = TUTOR_SCRIPT.find(r => r[0].test(txt));
+  const t = document.createElement('div'); t.className = 'msg t';
+  t.innerHTML = hit ? `Massa!<span class="fix">→ ${hit[1]}</span>${hit[2]}` : 'Legal! Me conta mais.<span class="fix">(sample only: the real Tutor runs on the cluster)</span>';
+  chat.insertBefore(t, form);
+});
+// Try it: Fichas flip cards
+document.querySelectorAll('.card').forEach(c => c.addEventListener('click', () => {
+  c.classList.toggle('flip');
+  const back = c.classList.contains('flip');
+  c.querySelector('.k').textContent = back ? 'verso' : 'frente';
+  c.querySelector('span').textContent = back ? c.dataset.back : c.dataset.front;
+}));
+// Try it: Gíria lookup (uses the Palavra do dia word list, if this page has one)
+document.getElementById('giriaform')?.addEventListener('submit', e => {
+  e.preventDefault();
+  const q = (document.getElementById('giriain').value.trim() || 'maneiro').toLowerCase();
+  const list = (typeof girias === 'undefined') ? [] : girias;
+  const hit = list.find(g => g[0] === q);
+  const o = document.getElementById('giriaout');
+  o.innerHTML = hit
+    ? `<b>${hit[0]}</b> · ${hit[1]}<span class="fix">${hit[2]}</span><span class="fix">casual · áudio ▶ · + Fichas</span>`
+    : `"${q}" não está na base ainda. <span class="fix">(sample: only the Palavra do dia words are loaded)</span>`;
+});
+// Try it: Música click-a-word
+document.getElementById('wordbtn')?.addEventListener('click', e => {
+  e.currentTarget.textContent = 'volta ✓ saved';
+  e.currentTarget.disabled = true;
+});
 </script>
 
 </body>
