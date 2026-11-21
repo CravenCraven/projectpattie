@@ -5,7 +5,7 @@ sub: "Jellyfin"
 blurb: "Films, with transcript breakdown tooling"
 section: "midia"
 status: "planned"
-color: "down"
+color: "c2"
 order: 7
 ---
 

@@ -1,0 +1,1123 @@
+{
+  "source": "Brasil Roadmap Tracker (Google Sheet), Modules tab",
+  "updated": "2026-11-07",
+  "phases": [
+    {
+      "key": "Phase 0",
+      "title": "00 · Verify what is running",
+      "capstone": "One-page status, every Unknown resolved",
+      "items": [
+        {
+          "id": "P0-01",
+          "name": "Cluster: three nodes Ready",
+          "status": "Not started"
+        },
+        {
+          "id": "P0-02",
+          "name": "Flux: every kustomization reconciled, no drift",
+          "status": "Not started"
+        },
+        {
+          "id": "P0-03",
+          "name": "Navidrome: running, library populated, reachable",
+          "status": "Done"
+        },
+        {
+          "id": "P0-04",
+          "name": "Ollama: pod on dell-node, model resident, tok/s measured",
+          "status": "Not started"
+        },
+        {
+          "id": "P0-05",
+          "name": "Open WebUI: reachable, ENABLE_SIGNUP state, personas present",
+          "status": "Not started"
+        },
+        {
+          "id": "P0-06",
+          "name": "Traefik: ingress objects exist, hostname per tile resolves",
+          "status": "Partly"
+        },
+        {
+          "id": "P0-07",
+          "name": "Monitoring: is the kube-prometheus-stack actually applied",
+          "status": "Decided"
+        },
+        {
+          "id": "P0-08",
+          "name": "Secrets: what is sealed, what is imperative",
+          "status": "Not started"
+        },
+        {
+          "id": "P0-09",
+          "name": "Audiobookshelf: deployed or not",
+          "status": "Not started"
+        },
+        {
+          "id": "P0-10",
+          "name": "Jellyfin: deployed or not",
+          "status": "Not started"
+        },
+        {
+          "id": "P0-11",
+          "name": "Portal: what is served, ConfigMap, hash-triggered rollout",
+          "status": "Not started"
+        },
+        {
+          "id": "P0-12",
+          "name": "fsi-scraper: repo pushed, tests green, ruff clean",
+          "status": "Done"
+        },
+        {
+          "id": "P0-13",
+          "name": "Corpus PVC on dell-node, plus free disk",
+          "status": "Not started"
+        },
+        {
+          "id": "P0-14",
+          "name": "Blog posts: what is published, categories correct",
+          "status": "Not started"
+        },
+        {
+          "id": "P0-15",
+          "name": "Read Homelab Advanced: IMPORTANT! Read this first",
+          "status": "Dropped"
+        },
+        {
+          "id": "P0-16",
+          "name": "Write down the daily loop",
+          "status": "Not started"
+        },
+        {
+          "id": "P0-17",
+          "name": "Audit what is reachable on the LAN: every Service type, NodePort, hostPort",
+          "status": "Not started"
+        },
+        {
+          "id": "P0-18",
+          "name": "Flux GitHub token replaced (was dead; Brasil source healthy again)",
+          "status": "Done"
+        },
+        {
+          "id": "P0-19",
+          "name": "Fix the KubeCraft Flux source token",
+          "status": "Not started"
+        }
+      ]
+    },
+    {
+      "key": "Phase 1",
+      "title": "01 · Infra and Portal",
+      "capstone": "Música public on its own tunnel with login, over TLS",
+      "items": [
+        {
+          "id": "P1-01",
+          "name": "Storage audit: every PVC, size, node pinning, free disk",
+          "status": "Done"
+        },
+        {
+          "id": "P1-02",
+          "name": "Corpus PVC on dell-node, sized for FSI plus COERLL",
+          "status": "Not started"
+        },
+        {
+          "id": "P1-03",
+          "name": "Decide the shared storage question",
+          "status": "Not started"
+        },
+        {
+          "id": "P1-04",
+          "name": "Close ENABLE_SIGNUP on Open WebUI",
+          "status": "Not started"
+        },
+        {
+          "id": "P1-05",
+          "name": "Security pass: auth on Navidrome, Grafana, the portal",
+          "status": "Not started"
+        },
+        {
+          "id": "P1-06",
+          "name": "Expose one tile to the internet, with TLS",
+          "status": "Done"
+        },
+        {
+          "id": "P1-07",
+          "name": "Pick one secrets approach for the whole repo",
+          "status": "Decided"
+        },
+        {
+          "id": "P1-08",
+          "name": "Seal ANTHROPIC_API_KEY",
+          "status": "Dropped"
+        },
+        {
+          "id": "P1-09",
+          "name": "Rotate the Grafana admin password, then commit it encrypted",
+          "status": "Not started"
+        },
+        {
+          "id": "P1-10",
+          "name": "Apply the monitoring stack via Helm",
+          "status": "Decided"
+        },
+        {
+          "id": "P1-11",
+          "name": "Dashboards, node-exporter across all three nodes",
+          "status": "Not started"
+        },
+        {
+          "id": "P1-12",
+          "name": "Traefik ingress, a hostname per tile",
+          "status": "Partly"
+        },
+        {
+          "id": "P1-13",
+          "name": "Ingress exercise: every tile behind a hostname, none on NodePort",
+          "status": "Not started"
+        },
+        {
+          "id": "P1-14",
+          "name": "Flux image automation for the fsi-scraper image",
+          "status": "Not started"
+        },
+        {
+          "id": "P1-15",
+          "name": "Capstone: the portal",
+          "status": "Not started"
+        },
+        {
+          "id": "P1-16",
+          "name": "Diff your portal against the capstone solution",
+          "status": "Not started"
+        },
+        {
+          "id": "P1-17",
+          "name": "Tailscale on all three nodes, kubectl over it",
+          "status": "Not started"
+        },
+        {
+          "id": "P1-18",
+          "name": "Flux repo restructure: apps/, infrastructure/, clusters/ (fsi-scraper first)",
+          "status": "Not started"
+        },
+        {
+          "id": "P1-19",
+          "name": "Back up the SOPS age key off-cluster, two places",
+          "status": "Not started"
+        },
+        {
+          "id": "P1-20",
+          "name": "Router and firewall review: UPnP off, no forwarded ports",
+          "status": "Done"
+        },
+        {
+          "id": "P1-21",
+          "name": "SeaweedFS",
+          "status": "Not started"
+        },
+        {
+          "id": "P1-22",
+          "name": "Música: finish the library copy and pick a source for more music",
+          "status": "Not started"
+        }
+      ]
+    },
+    {
+      "key": "Phase 2",
+      "title": "02 · Corpus: the scraper",
+      "capstone": "fsi-scraper as a CronJob on the cluster, counts match the Mac",
+      "items": [
+        {
+          "id": "P2-01",
+          "name": "Read models.py and repository.py, write down the current schema",
+          "status": "Done"
+        },
+        {
+          "id": "P2-02",
+          "name": "Design the segment schema",
+          "status": "Decided"
+        },
+        {
+          "id": "P2-03",
+          "name": "Migration: segments and segment_audio tables",
+          "status": "Open"
+        },
+        {
+          "id": "P2-04",
+          "name": "Repository methods for segments",
+          "status": "Open"
+        },
+        {
+          "id": "P2-05",
+          "name": "Tests for the segment layer",
+          "status": "Open"
+        },
+        {
+          "id": "P2-06",
+          "name": "Stage 6a: httpx client, rate limiter, robots checker",
+          "status": "Done"
+        },
+        {
+          "id": "P2-07",
+          "name": "Stage 6b: streaming write with resume, .part then rename",
+          "status": "Done"
+        },
+        {
+          "id": "P2-08",
+          "name": "Stage 6c: streaming sha256, record_progress checkpoints",
+          "status": "Partly"
+        },
+        {
+          "id": "P2-09",
+          "name": "Stage 7: dedupe pass",
+          "status": "Done"
+        },
+        {
+          "id": "P2-10",
+          "name": "Stage 8: structured logging",
+          "status": "Not started"
+        },
+        {
+          "id": "P2-11",
+          "name": "Stage 9: CLI commands (fetch, status, verify)",
+          "status": "Partly"
+        },
+        {
+          "id": "P2-12",
+          "name": "Push the fsi-scraper image to GHCR (amd64), tag 0.1.0, public package",
+          "status": "Not started"
+        },
+        {
+          "id": "P2-13",
+          "name": "apps/base/fsi-scraper: kustomization, database, PVC fsi-audio, CronJob",
+          "status": "Partly"
+        },
+        {
+          "id": "P2-14",
+          "name": "Deploy corpus-db (CNPG) and apply the schema",
+          "status": "Open"
+        },
+        {
+          "id": "P2-15",
+          "name": "First cluster run, counts match the Mac (36 / 30 / 351)",
+          "status": "Done"
+        },
+        {
+          "id": "P2-16",
+          "name": "fsi-scraper README with pipeline diagram",
+          "status": "Done"
+        },
+        {
+          "id": "P2-17",
+          "name": "Diagrams 2 to 5: Dockerfile, laptop to cluster, inside the cluster, when it breaks",
+          "status": "Partly"
+        },
+        {
+          "id": "P2-18",
+          "name": "load applies schema.sql itself, as corpus (decision 10, option B)",
+          "status": "Not started"
+        }
+      ]
+    },
+    {
+      "key": "Phase 3",
+      "title": "03 · Portal and Forgejo",
+      "capstone": "Portal shows live pod status and real node metrics",
+      "items": [
+        {
+          "id": "P3-01",
+          "name": "Portal as the public homelab dashboard",
+          "status": "Not started"
+        },
+        {
+          "id": "P3-02",
+          "name": "Read-only ServiceAccount and RBAC for the portal",
+          "status": "Not started"
+        },
+        {
+          "id": "P3-03",
+          "name": "Live pod status from the Kubernetes API",
+          "status": "Not started"
+        },
+        {
+          "id": "P3-04",
+          "name": "Node metrics from Prometheus",
+          "status": "Not started"
+        },
+        {
+          "id": "P3-05",
+          "name": "Show three nodes, not two",
+          "status": "Not started"
+        },
+        {
+          "id": "P3-06",
+          "name": "Gathering and storing data: study streak from review data",
+          "status": "Not started"
+        },
+        {
+          "id": "P3-07",
+          "name": "Self-host the homelab repo on Forgejo",
+          "status": "Decided"
+        },
+        {
+          "id": "P3-08",
+          "name": "Portal as the daily start: today's plan, Palavra do dia, streak",
+          "status": "Not started"
+        },
+        {
+          "id": "P3-09",
+          "name": "Shared study record every tile writes to (name TBD)",
+          "status": "Not started"
+        },
+        {
+          "id": "P3-10",
+          "name": "Demo page: roadmap, stack and things-that-broke from data files in homelab-brasil",
+          "status": "Not started"
+        },
+        {
+          "id": "P3-11",
+          "name": "Analytics: hours studied, vocabulary learned, books completed, listening hours, writing streak, conversation time, grammar progress",
+          "status": "Not started"
+        }
+      ]
+    },
+    {
+      "key": "Phase 4",
+      "title": "04 · Homelab Advanced",
+      "capstone": "Architecture doc; biggie-smalls cleanly removed",
+      "items": [
+        {
+          "id": "P4-01",
+          "name": "Decide: adopt Omni and Talos, or stay on k3s",
+          "status": "Decided"
+        },
+        {
+          "id": "P4-02",
+          "name": "Document your cluster architecture, bootstrapping and secrets",
+          "status": "Not started"
+        },
+        {
+          "id": "P4-03",
+          "name": "Cilium replacing flannel",
+          "status": "Moved"
+        },
+        {
+          "id": "P4-04",
+          "name": "Cilium LoadBalancer IPAM for the tiles",
+          "status": "Moved"
+        },
+        {
+          "id": "P4-05",
+          "name": "External DNS for the tile hostnames",
+          "status": "Open"
+        },
+        {
+          "id": "P4-06",
+          "name": "SSH hardening on the three nodes; kubeconfig handling",
+          "status": "Not started"
+        },
+        {
+          "id": "P4-07",
+          "name": "Drain and remove biggie-smalls",
+          "status": "Not started"
+        },
+        {
+          "id": "P4-08",
+          "name": "Ansible provisioning",
+          "status": "Not started"
+        }
+      ]
+    },
+    {
+      "key": "Phase 5",
+      "title": "05 · AI homelab management",
+      "capstone": "One real PR to homelab-brasil reviewed by the agent before Flux applies it",
+      "items": [
+        {
+          "id": "P5-01",
+          "name": "PR review with Claude Code on the homelab repo",
+          "status": "Dropped"
+        },
+        {
+          "id": "P5-02",
+          "name": "AI PR review agent with n8n",
+          "status": "Dropped"
+        },
+        {
+          "id": "P5-03",
+          "name": "PR review: a GitHub Actions workflow sends each PR's changes to Ollama and posts the review as a comment",
+          "status": "Not started"
+        },
+        {
+          "id": "P5-04",
+          "name": "Self-hosted GitHub Actions runner in the cluster",
+          "status": "Not started"
+        },
+        {
+          "id": "P5-05",
+          "name": "Store the runner's GitHub token encrypted with SOPS",
+          "status": "Not started"
+        }
+      ]
+    },
+    {
+      "key": "Phase 6",
+      "title": "06 · Corpus: Programmatic course",
+      "capstone": "Full 48-unit run with verified counts by kind",
+      "items": [
+        {
+          "id": "P6-01",
+          "name": "Decode the audio naming convention",
+          "status": "Not started"
+        },
+        {
+          "id": "P6-02",
+          "name": "PDF text extraction, Programmatic Volume 1",
+          "status": "Not started"
+        },
+        {
+          "id": "P6-03",
+          "name": "Frame parser",
+          "status": "Not started"
+        },
+        {
+          "id": "P6-04",
+          "name": "Exchange extractor, units 1-6",
+          "status": "Not started"
+        },
+        {
+          "id": "P6-05",
+          "name": "Dialog extractor, units 7 onward",
+          "status": "Not started"
+        },
+        {
+          "id": "P6-06",
+          "name": "Grammar drill extractor, units 8-24",
+          "status": "Not started"
+        },
+        {
+          "id": "P6-07",
+          "name": "Pronunciation item extractor",
+          "status": "Not started"
+        },
+        {
+          "id": "P6-08",
+          "name": "Self-check Q&A extractor, units 10 onward",
+          "status": "Not started"
+        },
+        {
+          "id": "P6-09",
+          "name": "Align audio files to frames and exchanges",
+          "status": "Not started"
+        },
+        {
+          "id": "P6-10",
+          "name": "Volume 2 run, units 26-48",
+          "status": "Not started"
+        },
+        {
+          "id": "P6-11",
+          "name": "First real corpus run, verify segment counts by kind",
+          "status": "Not started"
+        }
+      ]
+    },
+    {
+      "key": "Phase 7",
+      "title": "07 · Fichas",
+      "capstone": "An Anki deck with audio, built from the corpus, that you study from",
+      "items": [
+        {
+          "id": "P7-01",
+          "name": "Card model: which segment kinds become cards",
+          "status": "Not started"
+        },
+        {
+          "id": "P7-02",
+          "name": "Anki export with audio",
+          "status": "Not started"
+        },
+        {
+          "id": "P7-03",
+          "name": "Deck organisation by unit and by grammar point",
+          "status": "Not started"
+        },
+        {
+          "id": "P7-04",
+          "name": "Ingest review data back into the corpus",
+          "status": "Not started"
+        },
+        {
+          "id": "P7-05",
+          "name": "Fichas tile wired into the portal",
+          "status": "Not started"
+        },
+        {
+          "id": "P7-06",
+          "name": "Automatic sync to Anki",
+          "status": "Not started"
+        },
+        {
+          "id": "P7-07",
+          "name": "Cards from lyrics, videos, reading, Gíria lookups",
+          "status": "Moved"
+        }
+      ]
+    },
+    {
+      "key": "Phase 8",
+      "title": "08 · Gíria and Cloud",
+      "capstone": "Gíria live with Palavra do dia from the DB; tested CNPG restore; portal on AKS",
+      "items": [
+        {
+          "id": "P8-01",
+          "name": "CloudNativePG cluster for Giria",
+          "status": "Partly"
+        },
+        {
+          "id": "P8-02",
+          "name": "Slang schema and CRUD",
+          "status": "Not started"
+        },
+        {
+          "id": "P8-03",
+          "name": "Seed from the colloquial COERLL material",
+          "status": "Not started"
+        },
+        {
+          "id": "P8-04",
+          "name": "Giria tile, and Palavra do dia reads from the database",
+          "status": "Not started"
+        },
+        {
+          "id": "P8-05",
+          "name": "CNPG backups configured",
+          "status": "Not started"
+        },
+        {
+          "id": "P8-06",
+          "name": "CNPG restore, actually tested",
+          "status": "Not started"
+        },
+        {
+          "id": "P8-07",
+          "name": "Terraform modules for the lab's Azure footprint",
+          "status": "Not started"
+        },
+        {
+          "id": "P8-08",
+          "name": "AKS: provision, migrate the portal, tear down",
+          "status": "Not started"
+        },
+        {
+          "id": "P8-09",
+          "name": "Azure Key Vault sync, compared against your homelab approach",
+          "status": "Not started"
+        },
+        {
+          "id": "P8-10",
+          "name": "cert-manager and real certificates",
+          "status": "Not started"
+        },
+        {
+          "id": "P8-11",
+          "name": "Split clusters/staging and clusters/production",
+          "status": "Open"
+        },
+        {
+          "id": "P8-12",
+          "name": "Cluster access hardening: RBAC, least privilege",
+          "status": "Not started"
+        },
+        {
+          "id": "P8-13",
+          "name": "Production-grade deployment pass over every tile",
+          "status": "Not started"
+        },
+        {
+          "id": "P8-14",
+          "name": "Alert rules and SLOs, not just dashboards",
+          "status": "Not started"
+        },
+        {
+          "id": "P8-15",
+          "name": "Decide the backup target: 2 TB drive, object storage, or both",
+          "status": "Open"
+        },
+        {
+          "id": "P8-16",
+          "name": "Back up corpus-db and run one restore drill",
+          "status": "Not started"
+        },
+        {
+          "id": "P8-17",
+          "name": "PVC snapshots or rsync: Navidrome, webui-data",
+          "status": "Not started"
+        },
+        {
+          "id": "P8-18",
+          "name": "Restore runbook: dead dell-node to a working lab, timed",
+          "status": "Not started"
+        },
+        {
+          "id": "P8-19",
+          "name": "NetworkPolicies: Ollama only from Open WebUI, Postgres only from scraper and Giria",
+          "status": "Not started"
+        },
+        {
+          "id": "P8-20",
+          "name": "Entry: meaning, example, how casual, audio, where heard",
+          "status": "Not started"
+        },
+        {
+          "id": "P8-21",
+          "name": "Looked-up slang → Fichas card",
+          "status": "Not started"
+        },
+        {
+          "id": "P8-22",
+          "name": "Loki, Uptime Kuma",
+          "status": "Not started"
+        }
+      ]
+    },
+    {
+      "key": "Phase 9",
+      "title": "09 · CI/CD",
+      "capstone": "A release that builds, scans, pushes to GHCR, opens its own PR",
+      "items": [
+        {
+          "id": "P9-01",
+          "name": "mise.toml for the homelab repo and fsi-scraper",
+          "status": "Not started"
+        },
+        {
+          "id": "P9-02",
+          "name": "Conventional Commits, Commitizen, pre-commit",
+          "status": "Partly"
+        },
+        {
+          "id": "P9-03",
+          "name": "Migrate fsi-scraper to uv, restructure to the course layout",
+          "status": "Not started"
+        },
+        {
+          "id": "P9-04",
+          "name": "Dockerfile for fsi-scraper, built with uv",
+          "status": "Done"
+        },
+        {
+          "id": "P9-05",
+          "name": "Trivy scan, slimmer base image, non-root and dropped caps",
+          "status": "Partly"
+        },
+        {
+          "id": "P9-06",
+          "name": "Container image for the portal",
+          "status": "Not started"
+        },
+        {
+          "id": "P9-07",
+          "name": "ruff in pre-commit and in GitHub Actions",
+          "status": "Partly"
+        },
+        {
+          "id": "P9-08",
+          "name": "Run the 88 tests in the pipeline, with coverage",
+          "status": "Not started"
+        },
+        {
+          "id": "P9-09",
+          "name": "Trivy scanning in the pipeline",
+          "status": "Not started"
+        },
+        {
+          "id": "P9-10",
+          "name": "Reusable workflow shared by scraper and portal",
+          "status": "Not started"
+        },
+        {
+          "id": "P9-11",
+          "name": "Automatic versioning and automated releases",
+          "status": "Not started"
+        },
+        {
+          "id": "P9-12",
+          "name": "Build and push images to GHCR on release",
+          "status": "Not started"
+        },
+        {
+          "id": "P9-13",
+          "name": "k3d cluster for testing manifests before Flux sees them",
+          "status": "Not started"
+        },
+        {
+          "id": "P9-14",
+          "name": "End-to-end test: scraper Job runs to completion in k3d",
+          "status": "Not started"
+        },
+        {
+          "id": "P9-15",
+          "name": "e2e tests in the pipeline",
+          "status": "Not started"
+        },
+        {
+          "id": "P9-16",
+          "name": "Deploy key, and automate a PR into the homelab repo on release",
+          "status": "Not started"
+        },
+        {
+          "id": "P9-17",
+          "name": "Run the scraper as a Kubernetes Job on dell-node",
+          "status": "Not started"
+        },
+        {
+          "id": "P9-18",
+          "name": "Secret scanning in CI (gitleaks) on both repos",
+          "status": "Not started"
+        },
+        {
+          "id": "P9-19",
+          "name": "SECURITY.md in each public repo",
+          "status": "Not started"
+        }
+      ]
+    },
+    {
+      "key": "Phase 10",
+      "title": "10 · Coach and Tutor",
+      "capstone": "A Coach correction lands in the record and changes the next drill",
+      "items": [
+        {
+          "id": "P10-01",
+          "name": "Define the error taxonomy once, in the corpus repo",
+          "status": "Not started"
+        },
+        {
+          "id": "P10-02",
+          "name": "Coach: Pydantic models against that taxonomy",
+          "status": "Not started"
+        },
+        {
+          "id": "P10-03",
+          "name": "Coach: Ollama client and prompt iteration",
+          "status": "Not started"
+        },
+        {
+          "id": "P10-04",
+          "name": "Coach: output formatting and tests",
+          "status": "Not started"
+        },
+        {
+          "id": "P10-05",
+          "name": "Coach: write errors to the corpus error log",
+          "status": "Not started"
+        },
+        {
+          "id": "P10-06",
+          "name": "Three personas via ConfigMap and Job",
+          "status": "In progress"
+        },
+        {
+          "id": "P10-07",
+          "name": "corretor persona reads the shared taxonomy",
+          "status": "Not started"
+        },
+        {
+          "id": "P10-08",
+          "name": "drill persona reads drill segments from the corpus",
+          "status": "Not started"
+        },
+        {
+          "id": "P10-09",
+          "name": "Back the chat-history PVC",
+          "status": "Not started"
+        },
+        {
+          "id": "P10-10",
+          "name": "Scheduler: errors pick the next drills and the next cards",
+          "status": "Not started"
+        },
+        {
+          "id": "P10-11",
+          "name": "Tutor: voice in and out (mic, read-aloud)",
+          "status": "Not started"
+        },
+        {
+          "id": "P10-12",
+          "name": "Tutor: remember past chats or start fresh",
+          "status": "Not started"
+        },
+        {
+          "id": "P10-13",
+          "name": "Tutor: level rises as you improve",
+          "status": "Not started"
+        },
+        {
+          "id": "P10-14",
+          "name": "Tutor: wrap-up (summary, mistakes, new words) saved",
+          "status": "Not started"
+        },
+        {
+          "id": "P10-15",
+          "name": "Coach: browser app, not a CLI",
+          "status": "Not started"
+        },
+        {
+          "id": "P10-16",
+          "name": "Coach: writing prompts (messages, journal, emails, stories)",
+          "status": "Not started"
+        },
+        {
+          "id": "P10-17",
+          "name": "Coach: feedback: fix + reason, natural, Rio, better words",
+          "status": "Not started"
+        },
+        {
+          "id": "P10-18",
+          "name": "Coach: vocab drills",
+          "status": "Not started"
+        },
+        {
+          "id": "P10-19",
+          "name": "Coach: sentence builders",
+          "status": "Not started"
+        },
+        {
+          "id": "P10-20",
+          "name": "Coach: progress view (repeat mistakes, fixed ones)",
+          "status": "Not started"
+        },
+        {
+          "id": "P10-21",
+          "name": "Grammar: present tense, past tenses, future, subjunctive, pronouns, prepositions, passive voice, connectors, common Brazilian constructions",
+          "status": "Not started"
+        }
+      ]
+    },
+    {
+      "key": "Phase 11",
+      "title": "11 · More sources",
+      "capstone": "A second source family parsed into the same tables",
+      "items": [
+        {
+          "id": "P11-01",
+          "name": "FAST adapter",
+          "status": "Done"
+        },
+        {
+          "id": "P11-02",
+          "name": "Ta Falado adapter",
+          "status": "Not started"
+        },
+        {
+          "id": "P11-03",
+          "name": "Portuguese Communication Exercises adapter",
+          "status": "Not started"
+        },
+        {
+          "id": "P11-04",
+          "name": "ClicaBrasil adapter",
+          "status": "Not started"
+        },
+        {
+          "id": "P11-05",
+          "name": "Conversa Brasileira and Lingua da Gente",
+          "status": "Partly"
+        }
+      ]
+    },
+    {
+      "key": "Phase 12",
+      "title": "12 · Pronúncia",
+      "capstone": "Hear it, record it, compare",
+      "items": [
+        {
+          "id": "P12-01",
+          "name": "TTS backend (Piper or Kokoro)",
+          "status": "Not started"
+        },
+        {
+          "id": "P12-02",
+          "name": "speak CLI",
+          "status": "Not started"
+        },
+        {
+          "id": "P12-03",
+          "name": "Drill: target sound, items, record, compare",
+          "status": "Not started"
+        },
+        {
+          "id": "P12-04",
+          "name": "Pronuncia tile on the portal",
+          "status": "Not started"
+        },
+        {
+          "id": "P12-05",
+          "name": "Read-aloud checks",
+          "status": "Not started"
+        },
+        {
+          "id": "P12-06",
+          "name": "Real recordings (FSI) and a computer voice",
+          "status": "Not started"
+        },
+        {
+          "id": "P12-07",
+          "name": "Speaking lab: restaurant, airport, hotel, beach, doctor, office, coffee shop, bus, Uber, market, Rio street conversations; feedback on grammar, vocabulary, pronunciation, fluency and naturalness (Whisper + Tutor)",
+          "status": "Not started"
+        }
+      ]
+    },
+    {
+      "key": "Phase 13",
+      "title": "13 · Mídia",
+      "capstone": "A clip playing with its aligned transcript, linked to the corpus",
+      "items": [
+        {
+          "id": "P13-01",
+          "name": "Audiobookshelf via Flux",
+          "status": "Not started"
+        },
+        {
+          "id": "P13-02",
+          "name": "Jellyfin via Helm chart",
+          "status": "Not started"
+        },
+        {
+          "id": "P13-03",
+          "name": "Video breakdown player: clip plus aligned transcript",
+          "status": "Not started"
+        },
+        {
+          "id": "P13-04",
+          "name": "Link clips to corpus segments",
+          "status": "Not started"
+        },
+        {
+          "id": "P13-05",
+          "name": "Mixed-arch nodeSelectors for biggie-smalls",
+          "status": "Not started"
+        },
+        {
+          "id": "P13-06",
+          "name": "Lidarr + RSS for Música",
+          "status": "Not started"
+        },
+        {
+          "id": "P13-07",
+          "name": "Subtitles PT / PT+EN",
+          "status": "Not started"
+        },
+        {
+          "id": "P13-08",
+          "name": "Click-a-word → Fichas",
+          "status": "Not started"
+        },
+        {
+          "id": "P13-09",
+          "name": "Livros: ebooks, articles saved and read inside",
+          "status": "Not started"
+        },
+        {
+          "id": "P13-10",
+          "name": "Livros: transcript, click-a-word → Fichas, slow down, replay",
+          "status": "Not started"
+        },
+        {
+          "id": "P13-11",
+          "name": "Livros: podcasts auto from feeds",
+          "status": "Not started"
+        },
+        {
+          "id": "P13-12",
+          "name": "Livros: reading tracker; counts toward streak",
+          "status": "Not started"
+        },
+        {
+          "id": "P13-13",
+          "name": "Música: lyrics while playing, words → Fichas",
+          "status": "Not started"
+        },
+        {
+          "id": "P13-14",
+          "name": "Música: Tutor talks about a song",
+          "status": "Not started"
+        },
+        {
+          "id": "P13-15",
+          "name": "Música and Livros: phone apps; Vídeos on phone and TV",
+          "status": "Not started"
+        },
+        {
+          "id": "P13-16",
+          "name": "FFmpeg",
+          "status": "Not started"
+        },
+        {
+          "id": "P13-17 to P13-62",
+          "name": "Leitor reader (46 steps)",
+          "status": "Not started"
+        }
+      ]
+    },
+    {
+      "key": "Phase 14",
+      "title": "14 · Brasil",
+      "capstone": "",
+      "items": [
+        {
+          "id": "P14-01",
+          "name": "Brazil explorer: state, city, neighborhood, then culture, history, food, music and vocabulary",
+          "status": "Not started"
+        },
+        {
+          "id": "P14-02",
+          "name": "Culture: music, literature, food, football, festivals, Indigenous cultures, Afro-Brazilian history and culture, architecture, Brazilian history",
+          "status": "Not started"
+        },
+        {
+          "id": "P14-03",
+          "name": "Photography: photograph, Portuguese caption, camera settings, location, vocabulary, cultural notes, story",
+          "status": "Not started"
+        }
+      ]
+    },
+    {
+      "key": "Main",
+      "title": "Main capstone",
+      "capstone": "The portal live with real data, every tile feeding the next, and a demo login anyone can try",
+      "items": [
+        {
+          "id": "MC-01",
+          "name": "Portal live with real data",
+          "status": "Not started"
+        },
+        {
+          "id": "MC-02",
+          "name": "The hub loop: scraper feeds Fichas, Coach feeds Giria, scheduler picks drills",
+          "status": "Not started"
+        },
+        {
+          "id": "MC-03",
+          "name": "Public demo login: read-only, rate limit, no admin, behind Cloudflare Access, history wiped",
+          "status": "Not started"
+        },
+        {
+          "id": "MC-04",
+          "name": "One-page threat model and demo abuse plan",
+          "status": "Not started"
+        }
+      ]
+    }
+  ],
+  "acrossAll": [
+    {
+      "title": "Security",
+      "capstone": "The public demo login holds up under a security review"
+    },
+    {
+      "title": "Backups",
+      "capstone": "Lose a disk, restore the database, and everything comes back"
+    }
+  ]
+}
