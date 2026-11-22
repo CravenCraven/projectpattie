@@ -1,0 +1,349 @@
+---
+title: "Flux Runs My Cluster. Who's Watching My DNS?"
+description: "Every app in my homelab lives in Git and Flux keeps the cluster honest. The DNS records that make those apps public? Made by hand, written down nowhere. So I handed all 17 of them to OpenTofu without taking a single app offline."
+tags: ["opentofu", "terraform", "cloudflare", "dns", "iac", "gitops", "homelab"]
+date: 2026-11-22
+category: devops
+homelab: kubecraft
+readTime: 12
+draft: false
+---
+
+<div class="pp-meta"><span>devops</span> · November 22, 2026 · 12 min read</div>
+
+<h1 class="pp-title">Flux runs my cluster.<br/><em>Who's watching my DNS?</em></h1>
+
+<p class="pp-subtitle">Every app in my homelab lives in Git and Flux keeps the cluster honest. The DNS records that make those apps public? Made by hand, written down nowhere. So I handed all 17 of them to OpenTofu without taking a single app offline.</p>
+
+<div class="pp-tags">
+  <span class="pp-tag">opentofu</span>
+  <span class="pp-tag">terraform</span>
+  <span class="pp-tag">cloudflare</span>
+  <span class="pp-tag">dns</span>
+  <span class="pp-tag">iac</span>
+  <span class="pp-tag">gitops</span>
+  <span class="pp-tag">homelab</span>
+</div>
+
+My whole cluster is GitOps. If it's running, it's in a repo, and Flux makes the cluster match the repo. Delete something by hand and Flux puts it back. I'm kind of proud of that.
+
+Except every time I made an app public, I ran this:
+
+```bash
+cloudflared tunnel route dns homelab-kubecraft n8n.projectpattie.com
+```
+
+One command, one DNS record, and then it lives in the Cloudflare dashboard forever. Not in Git. Not anywhere I can review it. Fifteen apps later I had a pile of records I'd made by hand, and the only way to see them was to log in and scroll.
+
+That's exactly the thing GitOps is supposed to stop. Flux watches my cluster. Nothing was watching my DNS.
+
+## So what is OpenTofu?
+
+OpenTofu is an infrastructure as code tool. You write down what should exist in plain text files, and it makes the real thing match. Servers, networks, storage, and the part I care about here: DNS records.
+
+If the name sounds like Terraform with a costume on, that's basically what it is. In 2023 HashiCorp moved Terraform off its open source license. A group of companies forked the last open source version, Terraform 1.5.7, and the Linux Foundation took it in as OpenTofu. Same language, same idea, still open source under the Mozilla Public License. The command is `tofu` instead of `terraform`, and you'll still see `terraform { }` blocks in the files. That's not a typo.
+
+### Why it's powerful
+
+Here's what sold me, and every one of these I actually used:
+
+- **It talks to anything with an API.** OpenTofu uses providers, which are plugins for a specific platform. There's one for AWS, Azure, Kubernetes, and the one I needed, Cloudflare. If it has an API, there's probably a provider.
+- **It shows you before it touches anything.** `tofu plan` tells you exactly what it's about to create, change or delete. Nothing happens until you say yes.
+- **It remembers what it manages.** OpenTofu keeps a state file that maps every line in my code to a real thing in Cloudflare. That's how it knows `n8n` in my file is record `<record-id>` in Cloudflare.
+- **It catches drift.** If someone changes a record by hand, `plan` shows it and `apply` puts it back.
+- **It can encrypt its own state.** Built right in. That matters a lot once the state leaves your laptop.
+
+### The easiest way I found to picture it
+
+Three pieces:
+
+- **The list:** my `.tf` files. "These records should exist, looking exactly like this."
+- **The real world:** what's actually in Cloudflare right now.
+- **The notebook:** the state file. Which line in my list matches which real record.
+
+`tofu plan` reads the list, checks the notebook, asks Cloudflare what's really there, and shows me the difference. `tofu apply` makes Cloudflare match the list. Then it stops.
+
+### Wait, so how is that different from Flux?
+
+This is the part that was fuzzy for me until I watched it happen.
+
+| | Flux | OpenTofu |
+|---|---|---|
+| Where it runs | Inside my cluster, all the time | On my computer, only when I run it |
+| What it manages | Things inside Kubernetes | Things outside Kubernetes |
+| Who starts it | Itself, every few minutes | Me |
+| Fixes drift? | Yes, on its own | Only tells me when I run `plan` |
+
+That's also why I never ran `flux reconcile` for the DNS part. Flux only reads the folders listed in my `clusters/dev/`, and my `opentofu/` folder isn't one of them. Pushing it to GitHub just stores the code. Nothing gets deployed into the cluster.
+
+## What I built and why
+
+The scope was small on purpose: the Cloudflare DNS records for my homelab. 15 tunnel apps (proxied CNAMEs pointing at my Cloudflare tunnel) and 2 local-only records that point straight at my control plane node.
+
+The catch: those records already exist and my apps are using them right now. I couldn't delete them and recreate them from code, because the second I delete one, that app is offline. I needed OpenTofu to **adopt** them.
+
+By the end:
+
+- 17 records managed from code, imported with zero downtime
+- The state encrypted and stored as a Secret in my own cluster, so it isn't stuck on one laptop
+- The Cloudflare token and the encryption passphrase pulled from my own Vaultwarden, so I never paste a secret
+
+## Before you start
+
+- A Cloudflare zone with records already in it
+- A machine with `kubectl` access to your cluster (for the state part)
+- OpenTofu installed. On Fedora it's in the normal repos: `sudo dnf install opentofu`
+- `curl` and `python3`
+
+Placeholders below: `<zone-id>`, `<tunnel-id>`, `<record-id>`.
+
+## How I did it
+
+I built every file with my shopping list method: for each one, sort what I already knew into a "me" pile, turn the rest into questions, and go find the docs page that answers them.
+
+### The token
+
+The Cloudflare token is what lets OpenTofu talk to Cloudflare. I made it as small as possible: DNS edit, one zone, nothing else. If it ever leaks, the damage is DNS on one domain, not my whole account.
+
+Heads up, the profile menu in the new dashboard doesn't have My Profile anymore. Go straight to `dash.cloudflare.com/profile/api-tokens/`, then Create token, Edit zone DNS, Specific zone, your domain.
+
+I never put the token in a file:
+
+```bash
+read -s -p "Token: " CLOUDFLARE_API_TOKEN && export CLOUDFLARE_API_TOKEN && echo
+```
+
+`read -s` takes it without showing it on screen or saving it to history. The Cloudflare provider picks up that variable on its own.
+
+### `.gitignore` first
+
+My repo is public, so before any other file exists, this one does. It keeps out the state file, the folder OpenTofu downloads plugins into, and my real IDs. I started with my own short list and then checked it against GitHub's official Terraform template, which caught a few I'd missed, like saved plan files and crash logs. Both of those can hold real values too.
+
+The one file that **does** get committed is `.terraform.lock.hcl`. It pins the exact provider version, same reason I pin image tags.
+
+### Pin the versions
+
+| Me | Docs |
+|---|---|
+| Pin versions like image tags | Provider name: `cloudflare/cloudflare` |
+| Match what I have installed | Newest provider: 5.29 |
+
+```hcl
+terraform {
+  required_version = "~> 1.11"
+
+  required_providers {
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 5.29"
+    }
+  }
+}
+
+provider "cloudflare" {}
+```
+
+`~> 5.29` means newer 5.x is fine, 6.x is not. Major versions rename things, and I don't want that happening on its own. Then `tofu init` downloaded the provider, checked its signature, and created the lock file.
+
+### Let the API do the boring part
+
+Instead of copying IDs out of the dashboard, I asked the API. This prints every record in the zone, one per line:
+
+```bash
+curl -s "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?per_page=100" \
+  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+  | python3 -c 'import sys,json; [print(r["name"], r["type"], r["content"], r["proxied"], r["ttl"]) for r in json.load(sys.stdin)["result"]]'
+```
+
+That list is where I made the real decision: what does OpenTofu get to manage? My zone also had my blog's records, my email records, a leftover from an old naming scheme, and a record for a different tunnel that belongs to another project. I left all of those out. Homelab only. A mistake on the blog or email records takes down my site or my mail, and OpenTofu only touches records it knows about.
+
+### The records, written down
+
+| Me | Docs |
+|---|---|
+| Which hostnames: my cloudflared ConfigMap | v5 resource name: `cloudflare_dns_record` |
+| Proxied, TTL auto: from the API list | The field is `content`, not `value` |
+
+Every tunnel record is the same thing with a different name, so one block and a list:
+
+```hcl
+locals {
+  tunnel_hosts = toset([
+    "abs", "auth", "feeds", "home", "links", # ...15 total
+  ])
+}
+
+resource "cloudflare_dns_record" "tunnel" {
+  for_each = local.tunnel_hosts
+
+  zone_id = var.zone_id
+  name    = "${each.key}.projectpattie.com"
+  type    = "CNAME"
+  content = "${var.tunnel_id}.cfargotunnel.com"
+  proxied = true
+  ttl     = 1
+}
+```
+
+`for_each` makes one record per name. Adding an app later is adding one word.
+
+Heads up if you're reading older tutorials: Cloudflare's provider v5 renamed this resource and changed `value` to `content`. A lot of what's online is still v4.
+
+### Adopt, don't recreate
+
+| Me | Docs |
+|---|---|
+| Don't delete live records | Import ID format: `<zone_id>/<record_id>` |
+
+Another one-liner printed every record ID already formatted to paste. Then a one-time import file:
+
+```hcl
+import {
+  for_each = local.tunnel_record_ids
+  to       = cloudflare_dns_record.tunnel[each.key]
+  id       = "${var.zone_id}/${each.value}"
+}
+```
+
+That says: the record in Cloudflare with this ID is the one my code calls `tunnel["n8n"]`. Don't make a new one. Adopt it.
+
+```bash
+tofu plan
+```
+
+```
+Plan: 17 to import, 0 to add, 0 to change, 0 to destroy.
+```
+
+Zero to add means no duplicates. Zero to change means my code describes the records exactly as they already are. Zero to destroy means nothing goes offline.
+
+```bash
+tofu apply
+```
+
+```
+Apply complete! Resources: 17 imported, 0 added, 0 changed, 0 destroyed.
+```
+
+Then I deleted the import file, because the state remembers the IDs now, and planned again:
+
+```
+No changes. Your infrastructure matches the configuration.
+```
+
+Git and Cloudflare agree. That line is the whole project.
+
+### Get the state off my laptop
+
+The state file was only on the machine I was using. Run `tofu` from anywhere else and it has no notebook, so it thinks nothing exists.
+
+| Me | Docs |
+|---|---|
+| A Kubernetes Secret is only base64 | Built-in state encryption: `pbkdf2` + `aes_gcm` |
+| Store it in my own cluster | `backend "kubernetes"` |
+
+So two steps. First, encrypt it with a passphrase. OpenTofu won't read plain-text state once encryption is on, so there's a one-time fallback that lets it read the old file and rewrite it encrypted. Then I removed the fallback and set `enforced = true` so plain text can never be written again.
+
+Second, move it. I made an `opentofu` namespace through Flux like everything else, added the kubernetes backend, and ran:
+
+```bash
+tofu init -migrate-state
+```
+
+It asked if I wanted to copy the existing state to the new backend. Yes. Now it lives in a Secret called `tfstate-default-state`, and a Kubernetes Lease works as the lock so two machines can't apply at the same time.
+
+### No more pasting secrets
+
+Both the token and the passphrase live in my Vaultwarden now. The Bitwarden CLI works with it. Tupac is ARM and the CLI's download is x64 only, so I installed it with npm instead:
+
+```bash
+npm install -g --prefix ~/.local @bitwarden/cli
+bw config server https://vault.projectpattie.com
+bw login
+```
+
+Then I wrapped the whole thing in one shell function so I never have to remember it:
+
+```bash
+tofu-env() {
+  export BW_SESSION=$(bw unlock --raw)
+  export CLOUDFLARE_API_TOKEN=$(bw get password opentofu-dns)
+  export TF_VAR_state_passphrase=$(bw get password opentofu-state-passphrase)
+  echo "token: ${#CLOUDFLARE_API_TOKEN} chars, passphrase: ${#TF_VAR_state_passphrase} chars"
+}
+```
+
+`TF_VAR_` is a naming rule. OpenTofu turns any environment variable starting with `TF_VAR_` into a variable, so that line fills `var.state_passphrase` without the passphrase ever touching a file. Now every session is `tofu-env`, then `tofu plan`.
+
+### The nvim I actually used
+
+Not much, but I'll list it, because one of these caused half my mistakes:
+
+| Keys | What it does |
+|---|---|
+| `nvim <file>` | Opens the file, or creates it |
+| `i` | Insert mode, so typing goes in the file |
+| Esc | Back to normal mode |
+| `:w` / `:wq` | Save / save and quit |
+| `G` | Jump to the last line |
+| `o` | New line below, already in insert mode |
+| Ctrl+Shift+V | Paste in the Fedora terminal (Ctrl+V doesn't) |
+
+The big one: nvim creates the file relative to the folder you're standing in. More on that below.
+
+## What broke and how I fixed it
+
+**The paste that never landed.** My first `read -s` looked like nothing happened, because it was silently waiting. I pasted with Ctrl+V, which doesn't paste in that terminal. The token check came back with `Invalid format for Authorization header`. `echo ${#CLOUDFLARE_API_TOKEN}` printed `0`. That's a nice trick by the way: it prints the length, not the secret. Fix was a visible prompt (`-p "Token: "`) and Ctrl+Shift+V.
+
+**The token disappeared.** Halfway through I was in a different terminal window and every request failed with `Missing X-Auth-Key, X-Auth-Email or Authorization headers`. Environment variables only live in the window you set them in. Nothing broke in Cloudflare, `plan` only reads. This is exactly why `tofu-env` exists now.
+
+**"No configuration files."** I ran `tofu plan` from the repo root. OpenTofu only reads the folder you're in. `cd opentofu`.
+
+**Files in the wrong place. Twice.** I had nvim open from inside `opentofu/` and typed paths that started from the repo root. My namespace files ended up in `opentofu/infrastructure/...` and my backend file in `opentofu/opentofu/backend.tf`. Both times the next command quietly didn't do what I expected, which is how I caught it. `kubectl kustomize` didn't show my namespace, and `tofu init -migrate-state` never asked to copy the state. Now I look at my prompt before I type a path.
+
+**The half-pasted import file.** My import file ended right after the last ID: no closing brace, no import blocks. `G` to jump to the end, `o` for a new line, paste the rest.
+
+**The backup I almost missed.** After encrypting the state, I listed the folder and saw `terraform.tfstate.backup`. I peeked at it with `head -c 200` and it was the old plain-text copy, with every record in it. Deleted.
+
+## How I checked it worked
+
+**The drift drill.** This is the part that made OpenTofu finally click for me. I went into the Cloudflare dashboard and added a comment, `drift test`, to one record, like someone who doesn't know the rules.
+
+```bash
+tofu plan
+```
+
+```
+  # cloudflare_dns_record.tunnel["links"] will be updated in-place
+      - comment = "drift test" -> null
+Plan: 0 to add, 1 to change, 0 to destroy.
+```
+
+I never told it about the change. It compared my files with what Cloudflare really had and found it. `tofu apply` took the comment back off, and `tofu plan` went back to No changes.
+
+**The state is really encrypted.** I pulled the Secret out of the cluster, decoded it and unzipped it:
+
+```bash
+kubectl get secret tfstate-default-state -n opentofu -o jsonpath='{.data.tfstate}' | base64 -d | gunzip | head -c 150; echo
+```
+
+Key info and scrambled data. No record names. Someone who can read the Secret still can't read my state.
+
+**The secrets from Vaultwarden are right.** I loaded both with `bw` and ran `tofu plan`. A wrong token can't reach Cloudflare and a wrong passphrase can't decrypt the state. No changes.
+
+## What I learned
+
+- **Import is how infrastructure as code meets the real world.** Nobody starts from a blank account. Adopting live resources with zero downtime is the actual skill, and `tofu plan` showing zero changes is the proof you did it right.
+- **OpenTofu doesn't watch anything.** Flux runs in a loop and fixes drift on its own. OpenTofu only shows drift when I run `plan`. Knowing which tool has a loop and which doesn't changes how you use them.
+- **The state is the sensitive part, not the code.** My `.tf` files are public. The state has every real value, so it's encrypted, enforced, and stored somewhere I control.
+
+## What I'd do next
+
+- Use it for real: my next app's DNS record comes from one new word in the list instead of `cloudflared tunnel route dns`
+- Set it up on my other machine and prove both read the same state
+
+## Links
+
+- Repo: [CravenCraven/homelab-kubecraft](https://github.com/CravenCraven/homelab-kubecraft), the `opentofu/` folder
+- Runbook: `docs/runbooks/opentofu.md` in the same repo
+- [OpenTofu docs](https://opentofu.org/docs/)
