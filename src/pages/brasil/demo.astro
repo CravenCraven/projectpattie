@@ -574,7 +574,7 @@ div.try{background:var(--petrol);padding:22px 24px;display:grid;grid-template-co
     <div>
       <div class="sec">How it deploys</div>
       <div class="flow">
-        <div class="box gh"><b>GitHub · homelab-brasil</b>source of truth · SOPS secrets (next)</div>
+        <div class="box gh"><b>GitHub · homelab-brasil</b>source of truth · SOPS secrets</div>
         <div class="arrow"><span>Flux pulls every 1 to 10 min</span></div>
         <div class="box flux"><b>Flux</b>Kustomize + HelmRelease</div>
         <div class="arrow"><span></span></div>
@@ -628,6 +628,7 @@ div.try{background:var(--petrol);padding:22px 24px;display:grid;grid-template-co
         <ul>
           <li>k3s<span>three nodes, bare metal, flannel VXLAN</span></li>
           <li>Flux<span>GitOps, whole cluster from one repo</span></li>
+          <li>SOPS + age<span>encrypted secrets in Git</span></li>
           <li>Traefik<span>ingress, hostname per service</span></li>
         </ul>
       </div>
@@ -650,7 +651,6 @@ div.try{background:var(--petrol);padding:22px 24px;display:grid;grid-template-co
         <ul>
           <li>Coach<span>writing corrections, on Ollama</span></li>
           <li>Live portal<span>real pod status and node metrics</span></li>
-          <li>SOPS + age<span>encrypted secrets in Git</span></li>
           <li>Terraform + AKS<span>portal to cloud, then torn down</span></li>
           <li>CloudNativePG<span>backup and a tested restore</span></li>
           <li>Shared storage<span>local-path pins pods to disks</span></li>
@@ -672,7 +672,7 @@ div.try{background:var(--petrol);padding:22px 24px;display:grid;grid-template-co
         <tr><td class="layer">ci</td><td class="tool">GitHub Actions</td><td class="job">validates every manifest on push</td><td class="since">Sep 2026</td><td><span class="pill done">done</span></td></tr>
         <tr><td class="layer">database</td><td class="tool">CloudNativePG</td><td class="job">operator via HelmRelease; corpus-db cluster next</td><td class="since">Oct 2026</td><td><span class="pill now">now</span></td></tr>
         <tr><td class="layer">data</td><td class="tool">fsi-scraper</td><td class="job">Python, Postgres, 32 tests, non-root container, CronJob</td><td class="since">Oct 2026</td><td><span class="pill now">now</span></td></tr>
-        <tr class="next"><td class="layer">secrets</td><td class="tool">SOPS + age</td><td class="job">encrypted secrets in git, decrypted by Flux</td><td class="since">—</td><td><span class="pill next">next</span></td></tr>
+        <tr><td class="layer">secrets</td><td class="tool">SOPS + age</td><td class="job">encrypted secrets in git, decrypted by Flux</td><td class="since">Nov 2026</td><td><span class="pill done">done</span></td></tr>
         <tr class="next"><td class="layer">ingress</td><td class="tool">Traefik</td><td class="job">a hostname per tile, none on NodePort</td><td class="since">—</td><td><span class="pill next">next</span></td></tr>
         <tr class="next"><td class="layer">exposure</td><td class="tool">Cloudflare Tunnel + Access</td><td class="job">Música public first, login in front</td><td class="since">—</td><td><span class="pill next">next</span></td></tr>
         <tr class="next"><td class="layer">dashboards</td><td class="tool">Grafana</td><td class="job">Brasil dashboards in the KubeCraft stack</td><td class="since">—</td><td><span class="pill next">next</span></td></tr>
