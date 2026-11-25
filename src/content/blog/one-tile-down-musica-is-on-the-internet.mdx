@@ -1,0 +1,199 @@
+---
+title: "One tile down: Música is on the internet"
+description: "I wanted people who visit my demo page to get a real sample, not a screenshot. So Navidrome went public through its own Cloudflare Tunnel, with two logins in front of it and not one open port on my router."
+tags: ["cloudflare-tunnel", "kubernetes", "flux", "sops", "navidrome", "homelab", "brasil"]
+date: 2026-11-24
+category: devops
+homelab: brasil
+readTime: 7
+draft: false
+---
+
+<div class="pp-meta"><span>devops</span> · November 24, 2026 · 7 min read</div>
+
+<h1 class="pp-title">One tile down.<br/><em>Música is on the internet.</em></h1>
+
+<p class="pp-subtitle">I wanted people who visit my demo page to get a real sample, not a screenshot. So Navidrome went public through its own Cloudflare Tunnel, with two logins in front of it and not one open port on my router.</p>
+
+<div class="pp-tags">
+  <span class="pp-tag">cloudflare-tunnel</span>
+  <span class="pp-tag">kubernetes</span>
+  <span class="pp-tag">flux</span>
+  <span class="pp-tag">sops</span>
+  <span class="pp-tag">navidrome</span>
+  <span class="pp-tag">homelab</span>
+  <span class="pp-tag">brasil</span>
+</div>
+
+I wanted people who visit my demo page to get a real sample. Not a screenshot, not a description. Something they could open and actually hear.
+
+So I put Música on the internet. It's Navidrome, running on my cluster at home, and now it has a real address. I turned off the Wi-Fi on my phone, typed it in, and the login page loaded. That felt really nice.
+
+One tile down. I can't wait to get to the others, and I can't wait until my own portal is live too.
+
+## A few decisions first
+
+I already had a Cloudflare Tunnel on this cluster, for my other homelab. The easy move was to add Música to it. I didn't want that. Brasil and KubeCraft are two separate labs, and I don't want one depending on the other. So Música got its own tunnel.
+
+I named the tunnel `brasil`, not `musica`. Other tiles will go public later, and they can share it.
+
+The address is musica.projectpattie.com, with no accent on the u. Hostnames can't carry one. The browser turns it into something that starts with `xn--`, and nobody wants that in their address bar.
+
+And I didn't set up any certificates. The tunnel connects out from my cluster to Cloudflare, and Cloudflare handles the https part.
+
+## Checking the router
+
+A tunnel means nothing has to come in through my router. But that only helps if nothing else is open. So before I made anything public, I went looking for open doors.
+
+First I had to find the router. `ip route` shows it, on the line that starts with `default via`.
+
+Then I logged into its admin page and checked three things:
+
+- Port forwards: none.
+- DMZ: off.
+- UPnP: off. That's the one that lets devices open ports on their own.
+
+Nothing to fix. Boring is good here.
+
+## Making the tunnel
+
+Three commands.
+
+```
+cloudflared tunnel login
+cloudflared tunnel create brasil
+cloudflared tunnel route dns brasil musica.projectpattie.com
+```
+
+The first one opens a browser so I can say yes, this is my domain. It leaves a `cert.pem` in `~/.cloudflared/`.
+
+The second one makes the tunnel and drops a credentials file next to the cert. That JSON file is the tunnel's password. It matters a lot in the next step.
+
+The third one puts the address in the phone book. It adds a CNAME record that says musica.projectpattie.com is really this tunnel.
+
+At this point the address existed and went nowhere. `cloudflared tunnel list` showed `brasil` with zero connections. An empty pipe.
+
+## The secret
+
+That credentials file has to get into the cluster. Flux runs my cluster from Git, so the file has to live in Git. And my repo is public. So it gets encrypted first, with SOPS and an age key.
+
+Small problem: my own roadmap said SOPS was "not started" for Brasil. I was pretty sure I had set it up. Instead of arguing with a spreadsheet, I asked the cluster:
+
+```
+kubectl get secret sops-age -n flux-system
+```
+
+It was there. Flux already had the key from my other lab. So I reused it. I copied `.sops.yaml` into homelab-brasil and added a decryption block to the Flux Kustomization, so it knows to unlock what I push. Then I checked the live object, not just the file:
+
+```
+kubectl get kustomization brasil-apps -n flux-system -o yaml | grep -A4 decryption
+```
+
+Now the secret itself. Two commands, in this order:
+
+```
+kubectl create secret generic tunnel-credentials \
+  -n cloudflared-brasil \
+  --from-file=credentials.json=$HOME/.cloudflared/<TUNNEL-ID>.json \
+  --dry-run=client -o yaml > apps/base/cloudflared/secret.yaml
+
+sops --encrypt --in-place apps/base/cloudflared/secret.yaml
+```
+
+`--dry-run=client -o yaml` means don't touch the cluster, just write the YAML to a file. For a moment, that file holds the password in plain text. The second command scrambles it in place. I ran `cat` on it and saw `ENC[` where the password used to be.
+
+Make it, lock it, look at it. Only then `git add`.
+
+## The manifests
+
+cloudflared needs four files in the cluster: a namespace, the secret, a config, and a deployment. I already had all four for KubeCraft, so I copied the pattern and changed only what was mine.
+
+- The namespace is `cloudflared-brasil`. KubeCraft already uses `cloudflared` on this same cluster.
+- The config sends musica.projectpattie.com to the Navidrome service inside the cluster, with a 404 for anything else.
+- The deployment runs two copies, so one pod can die and the tunnel stays up.
+
+Two mistakes here, both before anything was pushed.
+
+First, I wrote `tunnel: homelab-brasil` in the config. The tunnel is named `brasil`. That line has to match exactly, or cloudflared can't find its tunnel.
+
+The second one was worse. Flux only applies what's listed, so I had to add my new folder to `apps/staging/kustomization.yaml`. I typed my line over the one that was already there. The file went from this:
+
+```
+resources:
+  - ../base/fsi-scraper
+```
+
+to this:
+
+```
+resources:
+  - ../base/cloudflared
+```
+
+That Kustomization has `prune: true`. If a folder leaves the list, Flux deletes everything in it from the cluster. I was one save and one push away from deleting my scraper to add my tunnel. I hadn't saved yet. Both lines went in.
+
+Now I run this before every push:
+
+```
+kubectl kustomize apps/staging
+```
+
+It builds everything Flux would apply and prints it, without touching the cluster. Then I pushed, told Flux to go, and watched:
+
+```
+flux reconcile kustomization brasil-apps --with-source
+kubectl get pods -n cloudflared-brasil -w
+```
+
+Two pods, Running. `cloudflared tunnel list` showed connections where there had been zero.
+
+## It loads
+
+I turned off the Wi-Fi on my phone, so I was coming from outside my house, and opened musica.projectpattie.com. The Navidrome login page loaded. From my cluster, through my tunnel, with https, and not one open port on my router.
+
+I took a ten minute break. Then I went and put a second lock on it, because right then the only thing between the internet and my music server was Navidrome's own login.
+
+The second lock is Cloudflare Access. It's all clicking in the Zero Trust dashboard, no files, and the free plan covers it. I made a self-hosted application for musica.projectpattie.com and gave it one policy, "craven only," that lets in my email and nobody else.
+
+That was safe, and useless as a demo. So I added two things:
+
+- One-time PIN as a login method. Cloudflare emails you a code, and you don't need an account.
+- A second policy, "demo visitors," that allows anyone who gets through with a code.
+
+And in Navidrome I made a `demo` user. It's a regular user, not an admin. It can play music and it can't change settings.
+
+So a visitor hits two locks: Cloudflare first, with an email code, then Navidrome, with the demo login. To be honest about the first one, it doesn't keep strangers out anymore. It means every visitor has to show a real email before they ever reach my cluster.
+
+## The tile
+
+The last piece was on my website. The Música tile on my demo page opened a write-up about Música. I wanted it to open Música.
+
+Three small edits:
+
+1. `src/content/config.ts`: tiles can now have an optional `href`.
+2. `src/content/demo/05-musica.md`: Música got one, pointing at musica.projectpattie.com.
+3. `src/pages/brasil/demo.astro`: a tile uses its `href` if it has one, and its write-up page if it doesn't.
+
+The third one is a single line:
+
+```
+t.data.href ?? `/brasil/${slugOf(t)}`
+```
+
+The `??` means "use the first thing, unless it's missing." So only Música changed. I checked that in the local preview: Música went to the Cloudflare login, and every other tile still went to its write-up.
+
+I pushed it, picked up my phone, tapped the tile, and got the write-up page.
+
+I went to GitHub and opened the Actions tab to see if the build had failed. There was no build there, just GitHub suggesting workflows for Webpack and Anaconda. My site doesn't deploy from GitHub Actions. It deploys from Cloudflare Pages, which I knew, and forgot.
+
+The build finished a couple of minutes later. In a private tab, with no saved copy of the old page, the tile opened Música.
+
+## What's left
+
+Música is public. It isn't finished.
+
+- The library. Only part of my music is copied over, and I still have to decide what belongs on a demo that anyone can open.
+- The demo login is done. It's on the Música tile and in Try it now, and the demo user can't change its password anymore.
+- Phone apps. They can't get past the Cloudflare login, so for now it's browser only.
+
+Then the next tile.
