@@ -1,0 +1,151 @@
+---
+title: "My demo page was beautiful. It just wasn't true anymore."
+description: "I liked my old demo page. The problem was, it wasn't true anymore. It took five mockups, one patch I never applied, and my first pull request on my own site. It also broke five times along the way."
+tags: ["astro", "cloudflare-pages", "neovim", "git", "homelab", "brasil"]
+date: 2026-11-24
+category: devops
+homelab: brasil
+readTime: 6
+draft: false
+---
+
+<div class="pp-meta"><span>devops</span> · November 24, 2026 · 6 min read</div>
+
+<h1 class="pp-title">My demo page was beautiful.<br/><em>It just wasn't true anymore.</em></h1>
+
+<p class="pp-subtitle">I liked my old demo page. The problem was, it wasn't true anymore. It took five mockups, one patch I never applied, and my first pull request on my own site. It also broke five times along the way.</p>
+
+<div class="pp-tags">
+  <span class="pp-tag">astro</span>
+  <span class="pp-tag">cloudflare-pages</span>
+  <span class="pp-tag">neovim</span>
+  <span class="pp-tag">git</span>
+  <span class="pp-tag">homelab</span>
+  <span class="pp-tag">brasil</span>
+</div>
+
+I liked my old demo page. I thought it was beautiful. The problem was, it wasn't true anymore. It said two nodes, and I have three. It listed Sealed Secrets, and I use SOPS with age. I wanted the page to show the homelab I actually have.
+
+It took five mockups, one patch I never applied, and my first pull request on my own site. It also broke five times along the way. My favorite: the page said I had a 9 day study streak, showed the 9, and showed no bars. The bars were there the whole time. I just couldn't see them.
+
+## Mockups first
+
+I didn't want a new page. I wanted the same page with a little more on it.
+
+So the first mockup was my live page with new sections added at the bottom: Try it, Stack by layer, Things that broke, How it deploys, a roadmap, and a banner that says I'm open to DevOps and SRE roles.
+
+Then I moved things around. Try it went up under the tiles. How it deploys went next to the nodes. The study streak went down near the bottom. By the fifth version the facts were fixed too, and no two tiles sitting next to each other were the same color. I kept every version so I could compare them.
+
+## The patch I never applied
+
+By November 3 I had a fifth mockup I liked. The changes were sitting in a patch file, and I never applied it. For two weeks.
+
+While it sat there, I got Música live and edited the demo page so the Música tile opens the real app. Same file. So the patch was now for a page that didn't exist anymore.
+
+I could have tried to force it. I didn't. I opened the live page in Neovim and rebuilt version five by hand, one piece at a time. Slower, yes. But it's my page, and I should know how it works.
+
+## What changed on the page
+
+The facts came first. Three nodes everywhere, even in the hidden text that shows up when you share the link. Every repo link goes to homelab-brasil now. Sealed Secrets came off the stack. I use SOPS with age, and now the page says so. Coach and the live portal moved to "Next," because they aren't built yet and the page shouldn't act like they are.
+
+The study streak moved to the bottom with a label that says "sample data." Those numbers are made up for now, so the page says so.
+
+Then the new parts: Try it, How it deploys, Stack by layer, Things that broke, and a roadmap. The roadmap reads from a data file with 199 items in it. 14 are done. That's the real number, so that's the one on the page.
+
+## What broke
+
+### 1. The streak with no bars
+
+The page said 9 days. It showed the 9 and nothing else.
+
+I checked the box where the bars go. It was there. I checked the script that fills it. Also there. I opened the browser console expecting red. Nothing.
+
+So the bars were being made. I just couldn't see them. Astro only applies your styles to what you write in the page yourself. Bars that a script adds later don't get them, so mine had no height and no color.
+
+The fix was wrapping the style in `:global()` so it reaches them too:
+
+```css
+:global(.bar){ ... }
+:global(.bar.off){ ... }
+```
+
+Reload. Bars.
+
+### 2. The delete that almost took everything
+
+I needed to remove one line from the stack list: "This portal." In Neovim, `:g/pattern/d` deletes every line that matches a pattern.
+
+I had typed `:g/<li>` and stopped. I had just added a line called "Live portal," and I wasn't sure which one I was about to delete.
+
+Good thing I stopped. Finished as `:g/<li>/d`, that command deletes every list item in the file, including the ones I had just added. I hit Esc and typed the whole thing, with the words in it:
+
+```
+:g/<li>This portal<span>/d
+```
+
+That matches exactly one line. "Live portal" stayed. And if it had gone wrong, `u` undoes it, as long as you press it before you save.
+
+### 3. The button I added twice
+
+I wanted a button under the Música preview that opens the real Navidrome. I added it with one `sed` command that inserts a line after line 533.
+
+`sed -i` says nothing when it works. No "done," no "ok." I saw nothing, so I wasn't sure it ran, and I ran it again. Then I reloaded the page and there were two buttons.
+
+Now I check before I run anything a second time:
+
+```
+grep -n realbtn src/pages/brasil/demo.astro
+```
+
+One match means it's in. Two means there's a line to delete. I deleted the extra, and the page has one button: "Open the real Música (Navidrome)."
+
+### 4. The push that went nowhere
+
+I committed on my new branch and ran `git push`. Git said no:
+
+```
+fatal: The current branch brasil-demo-update has no upstream branch.
+```
+
+In plain words: the branch only existed on my computer. GitHub had never heard of it, so git didn't know where to send it. The first push of a new branch has to say where:
+
+```
+git push -u origin brasil-demo-update
+```
+
+`origin` is GitHub, and `-u` links the two, so plain `git push` works after that.
+
+Then I ran `git push` again and got "Everything up-to-date," which made me wonder if anything had been pushed at all. `git log --oneline -1` showed my commit sitting right there. It had.
+
+### 5. The merge that changed nothing
+
+I merged the pull request, opened the live page, and saw the old one. No roadmap. No new sections. The same mistakes I had just spent two days fixing. My first thought was that nothing got pushed.
+
+It had. My site deploys through Cloudflare Pages, and Pages has to build the site after a merge. That takes a few minutes. I waited, did a hard refresh so the browser would stop showing me its saved copy, and there it was.
+
+This is the second time this has gotten me. The first was two weeks earlier, with the Música tile. So, note to self: after a merge, wait, then hard refresh, then panic. In that order.
+
+## Shipping it
+
+Before I committed, I ran the page next to the mockup with `npm run dev` and went down both of them, section by section. When they matched, I committed:
+
+```
+git add src/pages/brasil/demo.astro src/content/demo/ src/data/roadmap.json
+git commit -m "feat(brasil-demo): update demo page to v5 mockup"
+```
+
+Seven files, about 1,500 new lines. Most of that is the roadmap data.
+
+Then I opened a pull request from `brasil-demo-update` into `main`. It's pull request number 1 on that repo. Until now I pushed everything straight to `main`.
+
+I had one second of doubt where I thought this page should live in its own repo. Then I remembered it's part of the website, so it lives with the website. I merged it on November 21.
+
+## What's still not right
+
+The page is closer to true. It's not done.
+
+- Too much orange. I want more of the other Brasil colors on it.
+- The node cards. The text says three nodes now, but there are still only two cards, and the numbers on them are sample numbers with no label saying so.
+- The roadmap wording. Each phase ends with a line about what "finished" looks like, and some of those need another pass. The newest phase doesn't have one yet.
+
+That's okay. The page is supposed to change every time the homelab does. That was the whole point of redoing it.
