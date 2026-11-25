@@ -2,7 +2,7 @@
 num: "05"
 title: "Música"
 sub: "Navidrome"
-blurb: "Samba, MPB, choro"
+blurb: "Email code, then demo / 1234"
 section: "midia"
 status: "running"
 color: "c5"
